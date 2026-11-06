@@ -36,7 +36,8 @@ export function HomePage() {
           <li>1. Brot aus der Kiste holen und in den Toaster legen.</li>
           <li>2. Gemüse holen, auf dem Brett schneiden (Arbeit halten).</li>
           <li>3. Am Spieß Fleisch schaben – aber bevor eine Seite verbrennt.</li>
-          <li>4. Soße drauf, an der Ausgabe abgeben.</li>
+          <li>4. Soße drauf, auf einen sauberen Teller, an der Ausgabe abgeben.</li>
+          <li>5. Teller spülen, Feuer löschen, Leertaste zum Sprinten.</li>
         </ol>
         <div className="mt-8 flex justify-center gap-10">
           <Stepper label="Köche am Keyboard" value={humans} min={1} max={2} onChange={(n) => { setHumans(n); setBots(Math.min(bots, MAX_COOKS - n)); }} />
