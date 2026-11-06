@@ -1,0 +1,268 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    ".features-gen/**",
+    "src/routeTree.gen.ts",
+    ".claude/**",
+    "tools/oxlint/anti-slop/**",
+    "tools/oxlint/factory-architecture/**",
+    "tools/oxlint/factory-standards/**"
+  ],
+  "jsPlugins": [
+    {
+      "name": "anti-slop",
+      "specifier": "./tools/oxlint/anti-slop/index.ts"
+    },
+    {
+      "name": "anti-slop-effect",
+      "specifier": "./tools/oxlint/anti-slop/effect/index.ts"
+    },
+    {
+      "name": "factory-architecture",
+      "specifier": "./tools/oxlint/factory-architecture/index.ts"
+    },
+    {
+      "name": "factory-standards",
+      "specifier": "./tools/oxlint/factory-standards/index.ts"
+    }
+  ],
+  "rules": {
+    "oxc/no-accumulating-spread": "error",
+    "anti-slop/no-array-filter-map": "error",
+    "anti-slop/no-reduce-accumulator-copy": "error",
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-readable-spacing": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
+    "anti-slop-effect/no-manual-effect-error-tag": "error",
+    "anti-slop-effect/no-manual-tag-comparison": "error",
+    "anti-slop-effect/no-manual-tagged-construction": "error",
+    "anti-slop-effect/no-service-constructor-imports": "error",
+    "anti-slop-effect/prefer-effect-match": "error",
+    "factory-architecture/boundaries": "error",
+    "factory-architecture/context-leaf": "error",
+    "factory-architecture/public-api": "error",
+    "factory-architecture/simulation-purity": "error",
+    "factory-standards/no-effect-leaf-imports": "error",
+    "factory-standards/no-optional-values": "error",
+    "factory-standards/no-tagged-error-instanceof": "error",
+    "factory-standards/no-unjustified-non-null-assertion": "error",
+    "factory-standards/require-export-jsdoc": "error",
+    "typescript/no-explicit-any": "error"
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "localStorage",
+            "message": "Preferences go through src/shared/storage.ts."
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/shared/storage.ts",
+        "src/**/*.test.ts",
+        "src/**/testing/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-globals": "off"
+      }
+    },
+    {
+      "files": [
+        "src/game/runtime/{world,step}.ts",
+        "src/game/runtime/wiring/**/*.ts",
+        "src/features/*/public.ts",
+        "src/features/*/public/**/*.ts",
+        "src/features/*/model.ts",
+        "src/features/*/model/**/*.ts",
+        "src/features/*/prototypes.ts",
+        "src/features/*/prototypes/**/*.ts",
+        "src/features/*/simulation.ts",
+        "src/features/*/simulation/**/*.ts",
+        "src/features/*/selectors.ts",
+        "src/features/*/selectors/**/*.ts",
+        "src/features/*/snapshot.ts",
+        "src/features/*/snapshot/**/*.ts",
+        "src/features/*/commands.ts",
+        "src/features/*/commands/**/*.ts",
+        "src/game/core/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "Math",
+            "property": "random",
+            "message": "The sim must be deterministic: derive randomness from the world seed."
+          },
+          {
+            "object": "Date",
+            "property": "now",
+            "message": "The sim runs on ticks, not wall-clock time."
+          },
+          {
+            "object": "performance",
+            "property": "now",
+            "message": "The sim runs on ticks, not wall-clock time."
+          }
+        ],
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "window",
+            "message": "The sim has no DOM, so it runs in Node tests."
+          },
+          {
+            "name": "document",
+            "message": "The sim has no DOM, so it runs in Node tests."
+          },
+          {
+            "name": "localStorage",
+            "message": "Persistence lives in src/game/persistence/."
+          },
+          {
+            "name": "requestAnimationFrame",
+            "message": "The frame loop lives in src/game/runtime/useGameCanvas.ts."
+          },
+          {
+            "name": "Date",
+            "message": "The sim runs on ticks, not wall-clock time."
+          }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "effect",
+                  "effect/*",
+                  "react",
+                  "react-dom",
+                  "@effect/*"
+                ],
+                "message": "The sim is plain TypeScript: no Effect, no React."
+              },
+              {
+                "group": [
+                  "**/runtime/canvas/**",
+                  "**/runtime/input/**",
+                  "**/runtime/atoms*",
+                  "**/runtime/useGameCanvas*",
+                  "#/app/**",
+                  "#/shared/**"
+                ],
+                "message": "The sim must not depend on rendering, input, UI or shared browser utilities."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/game/runtime/canvas/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "Math",
+            "property": "random",
+            "message": "Render effects draw from fxRandom() in canvas/fx-random.ts, so a still frame repeats (pnpm snap)."
+          },
+          {
+            "object": "performance",
+            "property": "now",
+            "message": "The renderer reads its clocks from FrameInfo, so a still frame repeats (pnpm snap)."
+          },
+          {
+            "object": "Date",
+            "property": "now",
+            "message": "The renderer reads its clocks from FrameInfo, so a still frame repeats (pnpm snap)."
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/app/**/*.tsx",
+        "src/app/**/*.ts",
+        "src/routes/**/*.tsx",
+        "src/features/*/ui/**/*.tsx",
+        "src/features/*/ui/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "#/game/runtime/step.ts",
+                "allowTypeImports": true,
+                "message": "The UI reads atoms; only the frame loop steps the sim."
+              },
+              {
+                "name": "#/game/runtime/world.ts",
+                "allowTypeImports": true,
+                "message": "The UI never mutates the world: send a command with useCommand()."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/**/*.test.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": "off",
+        "no-restricted-globals": "off",
+        "no-restricted-properties": "off"
+      }
+    },
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "src/**/testing/**",
+        "e2e/**",
+        "**/*.stories.tsx"
+      ],
+      "rules": {
+        "factory-standards/no-unjustified-non-null-assertion": "off"
+      }
+    },
+    {
+      "files": [
+        "src/game/runtime/devtools.ts",
+        "src/game/runtime/contexts.ts"
+      ],
+      "rules": {
+        "factory-standards/no-optional-values": "off"
+      }
+    }
+  ]
+}

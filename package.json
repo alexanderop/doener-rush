@@ -1,0 +1,62 @@
+{
+  "name": "doener-rush",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite dev",
+    "generate-routes": "tsr generate",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --deny-warnings",
+    "knip": "knip",
+    "test": "vitest run --project game --project architecture",
+    "test:watch": "vitest",
+    "e2e": "bddgen && playwright test",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm knip",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "build-storybook": "storybook build",
+    "test:stories": "vitest run -c vitest.storybook.config.ts",
+    "verify": "node scripts/verify.ts"
+  },
+  "dependencies": {
+    "@effect/atom-react": "4.0.2",
+    "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/react-router": "1.170.44",
+    "@tanstack/react-start": "1.169.1",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.4.0",
+    "effect": "4.0.2",
+    "radix-ui": "^1.7.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.18",
+    "three": "0.187.0",
+    "tw-animate-css": "^1.3.6"
+  },
+  "devDependencies": {
+    "@oxlint/plugins": "1.87.0",
+    "@playwright/test": "1.64.0",
+    "@storybook/addon-a11y": "10.6.1",
+    "@storybook/addon-vitest": "10.6.1",
+    "@storybook/react-vite": "10.6.1",
+    "@tanstack/router-cli": "^1.167.43",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "0.187.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/browser": "5.0.3",
+    "@vitest/browser-playwright": "5.0.3",
+    "knip": "6.41.0",
+    "oxlint": "1.87.0",
+    "playwright-bdd": "9.2.1",
+    "storybook": "10.6.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.0",
+    "vitest": "5.0.3"
+  }
+}

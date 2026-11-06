@@ -1,0 +1,31 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+.env
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
+todos.json
+verify/
+
+# test output
+.features-gen
+test-results
+playwright-report
+blob-report
+perf/results.json
+
+# local Claude Code state
+.claude/scheduled_tasks.lock
+
+# Downloaded upstream research material (rebuild with scripts/sync-factorio-wiki.py)
+.references/
+.vercel
+
+# Pinned TLC (tla2tools.jar), downloaded by scripts/tla.ts
+.cache/

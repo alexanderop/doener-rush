@@ -1,0 +1,82 @@
+import { seconds } from "../../game/core/grid.ts";
+import type { Base, CrateGoods, Filling } from "./model.ts";
+
+/** Ticks of work on a board to chop a vegetable. */
+export const CHOP_TICKS = seconds(2);
+
+/** Ticks in the toaster until bread is toasted. */
+export const TOAST_DONE = seconds(4);
+
+/** Ticks in the toaster until bread is burnt. */
+export const TOAST_BURNT = seconds(14);
+
+/** Ticks of work at the spit to shave one portion. */
+export const SHAVE_TICKS = seconds(1);
+
+/** Turns of the spit per tick: one side passes the heat every 1.5 s. */
+export const SPIT_TURN = 1 / seconds(1.5);
+
+/** Cook level a side gains per tick while it faces the heat. */
+export const SPIT_HEAT = 1 / seconds(4.5);
+
+/** Cook level from which a side can be shaved. */
+export const COOKED = 1;
+
+/** Cook level from which a side is burnt. */
+export const BURNT = 1.6;
+
+/** Cook level a side keeps after a shave: the raw layer underneath. */
+export const AFTER_SHAVE = 0.2;
+
+/** Cook level at which a burnt side catches fire (about 12 s after it burns). */
+export const SPIT_IGNITE = 2.3;
+
+/** Ticks in the toaster at which forgotten bread catches fire. */
+export const TOAST_IGNITE = TOAST_BURNT + seconds(6);
+
+/** Ticks a fire burns before it jumps to each neighbouring station, and again every as many ticks. */
+export const FIRE_SPREAD = seconds(6);
+
+/** Ticks of spraying that put a fire out. */
+export const DOUSE_TICKS = seconds(1.2);
+
+/** Portions of one chopped vegetable a prep tray holds. */
+export const TRAY_PORTIONS = 3;
+
+/** Ticks of work at the sink to wash one plate. */
+export const WASH_TICKS = seconds(2.5);
+
+/** Clean plates on the rack when a shift starts. */
+export const START_PLATES = 3;
+
+/** True when a crate's goods are a bread base rather than a vegetable. */
+export function isBase(goods: CrateGoods): goods is Base {
+  return goods === "bread" || goods === "wrap";
+}
+
+/** Display names for HUD and tickets. */
+export const LABEL: Readonly<Record<Filling | Base, string>> = {
+  meat: "Fleisch",
+  lettuce: "Salat",
+  tomato: "Tomate",
+  onion: "Zwiebel",
+  garlic: "Knoblauch",
+  herb: "Kräuter",
+  spicy: "Scharf",
+  bread: "Brot",
+  wrap: "Dürüm",
+};
+
+/** The emoji that stands for each ingredient, bread and the finished döner, on the canvas and the tickets. */
+export const ICONS: Readonly<Record<Filling | Base | "doener", string>> = {
+  meat: "🥩",
+  lettuce: "🥬",
+  tomato: "🍅",
+  onion: "🧅",
+  garlic: "🧄",
+  herb: "🌿",
+  spicy: "🌶️",
+  bread: "🫓",
+  wrap: "🌯",
+  doener: "🥙",
+};
