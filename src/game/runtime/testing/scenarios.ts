@@ -1,7 +1,8 @@
 import { CHOP_TICKS, TOAST_DONE } from "../../../features/kitchen/public.ts";
 import { ROUND_TICKS, RECIPES, addOrder } from "../../../features/orders/public.ts";
 import type { Recipe } from "../../../features/orders/public.ts";
-import type { Lineup, World } from "../world.ts";
+import type { Lineup } from "../lineup.ts";
+import type { World } from "../world.ts";
 import { newWorld } from "../world.ts";
 
 /** A named starting state for tests, e2e features and `?scenario=` in the browser. */

@@ -208,6 +208,37 @@ export function warningSprite(): THREE.Sprite {
   });
 }
 
+/** The "BOT" name tag that floats over a cook a bot drives, in the cook's colour. */
+export function botTag(color: string): THREE.Sprite {
+  const key = `bot-tag|${color}`;
+
+  const texture = canvasTexture(key, 160, 72, (g) => {
+    g.fillStyle = "rgba(40,20,10,0.35)";
+    g.beginPath();
+    g.roundRect(6, 10, 148, 56, 28);
+    g.fill();
+    g.fillStyle = color;
+    g.strokeStyle = "#ffffff";
+    g.lineWidth = 6;
+    g.beginPath();
+    g.roundRect(6, 6, 148, 54, 27);
+    g.fill();
+    g.stroke();
+    g.fillStyle = "#ffffff";
+    g.font = "900 38px Rubik, sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText("BOT", 80, 35);
+  });
+
+  const s = new THREE.Sprite(spriteMaterial(key, texture));
+  s.renderOrder = 19;
+  s.scale.set(0.64, 0.29, 1);
+  s.center.set(0.5, 0);
+
+  return s;
+}
+
 /** A pill progress bar billboard. */
 export interface Bar {
   readonly group: THREE.Group;

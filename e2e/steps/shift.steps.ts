@@ -71,3 +71,12 @@ When("player {int} holds {string} for {int} ms while pressing {string}", async (
 Then("the spit is not burning", async ({ page }) => {
   await expect.poll(() => page.evaluate(() => [...(window.__game?.world().stations.values() ?? [])].find((s) => s.type === "spit")?.fire)).toBe(0);
 });
+
+Given("a shift with {int} players and {int} bots", async ({ page }, humans: number, bots: number) => {
+  await page.goto(`/play?humans=${humans}&bots=${bots}`);
+  await page.waitForFunction(() => window.__game !== undefined);
+});
+
+Then("the controls show {int} bots", async ({ page }, bots: number) => {
+  await expect(page.getByText("Bot · kocht von allein")).toHaveCount(bots);
+});

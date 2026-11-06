@@ -11,13 +11,22 @@ const SeedParam = Schema.Union([
 
 const decodeSeed = Schema.decodeUnknownOption(SeedParam);
 
+/** A whole count in the query, as a number or its text, within `minimum`..`maximum`. */
+const countParam = (minimum: number, maximum: number) => SeedParam.check(Schema.isBetween({ minimum, maximum }));
+
+const decodeHumans = Schema.decodeUnknownOption(countParam(0, 2));
+
+const decodeBots = Schema.decodeUnknownOption(countParam(0, 4));
+
 const decodeText = Schema.decodeUnknownOption(Schema.String);
 
 /**
-Reads the `/play` query (`?seed=<n>`, `?scenario=<name>`) into typed options; an invalid field is dropped on its own.
+Reads the `/play` query (`?seed=<n>`, `?scenario=<name>`, `?humans=<0–2>&bots=<0–4>`) into typed options; an invalid field is dropped on its own.
 TanStack merges this result over the raw query, so a dropped field is set to `undefined` to overwrite the raw text.
 */
 export const validatePlaySearch = (search: RawPlaySearch): PlaySearch => ({
   seed: Option.getOrUndefined(decodeSeed(search.seed)),
   scenario: Option.getOrUndefined(Option.filter(decodeText(search.scenario), isScenario)),
+  humans: Option.getOrUndefined(decodeHumans(search.humans)),
+  bots: Option.getOrUndefined(decodeBots(search.bots)),
 });

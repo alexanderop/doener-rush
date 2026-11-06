@@ -26,3 +26,9 @@ Feature: A shift in the döner shop
     Given the scenario "kitchen-fire"
     When player 1 holds "q" for 1600 ms
     Then the spit is not burning
+
+  Scenario: Two bots run the shop on their own
+    Given a shift with 0 players and 2 bots
+    Then the controls show 2 bots
+    When 40 seconds pass
+    Then the score is more than 0

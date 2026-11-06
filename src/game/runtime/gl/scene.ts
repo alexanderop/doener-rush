@@ -12,7 +12,7 @@ import type { World } from "../world.ts";
 import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
 import { TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
-import { bubbleSprite, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
+import { botTag, bubbleSprite, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
 import type { Bar } from "./overlays.ts";
 import { bakeStatic, contactShadow, geo } from "./parts.ts";
 import { animateStreet, street } from "./street.ts";
@@ -247,6 +247,12 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
     const focusBin = slabGlow("#ffd23f", true);
     const bubble = bubbleSprite();
     scene.add(group, focus, focusBin, bubble);
+
+    if (world.drivers[i]?.kind === "bot") {
+      const tag = botTag(color);
+      tag.position.y = 1.62;
+      group.add(tag);
+    }
 
     return {
       group, focus, focusBin, bubble,

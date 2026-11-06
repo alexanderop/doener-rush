@@ -18,6 +18,8 @@ pnpm storybook    # components in isolation; pnpm test:stories runs them as brow
 | Cook 1 | WASD | Space | E | Q |
 | Cook 2 | Arrows | Right Shift | / | . |
 
+Empty cook slots are bots. Pick one or two players on the keyboard and up to four cooks on the home page, or open `/play?humans=1&bots=2` (`humans` 0–2, `bots` fill the rest up to four). A bot cook wears a "BOT" tag.
+
 ## How a döner gets made
 
 1. Bread from the crate onto the contact grill (4 s; burns at 14 s, catches fire at 20 s).
@@ -36,7 +38,8 @@ pnpm storybook    # components in isolation; pnpm test:stories runs them as brow
 | `src/features/orders/` | The menu, the customer queue with patience, serving with points and tips, the ticket rail UI |
 | `src/features/cooks/` | Walking and dashing with collision against stations and each other, the tile in front |
 | `src/features/bots/` | AI cooks for empty slots. `decide` is a priority table (fire, spit, döner, plates, veg, washing up) asked every tick from a read-only `Sight`; `think` walks the bot there (breadth-first path, dash, stepping aside) and turns the plan into an `Intent` |
-| `src/game/runtime/world.ts` | The shop floor plan (ASCII), the `Lineup` (one `Driver` per cook: a keyboard binding or a bot) and the `World` |
+| `src/game/runtime/lineup.ts` | The `Lineup`: one `Driver` per cook, a keyboard binding or a bot |
+| `src/game/runtime/world.ts` | The shop floor plan (ASCII) and the `World` |
 | `src/game/runtime/step.ts` | One tick in fixed order: cooks, stations, orders. HUD snapshot |
 | `src/game/runtime/useGameCanvas.ts` | Keyboard, fixed 60 Hz loop, 3D render, snapshot to `snapshotAtom`, dev `window.__game` |
 | `src/game/runtime/gl/` | The 3D view (three.js): low-poly models built from primitives in `models.ts`, camera, lights, storefront and sync from the world in `scene.ts` |

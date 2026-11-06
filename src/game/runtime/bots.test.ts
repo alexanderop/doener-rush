@@ -7,7 +7,7 @@ import { find, hold, press, walkTo, wait } from "./testing/drive.ts";
 import { SCENARIOS } from "./testing/scenarios.ts";
 import { run, snapshot } from "./step.ts";
 import type { World } from "./world.ts";
-import { lineupOf } from "./world.ts";
+import { lineupOf } from "./lineup.ts";
 
 function recipe(id: string): Recipe {
   const found = RECIPES.find((r) => r.id === id);

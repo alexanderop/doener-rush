@@ -7,7 +7,7 @@ import { SCENARIOS } from "./testing/scenarios.ts";
 import { isOver, run, snapshot, step } from "./step.ts";
 import { IDLE } from "../../features/cooks/public.ts";
 import type { World } from "./world.ts";
-import { TWO_PLAYERS, lineupOf } from "./world.ts";
+import { TWO_PLAYERS, lineupOf } from "./lineup.ts";
 
 /** Cook 1 builds a Döner Pur (toasted bread, meat, garlic) from scratch, plates it and hands it over. */
 function makeDoenerPur(world: World): void {
