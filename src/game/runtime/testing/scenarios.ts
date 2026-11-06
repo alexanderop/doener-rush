@@ -1,13 +1,13 @@
 import { CHOP_TICKS, TOAST_DONE } from "../../../features/kitchen/public.ts";
 import { ROUND_TICKS, RECIPES, addOrder } from "../../../features/orders/public.ts";
 import type { Recipe } from "../../../features/orders/public.ts";
-import type { World } from "../world.ts";
+import type { Lineup, World } from "../world.ts";
 import { newWorld } from "../world.ts";
 
 /** A named starting state for tests, e2e features and `?scenario=` in the browser. */
 export interface Scenario {
   readonly description: string;
-  readonly build: (seed: number) => World;
+  readonly build: (seed: number, lineup?: Lineup) => World;
 }
 
 function recipe(id: string): Recipe {
@@ -22,12 +22,12 @@ function recipe(id: string): Recipe {
 export const SCENARIOS = {
   shift: {
     description: "A normal three-minute shift: customers arrive on the seed's schedule.",
-    build: (seed) => newWorld(seed, ROUND_TICKS),
+    build: (seed, lineup?) => newWorld(seed, ROUND_TICKS, lineup),
   },
   "ready-classic": {
     description: "Cook 1 stands at the pass holding a finished Döner Classic on a plate, and a customer wants one.",
-    build: (seed) => {
-      const world = newWorld(seed, ROUND_TICKS);
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup);
       world.orders.untilNext = Number.MAX_SAFE_INTEGER;
       addOrder(world.orders, recipe("classic"));
       const cook = world.cooks[0];
@@ -44,8 +44,8 @@ export const SCENARIOS = {
   },
   "burning-spit": {
     description: "The spit has been left alone: two sides are about to burn.",
-    build: (seed) => {
-      const world = newWorld(seed, ROUND_TICKS);
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup);
 
       for (const station of world.stations.values()) {
         if (station.type === "spit") station.spit.sides.splice(0, 4, 1.55, 1.5, 1.1, 0.4);
@@ -56,8 +56,8 @@ export const SCENARIOS = {
   },
   "kitchen-fire": {
     description: "The spit is on fire and about to spread; cook 1 stands in front of it with the extinguisher.",
-    build: (seed) => {
-      const world = newWorld(seed, ROUND_TICKS);
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup);
 
       for (const station of world.stations.values()) {
         if (station.type === "spit") {
@@ -82,8 +82,8 @@ export const SCENARIOS = {
   },
   "dirty-dishes": {
     description: "Every plate is dirty: three wait at the return, the rack is empty, cook 2 stands at the sink.",
-    build: (seed) => {
-      const world = newWorld(seed, ROUND_TICKS);
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup);
 
       for (const station of world.stations.values()) {
         if (station.type === "rack") station.plates = 0;
@@ -104,8 +104,8 @@ export const SCENARIOS = {
   },
   "prep-line": {
     description: "Mid-shift prep: the trays are stocked, chopped onions wait on the counters, bread is on the grill.",
-    build: (seed) => {
-      const world = newWorld(seed, ROUND_TICKS);
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup);
       const vegs = ["lettuce", "tomato", "onion"] as const;
       let tray = 0;
 
@@ -128,8 +128,8 @@ export const SCENARIOS = {
   },
   "last-seconds": {
     description: "Ten seconds left in the shift, to see the end-of-round screen.",
-    build: (seed) => {
-      const world = newWorld(seed, ROUND_TICKS);
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup);
       world.tick = ROUND_TICKS - 600;
       world.orders.score = 175;
       world.orders.served = 6;

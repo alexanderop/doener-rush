@@ -11,16 +11,16 @@ import type { OrdersState } from "../../features/orders/public.ts";
  * `.` floor · `=` counter · `S` spit · `R` toaster · `K` cutting board · `P` pass · `X` bin ·
  * crates `B` bread, `W` wrap, `L` lettuce, `T` tomato, `O` onion ·
  * sauces `g` garlic, `h` herb, `s` spicy · `t` prep tray · `D` plate rack · `U` dirty-plate return ·
- * `N` sink · `F` counter with the fire extinguisher · `1`–`2` where the cooks start (floor).
+ * `N` sink · `F` counter with the fire extinguisher · `1`–`4` where the cooks start (floor).
  */
 const SHOP = [
   "==S=R=B=W=PP=",
-  "=...........U",
+  "=.....3.....U",
   "K...........g",
   "K...=ttt=...h",
   "=...=...=...s",
   "L...=====...F",
-  "T...........X",
+  "T.....4.....X",
   "O.1.......2.=",
   "===D=====N===",
 ] as const;
@@ -28,6 +28,32 @@ const SHOP = [
 const CRATES = new Map<string, CrateGoods>([["B", "bread"], ["W", "wrap"], ["L", "lettuce"], ["T", "tomato"], ["O", "onion"]]);
 
 const SAUCE_KEYS = new Map<string, Sauce>([["g", "garlic"], ["h", "herb"], ["s", "spicy"]]);
+
+/** Who moves a cook: a player on one of the two keyboard bindings, or a bot. */
+type Driver = { readonly kind: "keys"; readonly binding: 0 | 1 } | { readonly kind: "bot" };
+
+/** Who plays a round: one driver per cook, cook `i + 1` driven by `drivers[i]`. One to four cooks. */
+export interface Lineup {
+  readonly drivers: readonly Driver[];
+}
+
+/** Two players on the keyboard, no bots: the classic couch co-op round. */
+export const TWO_PLAYERS: Lineup = { drivers: [{ kind: "keys", binding: 0 }, { kind: "keys", binding: 1 }] };
+
+/** Most cooks a round can have: one per start tile. */
+const MAX_COOKS = 4;
+
+/**
+ * The lineup for `humans` keyboard players (0–2, cooks first, on bindings 0 and 1) and `bots`
+ * bots after them. Clamps to at most four cooks and at least one, so any request gives a round.
+ */
+export function lineupOf(humans: number, bots: number): Lineup {
+  const keys = Math.max(0, Math.min(2, Math.floor(humans)));
+  const auto = Math.max(keys === 0 ? 1 : 0, Math.min(MAX_COOKS - keys, Math.floor(bots)));
+  const players = Array.from({ length: keys }, (_, b): Driver => ({ kind: "keys", binding: b === 0 ? 0 : 1 }));
+
+  return { drivers: [...players, ...Array.from({ length: auto }, (): Driver => ({ kind: "bot" }))] };
+}
 
 /** The whole game state of one round. Plain data the tick mutates; no Effect, no DOM. */
 export interface World {
@@ -39,6 +65,8 @@ export interface World {
   /** Stations by `y * width + x`; floor tiles have none. */
   readonly stations: Map<number, Station>;
   readonly cooks: Cook[];
+  /** Who drives each cook, by index into `cooks`. */
+  readonly drivers: readonly Driver[];
   readonly orders: OrdersState;
   /** Ticks at which a served plate comes back dirty to the return station. */
   readonly platesDue: number[];
@@ -46,8 +74,8 @@ export interface World {
   readonly endTick: number;
 }
 
-/** Builds a fresh round from a floor plan. */
-export function newWorld(seed: number, endTick: number, plan: readonly string[] = SHOP): World {
+/** Builds a fresh round from a floor plan with one cook per driver of the lineup, on start tiles `1`, `2`, … */
+export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLAYERS, plan: readonly string[] = SHOP): World {
   const height = plan.length;
   const width = Math.max(...plan.map((row) => row.length));
   const stations = new Map<number, Station>();
@@ -58,12 +86,19 @@ export function newWorld(seed: number, endTick: number, plan: readonly string[] 
 
       if (station !== null) stations.set(y * width + x, station);
 
-      if (ch === "1" || ch === "2") starts[Number(ch) - 1] = { x, y };
+      if (ch >= "1" && ch <= "4") starts[Number(ch) - 1] = { x, y };
     });
   });
-  const cooks = starts.map((tile, i) => newCook(i + 1, tile));
 
-  return { seed, tick: 0, rng: seed, width, height, stations, cooks, orders: newOrders(), platesDue: [], endTick };
+  const cooks = lineup.drivers.map((_, i) => {
+    const start = starts[i];
+
+    if (start === undefined) throw new Error(`The floor plan has no start tile for cook ${i + 1}.`);
+
+    return newCook(i + 1, start);
+  });
+
+  return { seed, tick: 0, rng: seed, width, height, stations, cooks, drivers: lineup.drivers, orders: newOrders(), platesDue: [], endTick };
 }
 
 function stationFor(ch: string, x: number, y: number): Station | null {

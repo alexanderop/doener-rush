@@ -8,8 +8,15 @@ import { isSolid } from "../world.ts";
 /** Most ticks a scripted action may take before the test fails. */
 const LIMIT = 60 * 30;
 
+/** Intents by keyboard binding that give `intent` to the cook and idle everyone else; a bot cook cannot be scripted. */
 function intentsFor(world: World, cookId: number, intent: Intent): Intent[] {
-  return world.cooks.map((c) => (c.id === cookId ? intent : IDLE));
+  const driver = world.drivers[world.cooks.findIndex((c) => c.id === cookId)];
+
+  if (driver?.kind !== "keys") throw new Error(`Cook ${cookId} is not on the keyboard.`);
+  const intents = [IDLE, IDLE];
+  intents[driver.binding] = intent;
+
+  return intents;
 }
 
 /** The first station of a type (and, for crates and sauces, of that goods). */

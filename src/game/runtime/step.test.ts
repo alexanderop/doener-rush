@@ -5,7 +5,9 @@ import { ROUND_TICKS } from "../../features/orders/public.ts";
 import { find, hold, press, walkTo, wait } from "./testing/drive.ts";
 import { SCENARIOS } from "./testing/scenarios.ts";
 import { isOver, run, snapshot, step } from "./step.ts";
+import { IDLE } from "../../features/cooks/public.ts";
 import type { World } from "./world.ts";
+import { TWO_PLAYERS, lineupOf } from "./world.ts";
 
 /** Cook 1 builds a Döner Pur (toasted bread, meat, garlic) from scratch, plates it and hands it over. */
 function makeDoenerPur(world: World): void {
@@ -146,5 +148,37 @@ describe("given a kitchen fire", () => {
   it("starts the shift with an extinguisher on a counter", () => {
     const world = SCENARIOS.shift.build(1);
     expect([...world.stations.values()].some((s) => s.item?.kind === "extinguisher")).toBe(true);
+  });
+});
+
+describe("given a lineup", () => {
+  it("puts one cook per driver on its own floor tile, up to four", () => {
+    for (const [humans, bots] of [[1, 0], [2, 0], [1, 3], [2, 2], [0, 4]] as const) {
+      const world = SCENARIOS.shift.build(1, lineupOf(humans, bots));
+      const tiles = new Set(world.cooks.map((c) => `${Math.floor(c.x)},${Math.floor(c.y)}`));
+      expect(world.cooks).toHaveLength(humans + bots);
+      expect(tiles.size).toBe(humans + bots);
+      expect(world.cooks.every((c) => !world.stations.has(Math.floor(c.y) * world.width + Math.floor(c.x)))).toBe(true);
+    }
+  });
+
+  it("never asks for more than four cooks or none at all", () => {
+    expect(lineupOf(2, 3).drivers).toHaveLength(4);
+    expect(lineupOf(0, 0).drivers).toEqual([{ kind: "bot" }]);
+  });
+
+  it("lets a solo player's WASD binding drive cook 1", () => {
+    const world = SCENARIOS.shift.build(1, lineupOf(1, 0));
+    const startX = world.cooks[0]?.x ?? 0;
+    run(world, 30, [{ dx: 1, dy: 0, interact: false, work: false, dash: false }]);
+    expect(world.cooks[0]?.x).toBeGreaterThan(startX + 1);
+  });
+
+  it("gives the arrow keys to cook 2 when two players share the keyboard", () => {
+    const world = SCENARIOS.shift.build(1, TWO_PLAYERS);
+    const [one, two] = world.cooks;
+    const before = [one?.x, two?.x];
+    run(world, 30, [IDLE, { dx: -1, dy: 0, interact: false, work: false, dash: false }]);
+    expect([one?.x, (two?.x ?? 0) < (before[1] ?? 0) - 1]).toEqual([before[0], true]);
   });
 });

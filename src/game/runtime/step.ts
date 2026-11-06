@@ -17,7 +17,8 @@ export function isOver(world: World): boolean {
 }
 
 /**
- * Advances the world by one tick. `intents[i]` drives cook `i + 1`; missing intents idle.
+ * Advances the world by one tick. `intents[b]` drives the cook on keyboard binding `b`; missing
+ * intents idle, and so do bots until they can think.
  * The order is fixed (cooks by id, then stations, then orders), so a seed and the same
  * intents always give the same round.
  */
@@ -25,7 +26,8 @@ export function step(world: World, intents: readonly Intent[]): void {
   if (isOver(world)) return;
   const solid = (x: number, y: number) => isSolid(world, x, y);
   world.cooks.forEach((cook, i) => {
-    const intent = intents[i] ?? IDLE;
+    const driver = world.drivers[i];
+    const intent = driver?.kind === "keys" ? (intents[driver.binding] ?? IDLE) : IDLE;
     walk(cook, intent, solid, world.cooks);
     const front = facingTile(cook);
     const station = stationAt(world, front.x, front.y);
