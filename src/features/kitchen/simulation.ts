@@ -307,7 +307,8 @@ export function stepStation(station: Station): void {
   } else if (station.type === "toaster" && station.item?.kind === "base") {
     station.item.toast += 1;
 
-    if (station.item.toast >= TOAST_IGNITE) ignite(station);
+    // only the moment it crosses the line: a doused toaster stays out, with the charred bread still in it
+    if (station.item.toast === TOAST_IGNITE) ignite(station);
   }
 
   if (station.fire > 0) {

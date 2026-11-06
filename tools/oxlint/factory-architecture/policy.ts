@@ -3,6 +3,7 @@ export const featureDependencies: ReadonlyMap<string, readonly string[]> = new M
   ["kitchen", []],
   ["orders", ["kitchen"]],
   ["cooks", ["kitchen"]],
+  ["bots", ["kitchen", "cooks", "orders"]],
 ]);
 
 /** Pure modules use these names; browser code belongs in ui/, draw.ts or state.ts. */

@@ -1,6 +1,8 @@
 import type { Intent } from "../../../features/cooks/public.ts";
 import { IDLE } from "../../../features/cooks/public.ts";
+import { findPath, isNextTo } from "../../../features/bots/public.ts";
 import type { Station } from "../../../features/kitchen/public.ts";
+import type { Tile } from "../../core/grid.ts";
 import { step } from "../step.ts";
 import type { World } from "../world.ts";
 import { isSolid } from "../world.ts";
@@ -25,36 +27,13 @@ export function find(world: World, match: (s: Station) => boolean): Station {
   throw new Error("No such station in the shop.");
 }
 
-/** Shortest floor path from one tile to any floor tile next to `target` (breadth-first). */
-function pathTo(world: World, fromX: number, fromY: number, target: Station): { x: number; y: number }[] {
-  const key = (x: number, y: number) => y * world.width + x;
-  const prev = new Map<number, number>([[key(fromX, fromY), -1]]);
-  const queue = [key(fromX, fromY)];
+/** Shortest floor path from one tile to any floor tile next to `target`. */
+function pathTo(world: World, fromX: number, fromY: number, target: Station): Tile[] {
+  const path = findPath(world.width, world.height, (x, y) => isSolid(world, x, y), { x: fromX, y: fromY }, (x, y) => isNextTo({ x, y }, target));
 
-  while (queue.length > 0) {
-    const k = queue.shift() ?? 0;
-    const x = k % world.width;
-    const y = Math.floor(k / world.width);
+  if (path === null) throw new Error(`No path to the ${target.type} at ${target.x},${target.y}.`);
 
-    if (Math.abs(x - target.x) + Math.abs(y - target.y) === 1) {
-      const path: { x: number; y: number }[] = [];
-
-      for (let c = k; c !== -1; c = prev.get(c) ?? -1) path.unshift({ x: c % world.width, y: Math.floor(c / world.width) });
-
-      return path;
-    }
-
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-      const n = key(x + dx, y + dy);
-
-      if (!isSolid(world, x + dx, y + dy) && !prev.has(n)) {
-        prev.set(n, k);
-        queue.push(n);
-      }
-    }
-  }
-
-  throw new Error(`No path to the ${target.type} at ${target.x},${target.y}.`);
+  return path;
 }
 
 /** Walks a cook to the station and turns them to face it, stepping the world as it goes. */

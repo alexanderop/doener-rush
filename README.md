@@ -35,20 +35,21 @@ pnpm storybook    # components in isolation; pnpm test:stories runs them as brow
 | `src/features/kitchen/` | Items (veg, meat, the döner being built, plates, the extinguisher) and stations: crates, board, toaster, spit, sauces, prep trays, plate rack, return hatch, sink, counters, bin. `interact`, `work`, `stepStation`, fire and `spreadFire` |
 | `src/features/orders/` | The menu, the customer queue with patience, serving with points and tips, the ticket rail UI |
 | `src/features/cooks/` | Walking and dashing with collision against stations and each other, the tile in front |
-| `src/game/runtime/world.ts` | The shop floor plan (ASCII) and the `World` |
+| `src/features/bots/` | AI cooks for empty slots. `decide` is a priority table (fire, spit, döner, plates, veg, washing up) asked every tick from a read-only `Sight`; `think` walks the bot there (breadth-first path, dash, stepping aside) and turns the plan into an `Intent` |
+| `src/game/runtime/world.ts` | The shop floor plan (ASCII), the `Lineup` (one `Driver` per cook: a keyboard binding or a bot) and the `World` |
 | `src/game/runtime/step.ts` | One tick in fixed order: cooks, stations, orders. HUD snapshot |
 | `src/game/runtime/useGameCanvas.ts` | Keyboard, fixed 60 Hz loop, 3D render, snapshot to `snapshotAtom`, dev `window.__game` |
 | `src/game/runtime/gl/` | The 3D view (three.js): low-poly models built from primitives in `models.ts`, camera, lights, storefront and sync from the world in `scene.ts` |
 | `src/game/runtime/testing/` | Scenarios (`?scenario=` in the browser, Vitest, e2e) and a breadth-first walking driver for scripted cooks |
 | `src/app/` | HUD (top bar, toasts, end-of-shift card) and pages |
 
-Feature boundaries are enforced by the `factory-architecture` oxlint plugin; the dependency graph is in `tools/oxlint/factory-architecture/policy.ts` (`orders → kitchen`, `cooks → kitchen`). Simulation modules are plain TypeScript: no Effect, React, DOM, `Math.random` or `Date`.
+Feature boundaries are enforced by the `factory-architecture` oxlint plugin; the dependency graph is in `tools/oxlint/factory-architecture/policy.ts` (`orders → kitchen`, `cooks → kitchen`, `bots → kitchen, cooks, orders`). Simulation modules are plain TypeScript: no Effect, React, DOM, `Math.random` or `Date`.
 
 ## Testing
 
 | Layer | Where | What it proves |
 | --- | --- | --- |
-| Examples | `src/**/*.test.ts` | Chop, toast, burn, spit cooking and shaving, sauce, serve rules, walking and collision, a scripted cook making a Döner Pur from scratch |
+| Examples | `src/**/*.test.ts` | Chop, toast, burn, spit cooking and shaving, sauce, serve rules, walking and collision, a scripted cook making a Döner Pur from scratch, bots running whole shifts (`runtime/bots.test.ts`) |
 | Properties | `src/game/runtime/step.test.ts` | Random two-player input never puts a cook inside a station, and replays the same round |
 | Browser | `pnpm e2e` | Real keyboard input and HUD: walking, dashing, serving at the pass, putting out a fire, the end-of-shift card. Runs one worker: headless WebGL renders on the CPU |
 | Lint rules | `tools/oxlint/**/*.test.ts` | The architecture and coding standard rules themselves |

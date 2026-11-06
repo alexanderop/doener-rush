@@ -1,9 +1,11 @@
+import { think } from "../../features/bots/public.ts";
+import type { Sight } from "../../features/bots/public.ts";
 import { IDLE, facingTile, walk } from "../../features/cooks/public.ts";
 import type { Intent } from "../../features/cooks/public.ts";
 import { interact, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
 import { ordersSnapshot, serve, stepOrders } from "../../features/orders/public.ts";
 import type { OrdersSnapshot } from "../../features/orders/public.ts";
-import type { Item } from "../../features/kitchen/public.ts";
+import type { Item, Station } from "../../features/kitchen/public.ts";
 import { TICK_RATE, seconds } from "../core/grid.ts";
 import type { World } from "./world.ts";
 import { isSolid, stationAt } from "./world.ts";
@@ -18,7 +20,8 @@ export function isOver(world: World): boolean {
 
 /**
  * Advances the world by one tick. `intents[b]` drives the cook on keyboard binding `b`; missing
- * intents idle, and so do bots until they can think.
+ * intents idle. Bots think for their cook from what they see at
+ * that moment, so a bot sees the moves of the cooks before it.
  * The order is fixed (cooks by id, then stations, then orders), so a seed and the same
  * intents always give the same round.
  */
@@ -27,7 +30,11 @@ export function step(world: World, intents: readonly Intent[]): void {
   const solid = (x: number, y: number) => isSolid(world, x, y);
   world.cooks.forEach((cook, i) => {
     const driver = world.drivers[i];
-    const intent = driver?.kind === "keys" ? (intents[driver.binding] ?? IDLE) : IDLE;
+    const mind = world.bots.get(cook.id);
+    let intent = IDLE;
+
+    if (driver?.kind === "keys") intent = intents[driver.binding] ?? IDLE;
+    else if (mind !== undefined) intent = think(sightOf(world), mind, cook);
     walk(cook, intent, solid, world.cooks);
     const front = facingTile(cook);
     const station = stationAt(world, front.x, front.y);
@@ -43,10 +50,42 @@ export function step(world: World, intents: readonly Intent[]): void {
   });
 
   for (const station of world.stations.values()) stepStation(station);
-  spreadFire(world.stations.values(), (x, y) => stationAt(world, x, y));
+  spreadFire(world.stations.values(), (x, y) => fightable(world, x, y));
   returnPlates(world);
   world.rng = stepOrders(world.orders, world.tick, world.rng);
   world.tick += 1;
+}
+
+/** The station on a tile if a cook can stand next to it; fire skips the rest, since nobody could ever put it out. */
+function fightable(world: World, x: number, y: number): Station | null {
+  const station = stationAt(world, x, y);
+
+  if (station === null) return null;
+
+  return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx = 0, dy = 0]) => !isSolid(world, x + dx, y + dy)) ? station : null;
+}
+
+/** What a bot sees: the world read-only, plus every bot's claims so two never chase the same job. */
+function sightOf(world: World): Sight {
+  const claims = new Map<string, number>();
+
+  for (const [id, mind] of world.bots) {
+    if (mind.order !== null) claims.set(`order:${mind.order}`, id);
+
+    if (mind.task !== null) claims.set(mind.task, id);
+  }
+
+  return {
+    width: world.width,
+    height: world.height,
+    solid: (x, y) => isSolid(world, x, y),
+    stationAt: (x, y) => stationAt(world, x, y),
+    stations: [...world.stations.values()],
+    cooks: world.cooks,
+    orders: world.orders.queue,
+    bots: new Set(world.bots.keys()),
+    claims,
+  };
 }
 
 function handOver(world: World, held: Item | null): Item | null {

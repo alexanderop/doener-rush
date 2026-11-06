@@ -1,4 +1,4 @@
-export type { OrderEvent, OrdersState, Recipe } from "./model.ts";
+export type { Order, OrderEvent, OrdersState, Recipe } from "./model.ts";
 
 export { RECIPES, ROUND_TICKS } from "./prototypes.ts";
 

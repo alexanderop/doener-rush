@@ -1,5 +1,5 @@
 /** Vegetables that come raw from a crate and must be chopped on a board. */
-type Veg = "lettuce" | "tomato" | "onion";
+export type Veg = "lettuce" | "tomato" | "onion";
 
 /** Sauces squeezed straight onto a döner. */
 export type Sauce = "garlic" | "herb" | "spicy";

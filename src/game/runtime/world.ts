@@ -1,4 +1,6 @@
 import type { Tile } from "../core/grid.ts";
+import { newMind } from "../../features/bots/public.ts";
+import type { BotMind } from "../../features/bots/public.ts";
 import { newCook } from "../../features/cooks/public.ts";
 import type { Cook } from "../../features/cooks/public.ts";
 import { START_PLATES, newSpit } from "../../features/kitchen/public.ts";
@@ -67,6 +69,8 @@ export interface World {
   readonly cooks: Cook[];
   /** Who drives each cook, by index into `cooks`. */
   readonly drivers: readonly Driver[];
+  /** The memory of each bot cook, by cook id. */
+  readonly bots: Map<number, BotMind>;
   readonly orders: OrdersState;
   /** Ticks at which a served plate comes back dirty to the return station. */
   readonly platesDue: number[];
@@ -98,7 +102,12 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
     return newCook(i + 1, start);
   });
 
-  return { seed, tick: 0, rng: seed, width, height, stations, cooks, drivers: lineup.drivers, orders: newOrders(), platesDue: [], endTick };
+  const bots = new Map<number, BotMind>();
+  lineup.drivers.forEach((driver, i) => {
+    if (driver.kind === "bot") bots.set(i + 1, newMind());
+  });
+
+  return { seed, tick: 0, rng: seed, width, height, stations, cooks, drivers: lineup.drivers, bots, orders: newOrders(), platesDue: [], endTick };
 }
 
 function stationFor(ch: string, x: number, y: number): Station | null {
