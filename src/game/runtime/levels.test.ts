@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Base, Filling } from "../../features/kitchen/public.ts";
 import { RECIPES, ROUND_TICKS } from "../../features/orders/public.ts";
 import { LEVELS } from "./levels.ts";
 import type { Level } from "./levels.ts";
@@ -8,11 +9,25 @@ import { newWorld } from "./world.ts";
 
 const LEGEND = new Set("=SRKPXBWLTOghstDUNF1234.");
 
-/** The plan character that stocks each base, vegetable and sauce; meat comes from the spit. */
-const SOURCE = { bread: "B", wrap: "W", lettuce: "L", tomato: "T", onion: "O", garlic: "g", herb: "h", spicy: "s", meat: "S" } as const;
+/** The plan characters a base or filling needs: where it comes from and the stations it passes through. */
+const SOURCE = {
+  bread: "BR",
+  wrap: "W",
+  dough: "MYQE",
+  meat: "S",
+  lettuce: "LKt",
+  tomato: "TKt",
+  onion: "OKt",
+  garlic: "g",
+  herb: "h",
+  spicy: "s",
+  cinnamon: "z",
+  poppy: "m",
+  lye: "l",
+} as const satisfies Record<Base | Filling, string>;
 
-/** Stations every kitchen needs whatever the menu: toaster, board, pass, plates, washing up, bin and extinguisher. */
-const ALWAYS = ["R", "K", "P", "D", "U", "N", "X", "F"];
+/** Stations every kitchen needs whatever the menu: pass, plates, washing up, bin and extinguisher. */
+const ALWAYS = ["P", "D", "U", "N", "X", "F"];
 
 const isFloor = (ch: string | undefined) => ch === "." || (ch !== undefined && ch >= "1" && ch <= "4");
 
@@ -42,9 +57,7 @@ function problems(level: Level): string[] {
   }
 
   if (recipes.length !== level.menu.length || recipes.length === 0) found.push("menu names unknown recipes or none");
-  const needed = new Set([...ALWAYS, ...recipes.flatMap((r) => [SOURCE[r.base], ...r.fillings.map((f) => SOURCE[f])])]);
-
-  if (recipes.some((r) => r.fillings.some((f) => f === "lettuce" || f === "tomato" || f === "onion"))) needed.add("t");
+  const needed = new Set([...ALWAYS, ...recipes.flatMap((r) => [r.base, ...r.fillings].flatMap((part) => [...SOURCE[part]]))]);
 
   for (const ch of needed) {
     if (!tiles.some((t) => t.ch === ch)) found.push(`no ${ch} for the menu`);

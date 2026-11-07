@@ -3,10 +3,13 @@ import type { Recipe } from "./model.ts";
 
 /** The menu. */
 export const RECIPES: readonly Recipe[] = [
-  { id: "classic", name: "Döner Classic", base: "bread", fillings: ["meat", "lettuce", "onion", "garlic"], points: 30, patience: seconds(70) },
-  { id: "durum", name: "Dürüm Scharf", base: "wrap", fillings: ["meat", "lettuce", "tomato", "spicy"], points: 40, patience: seconds(80) },
-  { id: "veggie", name: "Veggie Döner", base: "bread", fillings: ["lettuce", "tomato", "onion", "herb"], points: 35, patience: seconds(75) },
-  { id: "pur", name: "Döner Pur", base: "bread", fillings: ["meat", "garlic"], points: 20, patience: seconds(55) },
+  { id: "classic", name: "Döner Classic", icon: "🥙", base: "bread", fillings: ["meat", "lettuce", "onion", "garlic"], points: 30, patience: seconds(70) },
+  { id: "durum", name: "Dürüm Scharf", icon: "🌯", base: "wrap", fillings: ["meat", "lettuce", "tomato", "spicy"], points: 40, patience: seconds(80) },
+  { id: "veggie", name: "Veggie Döner", icon: "🥙", base: "bread", fillings: ["lettuce", "tomato", "onion", "herb"], points: 35, patience: seconds(75) },
+  { id: "pur", name: "Döner Pur", icon: "🥙", base: "bread", fillings: ["meat", "garlic"], points: 20, patience: seconds(55) },
+  { id: "franz", name: "Franzbrötchen", icon: "🥐", base: "dough", fillings: ["cinnamon"], points: 30, patience: seconds(75) },
+  { id: "mohn", name: "Mohnbrötchen", icon: "🥯", base: "dough", fillings: ["poppy"], points: 30, patience: seconds(75) },
+  { id: "brezel", name: "Brezel", icon: "🥨", base: "dough", fillings: ["lye"], points: 35, patience: seconds(80) },
 ];
 
 /** Customers waiting at most at once. */

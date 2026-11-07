@@ -53,6 +53,29 @@ describe("given a customer who wants a Döner Classic", () => {
   });
 });
 
+describe("given a customer who wants a Franzbrötchen", () => {
+  const franz = RECIPES.find((r) => r.id === "franz")!;
+  const pastry = (toast: number, topping: "cinnamon" | "poppy"): Item => ({ kind: "plate", dirty: false, food: { kind: "base", base: "dough", toast, fillings: [topping] } });
+
+  it("takes a baked cinnamon pastry on a plate and pays for it", () => {
+    const state = newOrders();
+    addOrder(state, franz);
+    expect(serve(state, pastry(HEAT.dough.done, "cinnamon"), 0)).toBe(true);
+    expect(state.score).toBe(franz.points + 10);
+  });
+
+  it("refuses raw dough and says why", () => {
+    expect(defect(pastry(HEAT.dough.done - 1, "cinnamon"))).toBe("Teig nicht gebacken.");
+  });
+
+  it("does not take a Mohnbrötchen instead", () => {
+    const state = newOrders();
+    addOrder(state, franz);
+    expect(serve(state, pastry(HEAT.dough.done, "poppy"), 0)).toBe(false);
+    expect(state.queue).toHaveLength(1);
+  });
+});
+
 describe("given an empty counter", () => {
   it("brings the same customers for the same seed", () => {
     const run = (seed: number) => {

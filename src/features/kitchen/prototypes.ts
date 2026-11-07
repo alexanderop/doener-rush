@@ -1,5 +1,5 @@
 import { seconds } from "../../game/core/grid.ts";
-import type { Base, CrateGoods, Filling, Item } from "./model.ts";
+import type { Base, Bowl, Bread, CrateGoods, Dry, Filling, Item } from "./model.ts";
 
 /** How a base takes the heat, in ticks on it. */
 export interface Heat {
@@ -17,10 +17,11 @@ export interface Heat {
 export const HEAT: Readonly<Record<Base, Heat>> = {
   bread: { done: seconds(4), burnt: seconds(14), ignite: seconds(20), required: true },
   wrap: { done: seconds(4), burnt: seconds(14), ignite: seconds(20), required: false },
+  dough: { done: seconds(8), burnt: seconds(20), ignite: seconds(26), required: true },
 };
 
 /** A kind of dish: a filling only goes into a base of its own family. */
-export type Family = "doener";
+export type Family = "doener" | "pastry";
 
 /** The family of every base and filling. */
 export const FAMILY: Readonly<Record<Base | Filling, Family>> = {
@@ -33,7 +34,17 @@ export const FAMILY: Readonly<Record<Base | Filling, Family>> = {
   garlic: "doener",
   herb: "doener",
   spicy: "doener",
+  dough: "pastry",
+  cinnamon: "pastry",
+  poppy: "pastry",
+  lye: "pastry",
 };
+
+/** Ticks the mixer kneads a full bowl until it is dough. */
+export const MIX_TICKS = seconds(5);
+
+/** What a bowl needs before the mixer kneads it. */
+const DRY: readonly Dry[] = ["flour", "butter"];
 
 /** Ticks of work on a board to chop a vegetable. */
 export const CHOP_TICKS = seconds(2);
@@ -82,17 +93,28 @@ export const THROWABLE: Readonly<Record<Item["kind"], boolean>> = {
   veg: true,
   base: true,
   meat: false,
+  bowl: false,
   plate: false,
   extinguisher: false,
 };
 
-/** True when a crate's goods are a bread base rather than a vegetable. */
-export function isBase(goods: CrateGoods): goods is Base {
+/** True when a crate's goods are bread rather than a vegetable or dry goods. */
+export function isBread(goods: CrateGoods): goods is Bread {
   return goods === "bread" || goods === "wrap";
 }
 
+/** True when a crate's goods go into a bowl. */
+export function isDry(goods: CrateGoods): goods is Dry {
+  return DRY.some((d) => d === goods);
+}
+
+/** True when a bowl holds everything dough needs, so the mixer will knead it. */
+export function isFull(bowl: Bowl): boolean {
+  return DRY.every((d) => bowl.contents.includes(d));
+}
+
 /** Display names for HUD and tickets. */
-export const LABEL: Readonly<Record<Filling | Base, string>> = {
+export const LABEL: Readonly<Record<Filling | Base | Dry, string>> = {
   meat: "Fleisch",
   lettuce: "Salat",
   tomato: "Tomate",
@@ -102,10 +124,16 @@ export const LABEL: Readonly<Record<Filling | Base, string>> = {
   spicy: "Scharf",
   bread: "Brot",
   wrap: "Dürüm",
+  dough: "Teig",
+  cinnamon: "Zimtzucker",
+  poppy: "Mohn",
+  lye: "Lauge & Salz",
+  flour: "Mehl",
+  butter: "Butter",
 };
 
 /** The emoji that stands for each ingredient, bread and the finished döner, on the canvas and the tickets. */
-export const ICONS: Readonly<Record<Filling | Base | "doener", string>> = {
+export const ICONS: Readonly<Record<Filling | Base | Dry | "doener", string>> = {
   meat: "🥩",
   lettuce: "🥬",
   tomato: "🍅",
@@ -115,5 +143,11 @@ export const ICONS: Readonly<Record<Filling | Base | "doener", string>> = {
   spicy: "🌶️",
   bread: "🫓",
   wrap: "🌯",
+  dough: "🥟",
+  cinnamon: "🍬",
+  poppy: "⚫",
+  lye: "🧂",
+  flour: "🌾",
+  butter: "🧈",
   doener: "🥙",
 };

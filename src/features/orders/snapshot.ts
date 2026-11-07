@@ -7,7 +7,7 @@ import type { Pace } from "./prototypes.ts";
 export interface TicketView {
   readonly id: number;
   readonly name: string;
-  readonly base: "bread" | "wrap";
+  readonly icon: string;
   readonly fillings: readonly Filling[];
   /** Patience left, 1 when the customer just arrived. */
   readonly patience: number;
@@ -38,7 +38,7 @@ export function ordersSnapshot(state: OrdersState): OrdersSnapshot {
     tickets: state.queue.map((o) => ({
       id: o.id,
       name: o.recipe.name,
-      base: o.recipe.base,
+      icon: o.recipe.icon,
       fillings: o.recipe.fillings,
       patience: o.ticksLeft / o.patience,
     })),

@@ -4,7 +4,7 @@
  * caches in `parts.ts`, so building a model again is cheap.
  */
 import * as THREE from "three";
-import type { Base, CrateGoods, Filling, Item, Sauce, Station } from "../../../features/kitchen/public.ts";
+import type { Base, Bowl, CrateGoods, Dry, Filling, Item, Sauce, Station, Topping } from "../../../features/kitchen/public.ts";
 import { BURNT, COOKED, HEAT, ICONS, isChopped } from "../../../features/kitchen/public.ts";
 import type { Accessory, Headwear, Look } from "../looks.ts";
 import {
@@ -87,6 +87,9 @@ export function meatColor(level: number): string {
 const VEG_COLOR: Readonly<Record<Veg, string>> = { lettuce: "#6fc23f", tomato: "#e8392b", onion: "#b2588f" };
 
 const SAUCE_COLOR: Readonly<Record<Sauce, string>> = { garlic: "#fbf5e6", herb: "#7cc04f", spicy: "#e0301e" };
+
+/** The colour of what a dispenser holds: a sauce, or a pastry topping. */
+const DISPENSER_COLOR: Readonly<Record<Sauce | Topping, string>> = { ...SAUCE_COLOR, cinnamon: "#a8642c", poppy: "#2b2b3a", lye: "#f4f1ea" };
 
 function bakeColor(base: Base, toast: number): string {
   const { done, burnt } = HEAT[base];
@@ -228,11 +231,28 @@ function drizzle(sauce: Sauce): THREE.Group {
   return g;
 }
 
+/** A scatter of grains: sugar, seeds or salt on a pastry. */
+function sprinkle(topping: Topping, count = 14, spread = 0.12): THREE.Group {
+  const g = new THREE.Group();
+
+  for (let i = 0; i < count; i++) {
+    const grain = ball(topping === "lye" ? 0.016 : 0.011, mat(DISPENSER_COLOR[topping], "#000000", 0.4), 5);
+    const a = i * 2.39;
+    const r = spread * Math.sqrt((i + 0.5) / count);
+    grain.position.set(Math.cos(a) * r, 0, Math.sin(a) * r * 0.7);
+    g.add(grain);
+  }
+
+  return g;
+}
+
 /** The piece that stands for one filling inside a döner. */
 function fillingPiece(f: Filling): THREE.Group {
   if (f === "meat") return meatStrips(false, 6, 0.07);
 
   if (f === "garlic" || f === "herb" || f === "spicy") return drizzle(f);
+
+  if (f === "cinnamon" || f === "poppy" || f === "lye") return sprinkle(f);
 
   return choppedPieces(f, 4, 0.06);
 }
@@ -424,6 +444,43 @@ function extinguisherModel(): THREE.Group {
   return g;
 }
 
+/** A heap of one dry good: a mound of flour or a block of butter. */
+function dryHeap(dry: Dry): THREE.Group {
+  const g = new THREE.Group();
+
+  if (dry === "flour") {
+    const mound = ball(0.13, mat("#f6f1e4", "#000000", 0.95), 10);
+    mound.scale.set(1, 0.45, 1);
+    g.add(mound);
+
+    return g;
+  }
+
+  const block = rbox(0.16, 0.08, 0.1, 0.015, mat("#f7d65a", "#000000", 0.5), 0.04);
+  block.rotation.y = 0.4;
+  g.add(block);
+
+  return g;
+}
+
+/** A steel mixing bowl with what has been poured in so far. */
+function bowlModel(bowl: Bowl): THREE.Group {
+  const g = new THREE.Group();
+  const shell = solid(geo("bowl", () => new THREE.SphereGeometry(0.22, 18, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2)), steel("#d7dce2"));
+  shell.position.y = 0.2;
+  g.add(shell);
+  const rim = ring(0.22, 0.015, steel("#eef1f4"));
+  rim.position.y = 0.2;
+  g.add(rim);
+  bowl.contents.forEach((dry, i) => {
+    const heap = dryHeap(dry);
+    heap.position.set(i === 0 ? -0.05 : 0.06, 0.1 + i * 0.02, i === 0 ? 0.02 : -0.03);
+    g.add(heap);
+  });
+
+  return g;
+}
+
 /** A model for any item a cook can carry or a station can hold. */
 export function itemModel(item: Item): THREE.Group {
   switch (item.kind) {
@@ -433,6 +490,8 @@ export function itemModel(item: Item): THREE.Group {
       return meatPortion(item.burnt);
     case "base":
       return doener(item.base, item.toast, item.fillings);
+    case "bowl":
+      return bowlModel(item);
     case "plate":
       return platedModel(item.dirty, item.food);
     case "extinguisher":
@@ -448,6 +507,7 @@ export function itemKey(item: Item | null): string {
     case "veg": return `veg:${item.veg}:${isChopped(item)}`;
     case "meat": return `meat:${item.burnt}`;
     case "base": return `base:${item.base}:${Math.min(item.toast, HEAT[item.base].burnt) >> 4}:${item.fillings.join(",")}`;
+    case "bowl": return `bowl:${item.contents.join(",")}`;
     case "plate": return `plate:${item.dirty}:${itemKey(item.food)}`;
     case "extinguisher": return "extinguisher";
   }
@@ -465,6 +525,36 @@ function frontBadge(icon: string, y: number, z: number, size = 0.3): THREE.Mesh 
 
 function crateContents(goods: CrateGoods): THREE.Group {
   const g = new THREE.Group();
+
+  if (goods === "flour") {
+    for (const [x, z, ry] of [[-0.18, -0.02, 0.3], [0.17, 0.02, -0.2]] as const) {
+      const sack = ball(0.2, mat("#efe4c8", "#000000", 0.95), 10);
+      sack.scale.set(0.9, 1, 0.75);
+      sack.position.set(x, 0.17, z);
+      sack.rotation.y = ry;
+      g.add(sack);
+      const tie = cyl(0.04, 0.06, 0.08, mat("#c9a76b"), 8);
+      tie.position.set(x, 0.38, z);
+      g.add(tie);
+    }
+
+    return g;
+  }
+
+  if (goods === "butter") {
+    for (const [x, y, z, ry] of [[-0.15, 0.05, -0.08, 0.2], [0.15, 0.05, 0.06, -0.3], [0, 0.15, 0, 0.6]] as const) {
+      const pack = rbox(0.26, 0.1, 0.15, 0.02, mat("#f7d65a", "#000000", 0.5), y);
+      pack.position.set(x, y, z);
+      pack.rotation.y = ry;
+      g.add(pack);
+      const wrapper = box(0.27, 0.04, 0.155, mat("#e9eef2"), y - 0.02);
+      wrapper.position.set(x, y - 0.02, z);
+      wrapper.rotation.y = ry;
+      g.add(wrapper);
+    }
+
+    return g;
+  }
 
   if (goods === "bread") {
     for (const [x, y, z, ry] of [[-0.12, 0.03, -0.06, 0.2], [0.13, 0.03, 0.04, -0.3], [0, 0.13, 0, 0.1]] as const) {
@@ -586,14 +676,14 @@ function grillModel(s: Station): THREE.Group {
   return g;
 }
 
-function sauceModel(s: Station, sauce: Sauce): THREE.Group {
+function sauceModel(s: Station, sauce: Sauce | Topping): THREE.Group {
   const g = counter(s.x, s.y);
   g.add(rbox(0.5, 0.05, 0.4, 0.02, mapped("#b77a3f", woodMap()), TOP + 0.025));
   const bottleGroup = new THREE.Group();
   bottleGroup.scale.setScalar(1.3);
   bottleGroup.position.y = -TOP * 0.3;
   g.add(bottleGroup);
-  const color = SAUCE_COLOR[sauce];
+  const color = DISPENSER_COLOR[sauce];
   const bottle = cyl(0.12, 0.13, 0.4, mat(color, "#000000", 0.3), 16);
   bottle.position.y = TOP + 0.25;
   bottleGroup.add(bottle);
@@ -874,6 +964,7 @@ export function stationModel(s: Station): THREE.Group {
     case "rack": g = rackModel(s); break;
     case "return": g = returnModel(s); break;
     case "sink": g = sinkModel(s); break;
+    case "mixer": g = counter(s.x, s.y); break;
   }
 
   const stock = new THREE.Group();

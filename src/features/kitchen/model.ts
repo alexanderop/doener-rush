@@ -4,13 +4,29 @@ export type Veg = "lettuce" | "tomato" | "onion";
 /** Sauces squeezed straight onto a döner. */
 export type Sauce = "garlic" | "herb" | "spicy";
 
-/** What goes inside a döner. Vegetables inside are always chopped. */
-export type Filling = "meat" | Veg | Sauce;
+/** What goes on raw dough and decides the pastry: cinnamon sugar, poppy seeds, lye and salt. */
+export type Topping = "cinnamon" | "poppy" | "lye";
+
+/** What goes inside a döner or on a pastry. Vegetables inside are always chopped. */
+export type Filling = "meat" | Veg | Sauce | Topping;
 
 /** The bread a döner is built on. */
-export type Base = "bread" | "wrap";
+export type Bread = "bread" | "wrap";
 
-/** A döner under construction: its bread, how long it was toasted, and what is in it. */
+/** What a dish is built on: bread for a döner, dough for a pastry. */
+export type Base = Bread | "dough";
+
+/** The dry goods a bowl of dough is stirred from. */
+export type Dry = "flour" | "butter";
+
+/** A mixing bowl: what is in it so far, and how many ticks the mixer has kneaded it. */
+export interface Bowl {
+  readonly kind: "bowl";
+  readonly contents: Dry[];
+  knead: number;
+}
+
+/** A dish under construction: its base, how long it was on the heat, and what is in or on it. */
 export interface Doener {
   readonly kind: "base";
   readonly base: Base;
@@ -23,11 +39,12 @@ export type Item =
   | { readonly kind: "veg"; readonly veg: Veg; chop: number }
   | { readonly kind: "meat"; readonly burnt: boolean }
   | Doener
+  | Bowl
   | { readonly kind: "plate"; dirty: boolean; food: Doener | null }
   | { readonly kind: "extinguisher" };
 
 /** What a crate hands out. */
-export type CrateGoods = Veg | Base;
+export type CrateGoods = Veg | Bread | Dry;
 
 /** Fire on a station: how long it has burned (0 = not burning) and how long it has been sprayed. */
 interface Burnable {
@@ -42,8 +59,9 @@ export type Station = Burnable & (
   | { readonly type: "counter"; item: Item | null }
   | { readonly type: "crate"; readonly goods: CrateGoods; item: null }
   | { readonly type: "board"; item: Item | null }
-  | { readonly type: "toaster"; item: Item | null }
-  | { readonly type: "sauce"; readonly sauce: Sauce; item: null }
+  | { readonly type: "toaster"; readonly look: "grill" | "oven"; item: Item | null }
+  | { readonly type: "sauce"; readonly sauce: Sauce | Topping; item: null }
+  | { readonly type: "mixer"; item: Item | null }
   | { readonly type: "spit"; item: null; readonly spit: Spit }
   | { readonly type: "pass"; item: null }
   | { readonly type: "bin"; item: null }

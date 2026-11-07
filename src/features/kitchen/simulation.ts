@@ -1,7 +1,7 @@
 import type { CrateGoods, Doener, Filling, Item, Spit, Station } from "./model.ts";
 import {
-  AFTER_SHAVE, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FAMILY, FIRE_SPREAD, HEAT, SHAVE_TICKS, SPIT_HEAT, SPIT_IGNITE,
-  SPIT_TURN, THROWABLE, TRAY_PORTIONS, WASH_TICKS, isBase,
+  AFTER_SHAVE, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FAMILY, FIRE_SPREAD, HEAT, MIX_TICKS, SHAVE_TICKS, SPIT_HEAT,
+  SPIT_IGNITE, SPIT_TURN, THROWABLE, TRAY_PORTIONS, WASH_TICKS, isBread, isDry, isFull,
 } from "./prototypes.ts";
 
 /** A fresh spit, part-cooked all round so the first portion comes quickly. */
@@ -9,11 +9,22 @@ export function newSpit(): Spit {
   return { angle: 0, sides: [0.9, 0.9, 0.9, 0.9], shave: 0 };
 }
 
-/** A fresh item from a crate. */
+/** A fresh item from a crate: bread, a whole vegetable, or a bowl with the dry goods in it. */
 function takeFromCrate(goods: CrateGoods): Item {
-  if (isBase(goods)) return { kind: "base", base: goods, toast: 0, fillings: [] };
+  if (isBread(goods)) return { kind: "base", base: goods, toast: 0, fillings: [] };
+
+  if (isDry(goods)) return { kind: "bowl", contents: [goods], knead: 0 };
 
   return { kind: "veg", veg: goods, chop: 0 };
+}
+
+/** Empty hands take from a crate; a bowl at a dry-goods crate gets that good poured in, once. */
+function crate(goods: CrateGoods, held: Item | null): Item | null {
+  if (held === null) return takeFromCrate(goods);
+
+  if (held.kind === "bowl" && isDry(goods) && !held.contents.includes(goods)) held.contents.push(goods);
+
+  return held;
 }
 
 /** True when a vegetable has been chopped through. */
@@ -33,9 +44,14 @@ export function isBaked(dish: Doener): boolean {
   return !heat.required || dish.toast >= heat.done;
 }
 
-/** True when `filling` may go into `dish`: not burnt, not in it yet, and of the dish's own family. */
+/**
+ * True when `filling` may go into `dish`: not burnt, not in it yet, and of the dish's own family.
+ * A pastry takes exactly one topping, and only while the dough is raw.
+ */
 function accepts(dish: Doener, filling: Filling): boolean {
-  return !isBurntBase(dish) && !dish.fillings.includes(filling) && FAMILY[dish.base] === FAMILY[filling];
+  if (isBurntBase(dish) || dish.fillings.includes(filling) || FAMILY[dish.base] !== FAMILY[filling]) return false;
+
+  return FAMILY[dish.base] !== "pastry" || (dish.toast === 0 && dish.fillings.length === 0);
 }
 
 /** True when a cook may throw the item: a vegetable, whole or chopped, or bread straight from the crate. */
@@ -109,7 +125,7 @@ export function interact(station: Station, held: Item | null): Item | null {
 
   switch (station.type) {
     case "crate":
-      return held ?? takeFromCrate(station.goods);
+      return crate(station.goods, held);
     case "bin":
       return bin(held);
     case "pass":
@@ -161,6 +177,10 @@ export function interact(station: Station, held: Item | null): Item | null {
       return held;
     case "toaster":
       if (held !== null && held.kind !== "base" && station.item === null) return held;
+
+      return swapOrCombine(station, held);
+    case "mixer":
+      if (held !== null && !(held.kind === "bowl" && isFull(held)) && station.item === null) return held;
 
       return swapOrCombine(station, held);
     case "board":
@@ -325,8 +345,9 @@ function heatedSide(spit: Spit): number {
 }
 
 /**
- * Advances a station by one tick: the spit turns and cooks, the toaster toasts, and either
- * catches fire when left far too long. A fire burns whatever lies on the station.
+ * Advances a station by one tick: the spit turns and cooks, the toaster toasts or the oven bakes,
+ * and either catches fire when left far too long; the mixer kneads a full bowl into dough. A fire
+ * burns whatever lies on the station.
  */
 export function stepStation(station: Station): void {
   if (station.type === "spit") {
@@ -341,6 +362,10 @@ export function stepStation(station: Station): void {
 
     // only the moment it crosses the line: a doused toaster stays out, with the charred bread still in it
     if (station.item.toast === HEAT[station.item.base].ignite) ignite(station);
+  } else if (station.type === "mixer" && station.fire === 0 && station.item?.kind === "bowl" && isFull(station.item)) {
+    station.item.knead += 1;
+
+    if (station.item.knead >= MIX_TICKS) station.item = { kind: "base", base: "dough", toast: 0, fillings: [] };
   }
 
   if (station.fire > 0) {

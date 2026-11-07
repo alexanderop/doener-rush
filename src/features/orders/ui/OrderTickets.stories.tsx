@@ -7,9 +7,9 @@ const meta = preview.meta({ title: "Orders/OrderTickets", component: OrderTicket
 export const Rush = meta.story({
   args: {
     tickets: [
-      { id: 1, name: "Döner Classic", base: "bread", fillings: ["meat", "lettuce", "onion", "garlic"], patience: 0.9 },
-      { id: 2, name: "Dürüm Scharf", base: "wrap", fillings: ["meat", "lettuce", "tomato", "spicy"], patience: 0.45 },
-      { id: 3, name: "Döner Pur", base: "bread", fillings: ["meat", "garlic"], patience: 0.12 },
+      { id: 1, name: "Döner Classic", icon: "🥙", fillings: ["meat", "lettuce", "onion", "garlic"], patience: 0.9 },
+      { id: 2, name: "Dürüm Scharf", icon: "🌯", fillings: ["meat", "lettuce", "tomato", "spicy"], patience: 0.45 },
+      { id: 3, name: "Döner Pur", icon: "🥙", fillings: ["meat", "garlic"], patience: 0.12 },
     ],
   },
 });

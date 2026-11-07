@@ -40,7 +40,7 @@ describe("given a shift with one customer who wants a Döner Pur", () => {
     const world = SCENARIOS.shift.build(1);
     world.orders.untilNext = Number.MAX_SAFE_INTEGER;
     world.orders.queue.length = 0;
-    const pur = { id: "pur", name: "Döner Pur", base: "bread", fillings: ["meat", "garlic"], points: 20, patience: ROUND_TICKS } as const;
+    const pur = { id: "pur", name: "Döner Pur", icon: "🥙", base: "bread", fillings: ["meat", "garlic"], points: 20, patience: ROUND_TICKS } as const;
     world.orders.queue.push({ id: 99, recipe: pur, patience: ROUND_TICKS, ticksLeft: ROUND_TICKS });
     makeDoenerPur(world);
     expect(world.cooks[0]?.held).toBeNull();

@@ -31,8 +31,6 @@ const MOTION: Readonly<Record<TicketOutcome | "enter", string>> = {
   expired: "animate-[ticket-drop_800ms_ease-in_forwards]",
 };
 
-const DISH: Readonly<Record<TicketView["base"], string>> = { bread: ICONS.doener, wrap: ICONS.wrap };
-
 /** How much hurry a ticket shows: the bar turns yellow at half, red and shaking under a quarter. */
 function moodOf(patience: number): Mood {
   if (patience > 0.5) return "calm";
@@ -63,7 +61,7 @@ function Ticket({ ticket, still }: { readonly ticket: TicketView; readonly still
         <div className="h-full transition-[width,background-color] duration-200" style={{ width: `${Math.max(0, ticket.patience) * 100}%`, background: BAR[mood] }} />
       </div>
       <div className="flex flex-col items-center px-1.5 pb-0.5 pt-0.5">
-        <span className="text-[2.6rem] leading-none drop-shadow-[0_2px_0_rgb(0_0_0/0.2)]" role="img" aria-label={LABEL[ticket.base]}>{DISH[ticket.base]}</span>
+        <span className="text-[2.6rem] leading-none drop-shadow-[0_2px_0_rgb(0_0_0/0.2)]" role="img" aria-label={ticket.name}>{ticket.icon}</span>
         <span className="truncate text-[0.68rem] font-extrabold uppercase leading-tight tracking-wide">{ticket.name}</span>
       </div>
       <ul className="flex justify-center gap-1 border-t-2 border-[#2a1a10]/20 bg-[#cfe1ec] px-1 py-1.5">

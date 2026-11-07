@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Item, Station } from "./model.ts";
-import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, HEAT, SHAVE_TICKS, TRAY_PORTIONS, WASH_TICKS } from "./prototypes.ts";
-import { addTo, interact, isBurntBase, isChopped, land, newSpit, spreadFire, stepStation, work } from "./simulation.ts";
+import type { Filling } from "./model.ts";
+import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, HEAT, MIX_TICKS, SHAVE_TICKS, TRAY_PORTIONS, WASH_TICKS } from "./prototypes.ts";
+import { addTo, interact, isBaked, isBurntBase, isChopped, land, newSpit, spreadFire, stepStation, work } from "./simulation.ts";
 
 const board = (): Station => ({ type: "board", x: 0, y: 0, fire: 0, douse: 0, item: null });
 
@@ -98,7 +99,7 @@ describe("given the döner spit", () => {
 
 describe("given the toaster", () => {
   it("toasts bread, then burns it if nobody takes it out", () => {
-    const station: Station = { type: "toaster", x: 0, y: 0, fire: 0, douse: 0, item: null };
+    const station: Station = { type: "toaster", look: "grill", x: 0, y: 0, fire: 0, douse: 0, item: null };
     interact(station, bread());
 
     for (let i = 0; i < HEAT.bread.done; i++) stepStation(station);
@@ -109,7 +110,7 @@ describe("given the toaster", () => {
   });
 
   it("will not take a tomato", () => {
-    const station: Station = { type: "toaster", x: 0, y: 0, fire: 0, douse: 0, item: null };
+    const station: Station = { type: "toaster", look: "grill", x: 0, y: 0, fire: 0, douse: 0, item: null };
     const tomato: Item = { kind: "veg", veg: "tomato", chop: 0 };
     expect(interact(station, tomato)).toBe(tomato);
     expect(station.item).toBeNull();
@@ -208,10 +209,79 @@ describe("given a spit left to itself", () => {
   });
 
   it("burns the bread a forgotten toaster holds until it catches fire", () => {
-    const toaster: Station = { type: "toaster", x: 0, y: 0, fire: 0, douse: 0, item: bread() };
+    const toaster: Station = { type: "toaster", look: "grill", x: 0, y: 0, fire: 0, douse: 0, item: bread() };
 
     for (let i = 0; i < 60 * 25; i++) stepStation(toaster);
     expect(toaster.fire).toBeGreaterThan(0);
     expect(isBurntBase(toaster.item!)).toBe(true);
+  });
+});
+
+describe("given the bakery", () => {
+  const at = { x: 0, y: 0, fire: 0, douse: 0 };
+  const flour = (): Station => ({ ...at, type: "crate", goods: "flour", item: null });
+  const butter = (): Station => ({ ...at, type: "crate", goods: "butter", item: null });
+  const mixer = (): Station => ({ ...at, type: "mixer", item: null });
+  const oven = (): Station => ({ ...at, type: "toaster", look: "oven", item: null });
+  const dough = (toast = 0, fillings: Filling[] = []): Extract<Item, { kind: "base" }> => ({ kind: "base", base: "dough", toast, fillings });
+  const dispenser = (sauce: "cinnamon" | "poppy" | "lye" | "garlic"): Station => ({ ...at, type: "sauce", sauce, item: null });
+
+  it("fills a bowl at the flour and butter crates, and the mixer kneads it into raw dough on its own", () => {
+    const bowl = interact(butter(), interact(flour(), null));
+    expect(bowl).toMatchObject({ kind: "bowl", contents: ["flour", "butter"] });
+    const station = mixer();
+    expect(interact(station, bowl)).toBeNull();
+
+    for (let i = 0; i < MIX_TICKS - 1; i++) stepStation(station);
+    expect(station.item).toMatchObject({ kind: "bowl" });
+    stepStation(station);
+    expect(interact(station, null)).toEqual(dough());
+  });
+
+  it("pours each dry good in once, and the mixer will not take a bowl that lacks butter", () => {
+    const bowl = interact(flour(), interact(flour(), null));
+    expect(bowl).toMatchObject({ contents: ["flour"] });
+    const station = mixer();
+    expect(interact(station, bowl)).toBe(bowl);
+    expect(station.item).toBeNull();
+  });
+
+  it.each([
+    ["raw dough takes cinnamon sugar", () => dough(), "cinnamon", ["cinnamon"]],
+    ["raw dough takes lye and salt", () => dough(), "lye", ["lye"]],
+    ["topped dough takes no second topping", () => dough(0, ["cinnamon"]), "poppy", ["cinnamon"]],
+    ["baked dough takes no topping", () => dough(HEAT.dough.done), "poppy", []],
+    ["dough takes no döner sauce", () => dough(), "garlic", []],
+    ["bread takes no pastry topping", bread, "cinnamon", []],
+  ] as const)("%s", (_case, dish, topping, fillings) => {
+    const held = dish();
+    interact(dispenser(topping), held);
+    expect(held.fillings).toEqual(fillings);
+  });
+
+  it("will not put chopped lettuce or meat into dough", () => {
+    const held = dough();
+    expect(addTo(held, { kind: "veg", veg: "lettuce", chop: CHOP_TICKS })).toBe(false);
+    expect(addTo(held, { kind: "meat", burnt: false })).toBe(false);
+    expect(held.fillings).toEqual([]);
+  });
+
+  it("bakes dough in the oven slower than bread toasts, burns it, then catches fire", () => {
+    const station = oven();
+    interact(station, dough(0, ["lye"]));
+    const baked = () => station.item?.kind === "base" && isBaked(station.item);
+
+    for (let i = 0; i < HEAT.bread.done; i++) stepStation(station);
+    expect(baked()).toBe(false);
+
+    for (let i = HEAT.bread.done; i < HEAT.dough.done; i++) stepStation(station);
+    expect(baked()).toBe(true);
+
+    for (let i = HEAT.dough.done; i < HEAT.dough.burnt; i++) stepStation(station);
+    expect(isBurntBase(station.item!)).toBe(true);
+    expect(station.fire).toBe(0);
+
+    for (let i = HEAT.dough.burnt; i < HEAT.dough.ignite; i++) stepStation(station);
+    expect(station.fire).toBeGreaterThan(0);
   });
 });

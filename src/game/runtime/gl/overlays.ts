@@ -48,6 +48,8 @@ function bubbleContent(item: Item): BubbleContent {
       return { icons: ["🍽️", ...inner.icons], rim: inner.rim };
     }
 
+    case "bowl":
+      return { icons: ["🥣", ...item.contents.map((d) => ICONS[d])], rim: RIM.plain };
     case "extinguisher":
       return { icons: ["🧯"], rim: RIM.plain };
   }

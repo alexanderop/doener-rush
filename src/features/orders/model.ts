@@ -2,12 +2,14 @@ import type { Base, Filling } from "../kitchen/public.ts";
 import type { Pace } from "./prototypes.ts";
 
 /** The dishes the shop can make. */
-export type RecipeId = "classic" | "durum" | "veggie" | "pur";
+export type RecipeId = "classic" | "durum" | "veggie" | "pur" | "franz" | "mohn" | "brezel";
 
-/** A dish on the menu: the bread and exactly these fillings. */
+/** A dish on the menu: the base and exactly these fillings. */
 export interface Recipe {
   readonly id: RecipeId;
   readonly name: string;
+  /** The emoji on the customer's ticket. */
+  readonly icon: string;
   readonly base: Base;
   readonly fillings: readonly Filling[];
   readonly points: number;

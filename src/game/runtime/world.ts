@@ -107,7 +107,7 @@ function stationFor(ch: string, x: number, y: number): Station | null {
     case "=": return { ...at, type: "counter", item: null };
     case "F": return { ...at, type: "counter", item: { kind: "extinguisher" } };
     case "K": return { ...at, type: "board", item: null };
-    case "R": return { ...at, type: "toaster", item: null };
+    case "R": return { ...at, type: "toaster", look: "grill", item: null };
     case "S": return { ...at, type: "spit", item: null, spit: newSpit() };
     case "P": return { ...at, type: "pass", item: null };
     case "X": return { ...at, type: "bin", item: null };
