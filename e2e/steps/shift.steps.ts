@@ -68,6 +68,18 @@ When("player {int} holds {string} for {int} ms while pressing {string}", async (
   await page.keyboard.up(key);
 });
 
+Then("cook {int} holds a {string}", async ({ page }, id: number, veg: string) => {
+  await expect.poll(() => page.evaluate((i) => {
+    const held = window.__game?.world().cooks[i - 1]?.held;
+
+    return held?.kind === "veg" ? held.veg : held?.kind;
+  }, id)).toBe(veg);
+});
+
+Then("cook {int} holds nothing", async ({ page }, id: number) => {
+  await expect.poll(() => page.evaluate((i) => window.__game?.world().cooks[i - 1]?.held, id)).toBeNull();
+});
+
 Then("the spit is not burning", async ({ page }) => {
   await expect.poll(() => page.evaluate(() => [...(window.__game?.world().stations.values() ?? [])].find((s) => s.type === "spit")?.fire)).toBe(0);
 });
