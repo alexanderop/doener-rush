@@ -153,5 +153,5 @@ function walkToward(me: Cook, tile: Tile, path: readonly Tile[]): Intent {
   const lined = along.x === 0 ? dx === 0 : dy === 0;
   const dash = run >= DASH_RUN && lined && me.dashCooldown === 0;
 
-  return { dx, dy, interact: false, work: false, dash };
+  return { dx, dy, interact: false, work: false, dash, throw: false };
 }

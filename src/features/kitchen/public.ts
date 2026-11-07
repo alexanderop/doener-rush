@@ -6,5 +6,5 @@ export {
 } from "./prototypes.ts";
 
 export {
-  interact, isBurntBase, isChopped, newSpit, spreadFire, stepStation, work,
+  interact, isBurntBase, isChopped, isThrowable, land, newSpit, spreadFire, stepStation, work,
 } from "./simulation.ts";

@@ -13,13 +13,15 @@ pnpm storybook    # components in isolation; pnpm test:stories runs them as brow
 
 ## Controls
 
-| | Walk | Dash | Pick up / put down / combine / serve | Hold: chop, shave, wash, spray |
-| --- | --- | --- | --- | --- |
-| Cook 1 | WASD | Space | E | Q |
-| Cook 2 | Arrows | Right Shift | / | . |
-| Gamepad | Left stick or d-pad | B | A | X |
+| | Walk | Dash | Pick up / put down / combine / serve | Throw | Hold: chop, shave, wash, spray |
+| --- | --- | --- | --- | --- | --- |
+| Cook 1 | WASD | Space | E | F | Q |
+| Cook 2 | Arrows | Right Shift | / | ' | . |
+| Gamepad | Left stick or d-pad | B | A | LB | X |
 
-Gamepads work next to the keyboard: the first pad plugged in plays player 1's binding, the second player 2's, and either the keys or the pad moves that cook. Y or RB switches cooks in a swap pair (like R). LB is kept free for throwing. Browsers only report a pad after one of its buttons is pressed; once they do, the pill under the kitchen shows pad buttons instead of keys. The button table is `PAD_BUTTONS` in `src/game/runtime/input/gamepad.ts`; the loop polls `navigator.getGamepads()` once a frame.
+Throw sends a vegetable (whole or chopped) or fresh bread straight ahead, up to six tiles. A cook with empty hands catches it; a station that would take it put down keeps it (a counter, board, toaster, tray, the bin, or a döner waiting on a counter); anything else drops it and it is lost. Plates, döner, meat and the extinguisher stay in hand. The rule is the `THROWABLE` table in `kitchen/prototypes.ts`.
+
+Gamepads work next to the keyboard: the first pad plugged in plays player 1's binding, the second player 2's, and either the keys or the pad moves that cook. Y or RB switches cooks in a swap pair (like R). Browsers only report a pad after one of its buttons is pressed; once they do, the pill under the kitchen shows pad buttons instead of keys. The button table is `PAD_BUTTONS` in `src/game/runtime/input/gamepad.ts`; the loop polls `navigator.getGamepads()` once a frame.
 
 Playing alone, tick "Zwei Köche steuern" on the home page (or open `/play?humans=1&swap=1`): you drive two cooks and switch with R (Enter for player 2's keys). A cook you leave while holding Q at the board, the sink or a fire keeps working until it is done. A solo shift runs at a calmer pace: customers come further apart, wait longer, and the stars need fewer points (`PACES` in `orders/prototypes.ts`, picked by how many cooks act at once).
 
@@ -73,5 +75,5 @@ Feature boundaries are enforced by the `factory-architecture` oxlint plugin; the
 
 ### Driving the game as an agent
 
-1. `pnpm dev`, then open `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `last-seconds`).
-2. In the console or with `agent-browser eval`: `__game.step(ticks, [intent1, intent2])` runs ticks with intents `{ dx, dy, interact, work, dash }`, `__game.snapshot()` returns what the HUD shows, `__game.world()` the live state.
+1. `pnpm dev`, then open `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `catch`, `last-seconds`).
+2. In the console or with `agent-browser eval`: `__game.step(ticks, [intent1, intent2])` runs ticks with intents `{ dx, dy, interact, work, dash, throw }`, `__game.snapshot()` returns what the HUD shows, `__game.world()` the live state.

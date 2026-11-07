@@ -1,15 +1,15 @@
 /** A tap or hold a pad button stands for, the same as one of a keyboard binding's keys. */
-type PadAction = "interact" | "work" | "dash" | "swap";
+type PadAction = "interact" | "work" | "dash" | "throw" | "swap";
 
 /**
  * Which button of the standard mapping does what. Several buttons may share an action.
- * LB (4) is kept free for throwing.
  */
 const PAD_BUTTONS: ReadonlyMap<number, PadAction> = new Map([
   [0, "interact"], // A
   [1, "dash"], // B
   [2, "work"], // X
   [3, "swap"], // Y
+  [4, "throw"], // LB
   [5, "swap"], // RB
 ]);
 

@@ -67,6 +67,10 @@ describe("gamepad input", () => {
     expect(tick(one, pad([0, 0])).work).toBe(false);
   });
 
+  it("throws with LB", () => {
+    expect(tick(newPad(), pad([0, 0], 4))).toMatchObject({ throw: true, interact: false });
+  });
+
   it("swaps with Y and dashes with B", () => {
     expect(tick(newPad(), pad([0, 0], Y, B))).toMatchObject({ swap: true, dash: true, interact: false });
   });

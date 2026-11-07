@@ -1,6 +1,10 @@
 import type { Tile } from "../../game/core/grid.ts";
-import type { Cook, Intent } from "./model.ts";
-import { DASH_COOLDOWN, DASH_SPEED, DASH_TICKS, PERSONAL_SPACE, RADIUS, WALK } from "./prototypes.ts";
+import { isThrowable, land } from "../kitchen/public.ts";
+import type { Station } from "../kitchen/public.ts";
+import type { Cook, Intent, Landing, Thrown } from "./model.ts";
+import {
+  CATCH_REACH, DASH_COOLDOWN, DASH_SPEED, DASH_TICKS, PERSONAL_SPACE, RADIUS, THROW_SPEED, THROW_TICKS, WALK,
+} from "./prototypes.ts";
 
 /** A new cook standing in the middle of a tile, facing down. */
 export function newCook(id: number, tile: Tile): Cook {
@@ -80,4 +84,46 @@ function clear(cook: Cook, x: number, y: number, others: readonly Cook[]): boole
 /** The tile right in front of the cook: the station interact and work reach. */
 export function facingTile(cook: Cook): Tile {
   return { x: Math.floor(cook.x) + cook.face.dx, y: Math.floor(cook.y) + cook.face.dy };
+}
+
+/** The cook throws what they hold, straight ahead from their hands. Only raw ingredients fly; anything else stays in hand and gives null. */
+export function throwHeld(cook: Cook): Thrown | null {
+  if (cook.held === null || !isThrowable(cook.held)) return null;
+  const thrown: Thrown = { item: cook.held, by: cook.id, x: cook.x, y: cook.y, dir: cook.face, flown: 0 };
+  cook.held = null;
+
+  return thrown;
+}
+
+/**
+ * Moves a thrown ingredient one tick. The first empty-handed cook it reaches catches it. The first
+ * solid tile it enters keeps it when that is a station that would take it put down, and loses it
+ * otherwise. Out of range it falls to the floor and is lost. Returns how it ended, or null while it flies.
+ */
+export function fly(thrown: Thrown, cooks: readonly Cook[], stationAt: (x: number, y: number) => Station | null,
+  solid: (x: number, y: number) => boolean): Landing | null {
+  thrown.x += thrown.dir.dx * THROW_SPEED;
+  thrown.y += thrown.dir.dy * THROW_SPEED;
+  thrown.flown += 1;
+  const catcher = cooks.find((c) => c.id !== thrown.by && c.held === null && Math.hypot(c.x - thrown.x, c.y - thrown.y) <= CATCH_REACH);
+
+  if (catcher !== undefined) {
+    catcher.held = thrown.item;
+
+    return { how: "caught", item: thrown.item, x: catcher.x, y: catcher.y };
+  }
+
+  const tx = Math.floor(thrown.x);
+  const ty = Math.floor(thrown.y);
+
+  if (solid(tx, ty)) {
+    const station = stationAt(tx, ty);
+    const how = station !== null && land(station, thrown.item) ? "landed" : "dropped";
+
+    return { how, item: thrown.item, x: tx + 0.5, y: ty + 0.5 };
+  }
+
+  if (thrown.flown >= THROW_TICKS) return { how: "dropped", item: thrown.item, x: thrown.x, y: thrown.y };
+
+  return null;
 }

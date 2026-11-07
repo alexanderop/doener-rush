@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Item, Station } from "./model.ts";
 import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, SHAVE_TICKS, TOAST_DONE, TRAY_PORTIONS, WASH_TICKS } from "./prototypes.ts";
-import { addTo, interact, isBurntBase, isChopped, newSpit, spreadFire, stepStation, work } from "./simulation.ts";
+import { addTo, interact, isBurntBase, isChopped, land, newSpit, spreadFire, stepStation, work } from "./simulation.ts";
 
 const board = (): Station => ({ type: "board", x: 0, y: 0, fire: 0, douse: 0, item: null });
 
@@ -36,6 +36,26 @@ describe("given a cutting board", () => {
     const held = interact(station, bread());
     expect(held).toMatchObject({ kind: "base", fillings: [] });
     expect(station.item).toMatchObject({ kind: "veg" });
+  });
+});
+
+describe("given an ingredient thrown at a station", () => {
+  it("drops chopped lettuce into the döner waiting on a counter", () => {
+    const counter: Station = { type: "counter", x: 0, y: 0, fire: 0, douse: 0, item: bread() };
+    expect(land(counter, { kind: "veg", veg: "lettuce", chop: CHOP_TICKS })).toBe(true);
+    expect(counter.item).toMatchObject({ kind: "base", fillings: ["lettuce"] });
+  });
+
+  it("refuses bread at a stocked tray and leaves the tray as it was", () => {
+    const tray: Station = { type: "tray", x: 0, y: 0, fire: 0, douse: 0, item: null, veg: "onion", portions: 2 };
+    expect(land(tray, bread())).toBe(false);
+    expect(tray).toMatchObject({ veg: "onion", portions: 2 });
+  });
+
+  it("refuses everything while the station burns", () => {
+    const station = { ...board(), fire: 10 };
+    expect(land(station, { kind: "veg", veg: "tomato", chop: 0 })).toBe(false);
+    expect(station.item).toBeNull();
   });
 });
 

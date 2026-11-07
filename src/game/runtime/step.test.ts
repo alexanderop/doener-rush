@@ -2,7 +2,7 @@ import { Arbitrary, Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { BURNT, CHOP_TICKS, DOUSE_TICKS, SHAVE_TICKS, TOAST_BURNT, TOAST_DONE } from "../../features/kitchen/public.ts";
 import { ROUND_TICKS } from "../../features/orders/public.ts";
-import { find, hold, press, walkTo, wait } from "./testing/drive.ts";
+import { find, hold, press, toss, walkTo, wait } from "./testing/drive.ts";
 import { SCENARIOS } from "./testing/scenarios.ts";
 import { isOver, run, snapshot, step } from "./step.ts";
 import { IDLE } from "../../features/cooks/public.ts";
@@ -88,6 +88,7 @@ const IntentSchema = Schema.Struct({
   interact: Schema.Boolean,
   work: Schema.Boolean,
   dash: Schema.Boolean,
+  throw: Schema.Boolean,
   ticks: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 40 })),
 });
 
@@ -116,8 +117,74 @@ describe("given random button mashing by two players", () => {
   });
 
   it("replays the same round from the same seed and inputs", async () => {
-    const failure = await check(plays, (moves) => JSON.stringify(play(9, moves).cooks) === JSON.stringify(play(9, moves).cooks));
+    const replay = (moves: Parameters<typeof play>[1]) => {
+      const world = play(9, moves);
+
+      return JSON.stringify({ cooks: world.cooks, thrown: world.thrown, landings: world.landings });
+    };
+
+    const failure = await check(plays, (moves) => replay(moves) === replay(moves));
     expect(failure).toBeUndefined();
+  });
+});
+
+describe("given cook 1 holding a whole lettuce and cook 2 empty-handed four tiles ahead", () => {
+  it("throws it across and cook 2 catches it", () => {
+    const world = SCENARIOS.catch.build(1);
+    toss(world, 1);
+    expect(world.cooks[0]?.held).toBeNull();
+    expect(world.cooks[1]?.held).toEqual({ kind: "veg", veg: "lettuce", chop: 0 });
+    expect(world.landings.map((l) => l.landing.how)).toEqual(["caught"]);
+  });
+
+  it("lands it on the empty counter it is thrown at", () => {
+    const world = SCENARIOS.catch.build(1);
+    run(world, 1, [{ ...IDLE, dy: 1 }]);
+    toss(world, 1);
+    expect(world.cooks[0]?.held).toBeNull();
+    expect(find(world, (s) => s.x === 2 && s.y === 8).item).toEqual({ kind: "veg", veg: "lettuce", chop: 0 });
+    expect(world.landings.map((l) => l.landing.how)).toEqual(["landed"]);
+  });
+
+  it("loses it against a crate, which cannot take it", () => {
+    const world = SCENARIOS.catch.build(1);
+    run(world, 1, [{ ...IDLE, dx: -1 }]);
+    toss(world, 1);
+    expect(world.cooks.map((c) => c.held)).toEqual([null, null]);
+    expect(world.landings.map((l) => l.landing.how)).toEqual(["dropped"]);
+  });
+
+  it("drops it on the floor after six tiles when nothing is in the way", () => {
+    const world = SCENARIOS.catch.build(1);
+    run(world, 1, [{ ...IDLE, dy: -1 }]);
+    toss(world, 1);
+    expect(world.landings.map((l) => l.landing)).toMatchObject([{ how: "dropped", x: 2.5 }]);
+    expect(Math.floor(world.landings[0]?.landing.y ?? 0)).toBe(1);
+    expect(find(world, (s) => s.type === "spit").item).toBeNull();
+  });
+
+  it("keeps a plate in hand: only raw ingredients fly", () => {
+    const world = SCENARIOS.catch.build(1);
+    const plate = { kind: "plate", dirty: false, food: null } as const;
+    const thrower = world.cooks[0];
+
+    if (thrower !== undefined) thrower.held = { ...plate };
+    toss(world, 1);
+    expect(world.cooks.map((c) => c.held)).toEqual([plate, null]);
+    expect(world.landings).toEqual([]);
+  });
+
+  it("keeps toasted bread in hand but throws bread fresh from the crate", () => {
+    const world = SCENARIOS.catch.build(1);
+    const thrower = world.cooks[0];
+
+    if (thrower !== undefined) thrower.held = { kind: "base", base: "bread", toast: TOAST_DONE, fillings: [] };
+    toss(world, 1);
+    expect(world.cooks[1]?.held).toBeNull();
+
+    if (thrower !== undefined) thrower.held = { kind: "base", base: "bread", toast: 0, fillings: [] };
+    toss(world, 1);
+    expect(world.cooks[1]?.held).toMatchObject({ kind: "base", toast: 0 });
   });
 });
 
@@ -171,7 +238,7 @@ describe("given a lineup", () => {
   it("lets a solo player's WASD binding drive cook 1", () => {
     const world = SCENARIOS.shift.build(1, lineupOf(1, 0));
     const startX = world.cooks[0]?.x ?? 0;
-    run(world, 30, [{ dx: 1, dy: 0, interact: false, work: false, dash: false }]);
+    run(world, 30, [{ dx: 1, dy: 0, interact: false, work: false, dash: false, throw: false }]);
     expect(world.cooks[0]?.x).toBeGreaterThan(startX + 1);
   });
 
@@ -179,7 +246,7 @@ describe("given a lineup", () => {
     const world = SCENARIOS.shift.build(1, TWO_PLAYERS);
     const [one, two] = world.cooks;
     const before = [one?.x, two?.x];
-    run(world, 30, [IDLE, { dx: -1, dy: 0, interact: false, work: false, dash: false }]);
+    run(world, 30, [IDLE, { dx: -1, dy: 0, interact: false, work: false, dash: false, throw: false }]);
     expect([one?.x, (two?.x ?? 0) < (before[1] ?? 0) - 1]).toEqual([before[0], true]);
   });
 });

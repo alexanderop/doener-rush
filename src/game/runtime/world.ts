@@ -2,7 +2,7 @@ import type { Tile } from "../core/grid.ts";
 import { newMind } from "../../features/bots/public.ts";
 import type { BotMind } from "../../features/bots/public.ts";
 import { newCook } from "../../features/cooks/public.ts";
-import type { Cook } from "../../features/cooks/public.ts";
+import type { Cook, Landing, Thrown } from "../../features/cooks/public.ts";
 import { START_PLATES, newSpit } from "../../features/kitchen/public.ts";
 import type { CrateGoods, Sauce, Station } from "../../features/kitchen/public.ts";
 import { newOrders, paceFor } from "../../features/orders/public.ts";
@@ -45,6 +45,10 @@ export interface World {
   /** Stations by `y * width + x`; floor tiles have none. */
   readonly stations: Map<number, Station>;
   readonly cooks: Cook[];
+  /** Ingredients in the air, oldest throw first. */
+  readonly thrown: Thrown[];
+  /** How the throws of the last second ended, newest last, for the landing puffs. */
+  readonly landings: { readonly tick: number; readonly landing: Landing }[];
   /** Who drives each cook, by index into `cooks`. */
   readonly drivers: readonly Driver[];
   /** For each keyboard binding, the index of the cook it moves now; -1 when it drives none. */
@@ -101,7 +105,7 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
   const control = [0, 1].map((b) => lineup.drivers.findIndex((d) => d.kind === "keys" && d.binding === b));
 
   return {
-    seed, tick: 0, rng: seed, width, height, stations, cooks, drivers: lineup.drivers, control, parked: new Set(), bots,
+    seed, tick: 0, rng: seed, width, height, stations, cooks, thrown: [], landings: [], drivers: lineup.drivers, control, parked: new Set(), bots,
     orders: newOrders(paceFor(crewOf(lineup))), platesDue: [], endTick, rules: NORMAL_RULES, tutorial: null,
   };
 }

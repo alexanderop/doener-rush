@@ -8,15 +8,15 @@ import { pollPads } from "#/game/runtime/input/pads.ts";
 
 /** Key help for each keyboard binding. */
 const KEYS = new Map<0 | 1, string>([
-  [0, "WASD laufen · Leertaste sprinten · E nehmen/ablegen · Q halten: schneiden/schaben/spülen/löschen"],
-  [1, "Pfeile laufen · Shift rechts sprinten · / nehmen/ablegen · . halten: arbeiten"],
+  [0, "WASD laufen · Leertaste sprinten · E nehmen/ablegen · F werfen · Q halten: schneiden/schaben/spülen/löschen"],
+  [1, "Pfeile laufen · Shift rechts sprinten · / nehmen/ablegen · ' werfen · . halten: arbeiten"],
 ]);
 
 /** The swap key of each binding, for players who drive two cooks. */
 const SWAP = new Map<0 | 1, string>([[0, "R"], [1, "Enter"]]);
 
 /** What a binding's pill names when a pad plays it instead of the keys. */
-const PAD = { keys: "Stick laufen · B sprinten · A nehmen/ablegen · X halten: schneiden/schaben/spülen/löschen", swap: "Y" };
+const PAD = { keys: "Stick laufen · B sprinten · A nehmen/ablegen · LB werfen · X halten: schneiden/schaben/spülen/löschen", swap: "Y" };
 
 /** How many pads are plugged in; pad `i` plays binding `i`. */
 function usePadCount(): number {

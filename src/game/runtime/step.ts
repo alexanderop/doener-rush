@@ -1,7 +1,7 @@
 import { think } from "../../features/bots/public.ts";
 import type { Sight } from "../../features/bots/public.ts";
-import { IDLE, facingTile, walk } from "../../features/cooks/public.ts";
-import type { Intent } from "../../features/cooks/public.ts";
+import { IDLE, facingTile, fly, throwHeld, walk } from "../../features/cooks/public.ts";
+import type { Intent, Thrown } from "../../features/cooks/public.ts";
 import { CHOP_TICKS, interact, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
 import { ordersSnapshot, serve, stepOrders } from "../../features/orders/public.ts";
 import type { OrdersSnapshot } from "../../features/orders/public.ts";
@@ -17,6 +17,9 @@ import type { TutorialView } from "./tutorial/tutorial.ts";
 /** Ticks after a serve until its plate comes back: dirty to the return hatch, or clean to the rack when the rules skip the dishes. */
 const PLATE_RETURN = seconds(7);
 
+/** Ticks a landing stays on record for the view to show its puff. */
+const LANDING_TICKS = seconds(1);
+
 /** True once the round's time is up; the tick stops changing the world. */
 export function isOver(world: World): boolean {
   return world.tick >= world.endTick;
@@ -26,7 +29,7 @@ export function isOver(world: World): boolean {
  * Advances the world by one tick. `intents[b]` drives the cook binding `b` controls now; missing
  * intents idle. A swap press moves that control to the binding's next cook. Bots think for their cook from what they see at
  * that moment, so a bot sees the moves of the cooks before it.
- * The order is fixed (cooks by id, then stations, then orders), so a seed and the same
+ * The order is fixed (cooks by id, then thrown ingredients, stations, orders), so a seed and the same
  * intents always give the same round.
  */
 export function step(world: World, intents: readonly PlayerInput[]): void {
@@ -43,6 +46,15 @@ export function step(world: World, intents: readonly PlayerInput[]): void {
     if (driver?.kind === "keys") intent = world.control[driver.binding] === i ? intentOf(intents[driver.binding]) : parkedIntent(world, i);
     else if (mind !== undefined) intent = think(sightOf(world), mind, cook);
     walk(cook, intent, solid, world.cooks);
+    const thrown = intent.throw ? throwHeld(cook) : null;
+
+    if (thrown !== null) {
+      world.thrown.push(thrown);
+      cook.working = false;
+
+      return;
+    }
+
     const front = facingTile(cook);
     const station = stationAt(world, front.x, front.y);
     cook.working = intent.work && station !== null;
@@ -56,6 +68,8 @@ export function step(world: World, intents: readonly PlayerInput[]): void {
     }
   });
 
+  flyThrown(world, solid);
+
   for (const station of world.stations.values()) stepStation(station);
   enforceRules(world);
   spreadFire(world.stations.values(), (x, y) => fightable(world, x, y));
@@ -65,11 +79,27 @@ export function step(world: World, intents: readonly PlayerInput[]): void {
   stepTutorial(world);
 }
 
+/** Moves every ingredient in the air one tick, oldest throw first, and records how the finished flights ended. */
+function flyThrown(world: World, solid: (x: number, y: number) => boolean): void {
+  const flying: Thrown[] = [];
+
+  for (const thrown of world.thrown) {
+    const landing = fly(thrown, world.cooks, (x, y) => stationAt(world, x, y), solid);
+
+    if (landing === null) flying.push(thrown);
+    else world.landings.push({ tick: world.tick, landing });
+  }
+
+  world.thrown.splice(0, world.thrown.length, ...flying);
+
+  while (world.landings.length > 0 && world.tick - (world.landings[0]?.tick ?? world.tick) > LANDING_TICKS) world.landings.shift();
+}
+
 /** The cook part of a player's input. */
 function intentOf(input: PlayerInput | undefined): Intent {
   if (input === undefined) return IDLE;
 
-  return { dx: input.dx, dy: input.dy, interact: input.interact, work: input.work, dash: input.dash };
+  return { dx: input.dx, dy: input.dy, interact: input.interact, work: input.work, dash: input.dash, throw: input.throw };
 }
 
 /**

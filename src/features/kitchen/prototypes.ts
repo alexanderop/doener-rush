@@ -1,5 +1,5 @@
 import { seconds } from "../../game/core/grid.ts";
-import type { Base, CrateGoods, Filling } from "./model.ts";
+import type { Base, CrateGoods, Filling, Item } from "./model.ts";
 
 /** Ticks of work on a board to chop a vegetable. */
 export const CHOP_TICKS = seconds(2);
@@ -48,6 +48,18 @@ export const WASH_TICKS = seconds(2.5);
 
 /** Clean plates on the rack when a shift starts. */
 export const START_PLATES = 3;
+
+/**
+ * Which kinds of item fly when a cook throws them: raw ingredients only. A bread base counts as
+ * raw until it is toasted or filled (see `isThrowable`); shaved meat, plates and the extinguisher stay in hand.
+ */
+export const THROWABLE: Readonly<Record<Item["kind"], boolean>> = {
+  veg: true,
+  base: true,
+  meat: false,
+  plate: false,
+  extinguisher: false,
+};
 
 /** True when a crate's goods are a bread base rather than a vegetable. */
 export function isBase(goods: CrateGoods): goods is Base {
