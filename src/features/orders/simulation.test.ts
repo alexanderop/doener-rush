@@ -68,6 +68,10 @@ describe("given a customer who wants a Franzbrötchen", () => {
     expect(defect(pastry(HEAT.dough.done - 1, "cinnamon"))).toBe("Teig nicht gebacken.");
   });
 
+  it("refuses a burnt pastry and calls it pastry, not bread", () => {
+    expect(defect(pastry(HEAT.dough.burnt, "cinnamon"))).toBe("Verbranntes Gebäck!");
+  });
+
   it("does not take a Mohnbrötchen instead", () => {
     const state = newOrders();
     addOrder(state, franz);

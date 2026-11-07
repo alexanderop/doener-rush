@@ -71,7 +71,7 @@ export function defect(item: Item): string | null {
 
   if (food === null) return "Der Teller ist leer.";
 
-  if (isBurntBase(food)) return "Verbranntes Brot!";
+  if (isBurntBase(food)) return food.base === "dough" ? "Verbranntes Gebäck!" : "Verbranntes Brot!";
 
   if (!isBaked(food)) return food.base === "dough" ? "Teig nicht gebacken." : "Brot nicht getoastet.";
 
