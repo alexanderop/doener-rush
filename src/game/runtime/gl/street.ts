@@ -12,42 +12,91 @@ const WALL_H = 1.05;
 
 const WALL_T = 0.55;
 
-/** The kitchen floor: 2×2 small checks per tile with grout, darker where the floor meets a counter. */
+/** Stations a cook stands at for long stretches: they get a rubber mat on the floor in front. */
+const MAT_STATIONS: ReadonlySet<string> = new Set(["board", "toaster", "spit", "sink"]);
+
+/**
+ * The kitchen floor: one warm terracotta tile per world tile, low contrast so cooks and food
+ * stay the brightest things on screen. Worn spots, rubber mats in front of the work stations,
+ * a drain, and darker floor where it meets a counter.
+ */
 function floorTexture(world: World): THREE.Texture {
   const px = 128;
 
   return canvasTexture(`floor|${world.width}x${world.height}`, world.width * px, world.height * px, (g) => {
-    const half = px / 2;
+    g.fillStyle = "#6e4a38";
+    g.fillRect(0, 0, world.width * px, world.height * px);
 
-    for (let y = 0; y < world.height * 2; y++) {
-      for (let x = 0; x < world.width * 2; x++) {
-        const light = (x + y) % 2 === 0;
-        const n = hash(x, y) * 10 - 5;
-        const r = (light ? 232 : 118) + n;
-        const gr = (light ? 222 : 112) + n;
-        const b = (light ? 200 : 106) + n;
-        g.fillStyle = `rgb(${r},${gr},${b})`;
-        g.fillRect(x * half, y * half, half, half);
-        // a soft highlight on the upper edge of each check
-        g.fillStyle = "rgba(255,255,255,0.08)";
-        g.fillRect(x * half, y * half, half, 4);
+    for (let y = 0; y < world.height; y++) {
+      for (let x = 0; x < world.width; x++) {
+        const n = hash(x, y) * 14 - 7;
+        const alt = (x + y) % 2 === 0 ? 6 : -6;
+        g.fillStyle = `rgb(${204 + n + alt},${160 + n + alt},${126 + n + alt * 0.7})`;
+        g.beginPath();
+        g.roundRect(x * px + 3, y * px + 3, px - 6, px - 6, 10);
+        g.fill();
+        // glaze: a soft highlight on the upper-left of each tile
+        const glaze = g.createLinearGradient(x * px, y * px, x * px + px, y * px + px);
+        glaze.addColorStop(0, "rgba(255,240,220,0.16)");
+        glaze.addColorStop(0.5, "rgba(255,240,220,0)");
+        g.fillStyle = glaze;
+        g.fillRect(x * px + 3, y * px + 3, px - 6, px - 6);
       }
     }
 
-    g.strokeStyle = "rgba(60,45,35,0.45)";
-    g.lineWidth = 2;
-
-    for (let x = 0; x <= world.width * 2; x++) {
-      g.beginPath();
-      g.moveTo(x * half, 0);
-      g.lineTo(x * half, world.height * px);
-      g.stroke();
+    // worn, slightly darker patches where the cooks walk most
+    for (let i = 0; i < world.width * world.height * 0.18; i++) {
+      const cx = hash(i, 7) * world.width * px;
+      const cy = hash(i, 13) * world.height * px;
+      const r = 40 + hash(i, 21) * 90;
+      const spot = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+      spot.addColorStop(0, "rgba(70,40,25,0.10)");
+      spot.addColorStop(1, "rgba(70,40,25,0)");
+      g.fillStyle = spot;
+      g.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
 
-    for (let y = 0; y <= world.height * 2; y++) {
+    // rubber mats in front of the stations a cook works at
+    for (const s of world.stations.values()) {
+      if (!MAT_STATIONS.has(s.type)) continue;
+
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const fx = s.x + dx;
+        const fy = s.y + dy;
+
+        if (fx < 0 || fy < 0 || fx >= world.width || fy >= world.height || world.stations.has(fy * world.width + fx)) continue;
+        const x0 = fx * px + 10;
+        const y0 = fy * px + 10;
+        g.fillStyle = "#3d4a44";
+        g.beginPath();
+        g.roundRect(x0, y0, px - 20, px - 20, 14);
+        g.fill();
+        g.fillStyle = "#4c5c54";
+
+        for (let my = 0; my < 6; my++) {
+          for (let mx = 0; mx < 6; mx++) {
+            g.beginPath();
+            g.arc(x0 + 13 + mx * 17.5, y0 + 13 + my * 17.5, 4.5, 0, Math.PI * 2);
+            g.fill();
+          }
+        }
+      }
+    }
+
+    // a drain in the middle of the floor
+    const dx = (world.width / 2) * px;
+    const dy = (world.height / 2 + 1.5) * px;
+    g.fillStyle = "#5a524c";
+    g.beginPath();
+    g.arc(dx, dy, 22, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "#2e2824";
+    g.lineWidth = 3;
+
+    for (let i = -2; i <= 2; i++) {
       g.beginPath();
-      g.moveTo(0, y * half);
-      g.lineTo(world.width * px, y * half);
+      g.moveTo(dx - 16, dy + i * 7);
+      g.lineTo(dx + 16, dy + i * 7);
       g.stroke();
     }
 
@@ -56,17 +105,17 @@ function floorTexture(world: World): THREE.Texture {
       for (let x = 0; x < world.width; x++) {
         if (world.stations.has(y * world.width + x)) continue;
 
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-          if (!world.stations.has((y + dy) * world.width + (x + dx))) continue;
-          const x0 = x * px + (dx === 1 ? px : 0);
-          const y0 = y * px + (dy === 1 ? px : 0);
+        for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          if (!world.stations.has((y + oy) * world.width + (x + ox))) continue;
+          const x0 = x * px + (ox === 1 ? px : 0);
+          const y0 = y * px + (oy === 1 ? px : 0);
 
-          const grad = dx === 0
-            ? g.createLinearGradient(0, y0, 0, y0 - dy * 40)
-            : g.createLinearGradient(x0, 0, x0 - dx * 40, 0);
+          const grad = ox === 0
+            ? g.createLinearGradient(0, y0, 0, y0 - oy * 48)
+            : g.createLinearGradient(x0, 0, x0 - ox * 48, 0);
 
-          grad.addColorStop(0, "rgba(40,25,15,0.42)");
-          grad.addColorStop(1, "rgba(40,25,15,0)");
+          grad.addColorStop(0, "rgba(40,20,10,0.5)");
+          grad.addColorStop(1, "rgba(40,20,10,0)");
           g.fillStyle = grad;
           g.fillRect(x * px, y * px, px, px);
         }
@@ -124,10 +173,10 @@ function wallRun(x0: number, z0: number, x1: number, z1: number, height: number)
   const bricks = brickMap().clone();
   bricks.needsUpdate = true;
   bricks.repeat.set(Math.max(w, d) / 1.2, height / 0.6);
-  const body = solid(new THREE.BoxGeometry(w, height, d), new THREE.MeshStandardMaterial({ color: "#b0432f", map: bricks, roughness: 0.85 }));
+  const body = solid(new THREE.BoxGeometry(w, height, d), new THREE.MeshStandardMaterial({ color: "#a8644e", map: bricks, roughness: 0.85 }));
   body.position.set((x0 + x1) / 2, height / 2, (z0 + z1) / 2);
   g.add(body);
-  const cap = solid(new THREE.BoxGeometry(w + 0.08, 0.1, d + 0.08), mat("#a9452f", "#000000", 0.7));
+  const cap = solid(new THREE.BoxGeometry(w + 0.08, 0.1, d + 0.08), mat("#9c5a44", "#000000", 0.7));
   cap.position.set((x0 + x1) / 2, height + 0.05, (z0 + z1) / 2);
   g.add(cap);
 
@@ -165,6 +214,93 @@ function rimWall(world: World): THREE.Group {
     const glass = box(0.94, 0.36, 0.02, mat("#9fd3e6", "#24485a", 0.15), 0.55);
     glass.position.set(x, 0.55, -WALL_T - 0.06);
     g.add(glass);
+  }
+
+  return g;
+}
+
+/** White subway tiles with a teal band: the kitchen side of the street wall. */
+function splashMap(): THREE.Texture {
+  const t = canvasTexture("splash", 128, 128, (g) => {
+    g.fillStyle = "#b9b2a6";
+    g.fillRect(0, 0, 128, 128);
+
+    for (let row = 0; row < 8; row++) {
+      for (let col = -1; col < 3; col++) {
+        const x = col * 64 + (row % 2) * 32;
+        const band = row === 5;
+        const v = Math.round(hash(row, col + 9) * 10);
+        g.fillStyle = band ? `rgb(${50 + v},${132 + v},${128 + v})` : `rgb(${240 - v},${236 - v},${226 - v})`;
+        g.beginPath();
+        g.roundRect(x + 1.5, row * 16 + 1.5, 61, 13, 3);
+        g.fill();
+      }
+    }
+  });
+
+  t.wrapS = THREE.RepeatWrapping;
+  t.wrapT = THREE.RepeatWrapping;
+
+  return t;
+}
+
+const SPLASH_H = 1.55;
+
+const JARS = ["#e94f37", "#f6ae2d", "#6fc23f", "#c886b5", "#f7f1e6"];
+
+/**
+ * The back of the kitchen: a tiled splashback on the inside of the street wall and a wooden
+ * shelf with spice jars. It stops at the pass so the queue stays in view.
+ */
+function backWall(world: World): THREE.Group {
+  const g = new THREE.Group();
+  const passes = new Set([...world.stations.values()].flatMap((s) => (s.type === "pass" ? [s.x] : [])));
+  const tiles = splashMap();
+  const runs: (readonly [number, number])[] = [];
+  let start = 0;
+
+  for (let x = 0; x <= world.width; x++) {
+    if (x === world.width || passes.has(x)) {
+      if (x > start) runs.push([start, x]);
+      start = x + 1;
+    }
+  }
+
+  for (const [x0, x1] of runs) {
+    const w = x1 - x0;
+    const map = tiles.clone();
+    map.needsUpdate = true;
+    map.repeat.set(w / 1, SPLASH_H / 1);
+    const panel = solid(new THREE.BoxGeometry(w, SPLASH_H, 0.08), mapped("#ffffff", map, 0.35));
+    panel.position.set(x0 + w / 2, SPLASH_H / 2, -0.04);
+    g.add(panel);
+    const cap = box(w, 0.06, 0.14, mat("#2f7d7a"), SPLASH_H + 0.03);
+    cap.position.set(x0 + w / 2, SPLASH_H + 0.03, -0.04);
+    g.add(cap);
+    // a shelf with jars, and a rail with ladles, on alternate stretches
+    const shelf = box(w - 0.3, 0.05, 0.2, mat("#8a5a3a"), 1.32);
+    shelf.position.set(x0 + w / 2, 1.32, 0.09);
+    g.add(shelf);
+
+    // jars stand in small groups of two or three, with gaps between them
+    for (let cx = x0 + 0.6; cx < x1 - 0.4; cx += 1.6 + hash(cx, 3) * 0.8) {
+      const count = 2 + Math.floor(hash(cx, 17) * 2);
+
+      for (let j = 0; j < count; j++) {
+        const x = cx + j * 0.15;
+        const i = Math.floor(hash(x * 3, 5) * JARS.length);
+        const tall = 0.12 + hash(x, 11) * 0.1;
+        const jar = cyl(0.065, 0.065, tall, mat("#e8f2f2", "#000000", 0.2), 10);
+        jar.position.set(x, 1.345 + tall / 2, 0.09);
+        g.add(jar);
+        const fill = cyl(0.055, 0.055, tall * 0.7, mat(JARS[i] ?? "#f6ae2d"), 10);
+        fill.position.set(x, 1.345 + tall * 0.35, 0.09);
+        g.add(fill);
+        const lid = cyl(0.07, 0.07, 0.03, mat("#3a2a22"), 10);
+        lid.position.set(x, 1.36 + tall, 0.09);
+        g.add(lid);
+      }
+    }
   }
 
   return g;
@@ -363,6 +499,7 @@ export function street(world: World): Street {
   floor.receiveShadow = true;
   g.add(floor);
   g.add(rimWall(world));
+  g.add(backWall(world));
 
   for (let x = -12; x < w + 12; x += 2) {
     const dash = new THREE.Mesh(geo("dash", () => new THREE.PlaneGeometry(1.1, 0.14)), mat("#f2efe6"));

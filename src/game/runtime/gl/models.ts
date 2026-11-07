@@ -15,9 +15,9 @@ export const TOP = 0.9;
 
 type Veg = "lettuce" | "tomato" | "onion";
 
-const CABINET = "#b4602c";
+const CABINET = "#2f7d7a";
 
-const WORKTOP = "#f5bd4f";
+const WORKTOP = "#e7c393";
 
 const BRASS = "#d9a646";
 

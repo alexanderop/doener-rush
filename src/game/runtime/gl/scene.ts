@@ -20,7 +20,7 @@ import { animateStreet, street } from "./street.ts";
 
 const COOK_COLORS = ["#e94f37", "#3f88c5", "#44bba4", "#f6ae2d"];
 
-const TILT = THREE.MathUtils.degToRad(64);
+const TILT = THREE.MathUtils.degToRad(54);
 
 const ITEM_SCALE = 1.55;
 
@@ -362,8 +362,8 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
 
     // the kitchen with its rim, the customers at the pass and the sign over it
     const points = [
-      new THREE.Vector3(-0.6, 0, h + 0.6), new THREE.Vector3(w + 0.6, 0, h + 0.6),
-      new THREE.Vector3(-0.6, 1, -1.4), new THREE.Vector3(w + 0.6, 1, -1.4),
+      new THREE.Vector3(-0.1, 0, h + 0.2), new THREE.Vector3(w + 0.1, 0, h + 0.2),
+      new THREE.Vector3(-0.1, 1, -1.2), new THREE.Vector3(w + 0.1, 1, -1.2),
       new THREE.Vector3(w / 2, 1.45, -2.55),
     ];
 
