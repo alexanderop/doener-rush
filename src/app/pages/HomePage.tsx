@@ -43,9 +43,15 @@ export function HomePage() {
           <Stepper label="Köche am Keyboard" value={humans} min={1} max={2} onChange={(n) => { setHumans(n); setBots(Math.min(bots, MAX_COOKS - n)); }} />
           <Stepper label="Bots" value={bots} min={0} max={MAX_COOKS - humans} onChange={setBots} />
         </div>
-        <Button asChild size="lg" className="mt-8">
-          <a href={`/play?humans=${humans}&bots=${bots}`}>Schicht starten</a>
-        </Button>
+        <div className="mt-8 flex justify-center gap-3">
+          <Button asChild size="lg">
+            <a href={`/play?humans=${humans}&bots=${bots}`}>Schicht starten</a>
+          </Button>
+          <Button asChild size="lg" variant="secondary">
+            <a href="/tutorial">Tutorial</a>
+          </Button>
+        </div>
+        <p className="mt-3 text-sm text-muted-foreground">Neu hier? Das Tutorial zeigt dir Schritt für Schritt die ganze Küche.</p>
       </div>
     </main>
   );

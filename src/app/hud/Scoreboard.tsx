@@ -49,8 +49,8 @@ function Stopwatch({ seconds }: { readonly seconds: number }) {
   );
 }
 
-/** The score coin in the bottom left and the shift stopwatch in the bottom right, over the kitchen. */
-export function Scoreboard() {
+/** The score coin in the bottom left and, unless `clock` is false, the shift stopwatch in the bottom right. */
+export function Scoreboard({ clock = true }: { readonly clock?: boolean }) {
   const snap = useAtomValue(snapshotAtom);
   const seconds = Option.match(snap, { onNone: () => 0, onSome: (s) => s.secondsLeft });
   const score = Option.match(snap, { onNone: () => 0, onSome: (s) => s.orders.score });
@@ -58,7 +58,7 @@ export function Scoreboard() {
   return (
     <>
       <Coin score={score} />
-      <Stopwatch seconds={seconds} />
+      {clock && <Stopwatch seconds={seconds} />}
     </>
   );
 }

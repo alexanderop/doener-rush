@@ -29,6 +29,12 @@ Empty cook slots are bots. Pick one or two players on the keyboard and up to fou
 5. Put it on a clean plate from the rack and hand it over the pass. The plate comes back dirty to the return hatch 7 s later; wash it at the sink.
 6. Fire spreads to the neighbouring stations every 6 s. Grab the extinguisher and hold work at the fire for 1.2 s.
 
+## Tutorial
+
+`/tutorial` (or "Tutorial" on the home page) walks one player through the whole kitchen in 22 steps: walking, dashing, chopping, trays, toasting, plates, the spit, sauce, serving, washing up and fire. A card names the step, the keys and why it works that way; a yellow arrow points at the station to use. The kitchen is calm: nothing burns, the customer waits forever, fire does not spread.
+
+The lessons are a table in `src/game/runtime/tutorial/lessons.ts`. Each one checks the world to decide it is done, so any order of actions works. Losing the döner on the way goes back to the bread step.
+
 ## Layout
 
 | Path | Role |
@@ -43,6 +49,7 @@ Empty cook slots are bots. Pick one or two players on the keyboard and up to fou
 | `src/game/runtime/step.ts` | One tick in fixed order: cooks, stations, orders. HUD snapshot |
 | `src/game/runtime/useGameCanvas.ts` | Keyboard, fixed 60 Hz loop, 3D render, snapshot to `snapshotAtom`, dev `window.__game` |
 | `src/game/runtime/gl/` | The 3D view (three.js): low-poly models built from primitives in `models.ts`, camera, lights, storefront and sync from the world in `scene.ts` |
+| `src/game/runtime/tutorial/` | The tutorial: lesson table, calm-kitchen rules, the view the HUD card and 3D arrow read |
 | `src/game/runtime/testing/` | Scenarios (`?scenario=` in the browser, Vitest, e2e) and a breadth-first walking driver for scripted cooks |
 | `src/app/` | HUD (top bar, toasts, end-of-shift card) and pages |
 

@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { facingTile } from "../../../features/cooks/public.ts";
 import type { Item, Station } from "../../../features/kitchen/public.ts";
 import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, SHAVE_TICKS, TOAST_BURNT, TOAST_DONE, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
+import { tutorialTargets } from "../tutorial/tutorial.ts";
 import type { World } from "../world.ts";
 import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
@@ -142,6 +143,44 @@ function slabGlow(color: string, round: boolean): THREE.Mesh {
   return mesh;
 }
 
+/** Most stations the tutorial points at at once. */
+const ARROWS = 4;
+
+/** A fat yellow arrow with a dark rim that bobs over the station the tutorial wants next, with a glow on its slab. */
+function tutorialArrow(): THREE.Group {
+  const group = new THREE.Group();
+
+  const tip = new THREE.Mesh(
+    geo("arrow-tip", () => new THREE.ConeGeometry(0.3, 0.42, 4).rotateX(Math.PI).rotateY(Math.PI / 4)),
+    new THREE.MeshBasicMaterial({ color: "#ffd23f", toneMapped: false }),
+  );
+
+  const shaft = new THREE.Mesh(
+    geo("arrow-shaft", () => new THREE.BoxGeometry(0.2, 0.32, 0.2)),
+    new THREE.MeshBasicMaterial({ color: "#ffd23f", toneMapped: false }),
+  );
+
+  shaft.position.y = 0.36;
+  const rim = new THREE.MeshBasicMaterial({ color: "#2a1a10", side: THREE.BackSide });
+  const tipRim = new THREE.Mesh(tip.geometry, rim);
+  tipRim.scale.setScalar(1.22);
+  const shaftRim = new THREE.Mesh(shaft.geometry, rim);
+  shaftRim.scale.setScalar(1.3);
+  shaftRim.position.y = shaft.position.y;
+  const arrow = new THREE.Group();
+  arrow.name = "arrow";
+  arrow.add(tip, shaft, tipRim, shaftRim);
+  arrow.renderOrder = 900;
+  const glow = slabGlow("#ffd23f", false);
+  glow.name = "glow";
+  glow.visible = true;
+  arrow.scale.setScalar(1.35);
+  group.add(arrow, glow);
+  group.visible = false;
+
+  return group;
+}
+
 /** Overshooting scale for something that just landed: 0.55 → 1.15 → 1. */
 function popScale(age: number): number {
   if (age > 0.6) return 1;
@@ -236,6 +275,13 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
   }
 
   scene.add(bakeStatic(still, ANIMATED));
+
+  const arrows = Array.from({ length: ARROWS }, () => {
+    const arrow = tutorialArrow();
+    scene.add(arrow);
+
+    return arrow;
+  });
 
   const cooks: CookView[] = world.cooks.map((cook, i) => {
     const color = COOK_COLORS[i] ?? "#ffffff";
@@ -514,6 +560,25 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
     }
   }
 
+  function syncArrows(w: World, t: number): void {
+    const targets = tutorialTargets(w);
+    arrows.forEach((group, i) => {
+      const target = targets[i];
+      group.visible = target !== undefined;
+
+      if (target === undefined) return;
+      const lift = target.type === "spit" ? 2.1 : 1.15;
+      group.position.set(target.x + 0.5, TOP, target.y + 0.5);
+      const arrow = named(group, "arrow");
+      arrow.position.y = lift + Math.abs(Math.sin(t * 4)) * 0.22;
+      arrow.rotation.y = t * 1.5;
+      const glow = named(group, "glow");
+      glow.position.y = -0.06;
+
+      if (glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshBasicMaterial) glow.material.opacity = 0.3 + Math.sin(t * 6) * 0.15;
+    });
+  }
+
   function render(w: World, width: number, height: number, timeMs: number): void {
     if (width !== lastW || height !== lastH) {
       renderer.setSize(width, height, false);
@@ -548,6 +613,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
 
     for (let i = 0; i < w.cooks.length; i++) syncCook(w, i, dt, t);
     syncEvents(w);
+    syncArrows(w, t);
     syncCustomers(w, dt, t);
     animateStreet(outside.birds, t);
     fx.update(dt);

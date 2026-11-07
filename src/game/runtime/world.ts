@@ -52,6 +52,13 @@ export interface World {
   readonly platesDue: number[];
   /** Last tick of the round. */
   readonly endTick: number;
+  /** The guided tutorial's progress, or null in a normal shift. */
+  tutorial: TutorialState | null;
+}
+
+/** Progress through the tutorial: the index of the current lesson. */
+interface TutorialState {
+  lesson: number;
 }
 
 /** Builds a fresh round from a floor plan with one cook per driver of the lineup, on start tiles `1`, `2`, … */
@@ -83,7 +90,7 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
     if (driver.kind === "bot") bots.set(i + 1, newMind());
   });
 
-  return { seed, tick: 0, rng: seed, width, height, stations, cooks, drivers: lineup.drivers, bots, orders: newOrders(), platesDue: [], endTick };
+  return { seed, tick: 0, rng: seed, width, height, stations, cooks, drivers: lineup.drivers, bots, orders: newOrders(), platesDue: [], endTick, tutorial: null };
 }
 
 function stationFor(ch: string, x: number, y: number): Station | null {

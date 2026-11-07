@@ -9,6 +9,8 @@ import type { Item, Station } from "../../features/kitchen/public.ts";
 import { TICK_RATE, seconds } from "../core/grid.ts";
 import type { World } from "./world.ts";
 import { isSolid, stationAt } from "./world.ts";
+import { stepTutorial, tutorialView } from "./tutorial/tutorial.ts";
+import type { TutorialView } from "./tutorial/tutorial.ts";
 
 /** Ticks after a serve until its plate comes back dirty. */
 const PLATE_RETURN = seconds(7);
@@ -54,6 +56,7 @@ export function step(world: World, intents: readonly Intent[]): void {
   returnPlates(world);
   world.rng = stepOrders(world.orders, world.tick, world.rng);
   world.tick += 1;
+  stepTutorial(world);
 }
 
 /** The station on a tile if a cook can stand next to it; fire skips the rest, since nobody could ever put it out. */
@@ -122,6 +125,8 @@ export interface Snapshot {
   readonly over: boolean;
   readonly orders: OrdersSnapshot;
   readonly held: readonly (Item | null)[];
+  /** The current tutorial lesson, or null in a normal shift. */
+  readonly tutorial: TutorialView | null;
 }
 
 /** Takes the HUD's view of a world. Copies, so React never sees later mutations. */
@@ -132,5 +137,6 @@ export function snapshot(world: World): Snapshot {
     over: isOver(world),
     orders: ordersSnapshot(world.orders),
     held: world.cooks.map((c) => (c.held === null ? null : structuredClone(c.held))),
+    tutorial: tutorialView(world),
   };
 }
