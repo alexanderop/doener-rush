@@ -44,3 +44,7 @@ Then("the shift runs in level {string}", async ({ page }, level: string) => {
   await expect(page).toHaveURL(new RegExp(`level=${level}`));
   await expect.poll(() => page.evaluate(() => window.__game?.world().width)).toBe(13);
 });
+
+Then("customers order {string}", async ({ page }, menu: string) => {
+  await expect.poll(() => page.evaluate(() => window.__game?.world().orders.menu.map((r) => r.name).join(", "))).toBe(menu);
+});

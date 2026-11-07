@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { IDLE } from "../../../features/cooks/public.ts";
+import { HEAT } from "../../../features/kitchen/public.ts";
+import { seconds } from "../../core/grid.ts";
 import type { PlayerInput } from "../lineup.ts";
 import { run } from "../step.ts";
 import { SCENARIOS } from "../testing/scenarios.ts";
@@ -57,6 +59,21 @@ describe("the sounds of the kitchen", () => {
     const world = SCENARIOS["burning-spit"].build(1);
     expect(listen(world, 31)).toContain("warn");
     expect(listen(SCENARIOS.shift.build(1), 31)).not.toContain("warn");
+  });
+
+  it("beeps while a pastry in the oven is about to burn, but not one just baked", () => {
+    const ovenAt = (toast: number) => {
+      const world = SCENARIOS.backstube.build(1);
+
+      for (const station of world.stations.values()) {
+        if (station.type === "toaster") station.item = { kind: "base", base: "dough", toast, fillings: ["lye"] };
+      }
+
+      return world;
+    };
+
+    expect(listen(ovenAt(HEAT.dough.burnt - seconds(2)), 31)).toContain("warn");
+    expect(listen(ovenAt(HEAT.dough.done), 31)).not.toContain("warn");
   });
 
   it("crackles while the spit burns and sprays while the extinguisher works", () => {

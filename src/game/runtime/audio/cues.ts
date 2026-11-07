@@ -130,6 +130,7 @@ function heldKey(item: Cook["held"]): string {
 
   switch (item.kind) {
     case "base": return `base:${item.fillings.length}`;
+    case "bowl": return `bowl:${item.contents.length}`;
     case "plate": return `plate:${item.dirty}:${item.food?.fillings.length ?? -1}`;
     default: return item.kind;
   }

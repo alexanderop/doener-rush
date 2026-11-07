@@ -1,6 +1,7 @@
 import { useAtomSet } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
+import { FAMILY } from "#/features/kitchen/public.ts";
 import { pausedAtom } from "#/game/runtime/atoms.ts";
 import { DEFAULT_LEVEL, levelOf } from "#/game/runtime/levels.ts";
 import type { LevelId } from "#/game/runtime/levels.ts";
@@ -96,7 +97,7 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
       <Scoreboard />
       <Toasts />
       <Controls drivers={world.drivers} looks={looks} />
-      <RecipeIntro />
+      <RecipeIntro family={FAMILY[world.orders.menu[0]?.base ?? "bread"]} />
       <Countdown />
       <RoundOver
         level={scenario === undefined ? level : null}

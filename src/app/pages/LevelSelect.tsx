@@ -13,7 +13,7 @@ export function LevelSelect({ progress, value, onChange }: {
 
   return (
     <div>
-      <div role="radiogroup" aria-label="Level" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div role="radiogroup" aria-label="Level" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {LEVELS.map((level, i) => {
           const open = isUnlocked(progress, level.id);
           const best = progress[level.id];

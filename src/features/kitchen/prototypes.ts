@@ -144,7 +144,7 @@ export const ICONS: Readonly<Record<Filling | Base | Dry | "doener", string>> = 
   bread: "🫓",
   wrap: "🌯",
   dough: "🥟",
-  cinnamon: "🍬",
+  cinnamon: "🟤",
   poppy: "⚫",
   lye: "🧂",
   flour: "🌾",

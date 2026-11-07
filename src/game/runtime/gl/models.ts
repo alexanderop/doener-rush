@@ -91,16 +91,22 @@ const SAUCE_COLOR: Readonly<Record<Sauce, string>> = { garlic: "#fbf5e6", herb: 
 /** The colour of what a dispenser holds: a sauce, or a pastry topping. */
 const DISPENSER_COLOR: Readonly<Record<Sauce | Topping, string>> = { ...SAUCE_COLOR, cinnamon: "#a8642c", poppy: "#2b2b3a", lye: "#f4f1ea" };
 
+/** The colour of a base raw, just done, and about to burn. */
+const BAKE: Readonly<Record<Base, readonly [string, string, string]>> = {
+  bread: ["#e3a456", "#c27028", "#6e4320"],
+  wrap: ["#e3a456", "#c27028", "#6e4320"],
+  dough: ["#f3e2bd", "#d08a3c", "#6e4320"],
+};
+
 function bakeColor(base: Base, toast: number): string {
   const { done, burnt } = HEAT[base];
+  const [raw, baked, dark] = BAKE[base];
 
   if (toast >= burnt) return "#3b2a1d";
-  const share = Math.min(1, toast / done);
 
-  if (toast <= done) return `#${new THREE.Color("#e3a456").lerp(new THREE.Color("#c27028"), share).getHexString()}`;
-  const over = (toast - done) / (burnt - done);
+  if (toast <= done) return `#${new THREE.Color(raw).lerp(new THREE.Color(baked), toast / done).getHexString()}`;
 
-  return `#${new THREE.Color("#c27028").lerp(new THREE.Color("#6e4320"), over).getHexString()}`;
+  return `#${new THREE.Color(baked).lerp(new THREE.Color(dark), (toast - done) / (burnt - done)).getHexString()}`;
 }
 
 // ---------------------------------------------------------------- vegetables
@@ -311,8 +317,95 @@ function lavash(color: string, spots: number): THREE.Group {
   return g;
 }
 
-/** A döner under construction: a split pide or a wrap with what is in it so far. */
+/** A Franzbrötchen: a flat swirl of rolled dough with cinnamon in the grooves and sugar on top. */
+function franz(color: string): THREE.Group {
+  const g = new THREE.Group();
+  const body = ball(0.19, mat(color, "#000000", 0.8), 16);
+  body.scale.set(1, 0.38, 0.85);
+  body.position.y = 0.05;
+  g.add(body);
+
+  for (const [r, y] of [[0.15, 0.075], [0.1, 0.095], [0.05, 0.11]] as const) {
+    const roll = ring(r, 0.028, mat(shade(color, 0.04), "#000000", 0.8));
+    roll.scale.set(1, 0.85, 1);
+    roll.position.y = y;
+    g.add(roll);
+    const groove = ring(r - 0.025, 0.012, mat("#7a3f17", "#000000", 0.7));
+    groove.scale.set(1, 0.85, 1);
+    groove.position.y = y + 0.008;
+    g.add(groove);
+  }
+
+  return g;
+}
+
+/** A Mohnbrötchen: a round roll with a cut across the top. */
+function mohn(color: string): THREE.Group {
+  const g = new THREE.Group();
+  const roll = ball(0.16, mat(color, "#000000", 0.8), 16);
+  roll.scale.set(1, 0.72, 1);
+  roll.position.y = 0.1;
+  g.add(roll);
+  const cut = box(0.24, 0.02, 0.03, mat(shade(color, 0.12)), 0.21);
+  cut.rotation.y = 0.5;
+  g.add(cut);
+
+  return g;
+}
+
+/** A Brezel: a thick belly at the bottom, two arms crossing into loops, all from bent rolls of dough. */
+function brezel(color: string): THREE.Group {
+  const g = new THREE.Group();
+  const dough = mat(color, "#000000", 0.45);
+  const arc = (r: number, angle: number) => solid(geo(`arc|${r}|${angle}`, () => new THREE.TorusGeometry(r, 0.045, 8, 18, angle)), dough);
+  const belly = arc(0.18, Math.PI);
+  belly.rotation.set(-Math.PI / 2, 0, Math.PI);
+  belly.position.set(0, 0.045, -0.02);
+  g.add(belly);
+
+  for (const side of [-1, 1]) {
+    const loop = arc(0.1, Math.PI * 1.5);
+    loop.rotation.set(-Math.PI / 2, 0, side < 0 ? 0 : Math.PI / 2);
+    loop.position.set(side * 0.09, 0.045, -0.02);
+    g.add(loop);
+  }
+
+  return g;
+}
+
+/** Each topping's pastry: how it is built, and how high the topping sits on it. */
+const PASTRY: Readonly<Record<Topping, { readonly build: (color: string) => THREE.Group; readonly top: number }>> = {
+  cinnamon: { build: franz, top: 0.12 },
+  poppy: { build: mohn, top: 0.2 },
+  lye: { build: brezel, top: 0.09 },
+};
+
+/** Dough: a pale ball until a topping makes it a pastry, which browns in the oven. */
+function pastry(toast: number, topping: Filling | undefined): THREE.Group {
+  const color = bakeColor("dough", toast);
+
+  if (topping !== "cinnamon" && topping !== "poppy" && topping !== "lye") {
+    const g = new THREE.Group();
+    const lump = blob(0.16, mat(color, "#000000", 0.95), 2);
+    lump.scale.set(1.1, 0.75, 1);
+    lump.position.y = 0.11;
+    g.add(lump);
+
+    return g;
+  }
+
+  const { build, top: height } = PASTRY[topping];
+  const g = build(topping === "lye" ? shade(color, -0.12) : color);
+  const top = sprinkle(topping, topping === "lye" ? 9 : 18, 0.13);
+  top.position.y = height;
+  g.add(top);
+
+  return g;
+}
+
+/** A döner under construction: a split pide or a wrap with what is in it so far; dough becomes a pastry. */
 function doener(base: Base, toast: number, fillings: readonly Filling[]): THREE.Group {
+  if (base === "dough") return pastry(toast, fillings[0]);
   const g = new THREE.Group();
   const toasted = toast >= HEAT[base].done * 0.7;
 
@@ -472,6 +565,16 @@ function bowlModel(bowl: Bowl): THREE.Group {
   const rim = ring(0.22, 0.015, steel("#eef1f4"));
   rim.position.y = 0.2;
   g.add(rim);
+
+  if (bowl.knead > 0) {
+    const mass = blob(0.14, mat(BAKE.dough[0], "#000000", 0.95), 2);
+    mass.scale.set(1, 0.55, 1);
+    mass.position.y = 0.12;
+    g.add(mass);
+
+    return g;
+  }
+
   bowl.contents.forEach((dry, i) => {
     const heap = dryHeap(dry);
     heap.position.set(i === 0 ? -0.05 : 0.06, 0.1 + i * 0.02, i === 0 ? 0.02 : -0.03);
@@ -507,7 +610,7 @@ export function itemKey(item: Item | null): string {
     case "veg": return `veg:${item.veg}:${isChopped(item)}`;
     case "meat": return `meat:${item.burnt}`;
     case "base": return `base:${item.base}:${Math.min(item.toast, HEAT[item.base].burnt) >> 4}:${item.fillings.join(",")}`;
-    case "bowl": return `bowl:${item.contents.join(",")}`;
+    case "bowl": return `bowl:${item.contents.join(",")}:${item.knead > 0}`;
     case "plate": return `plate:${item.dirty}:${itemKey(item.food)}`;
     case "extinguisher": return "extinguisher";
   }
@@ -676,7 +779,9 @@ function grillModel(s: Station): THREE.Group {
   return g;
 }
 
+/** A dispenser on a board: a squeeze bottle for a sauce, a shaker with a steel cap for a topping. */
 function sauceModel(s: Station, sauce: Sauce | Topping): THREE.Group {
+  const shaker = sauce === "cinnamon" || sauce === "poppy" || sauce === "lye";
   const g = counter(s.x, s.y);
   g.add(rbox(0.5, 0.05, 0.4, 0.02, mapped("#b77a3f", woodMap()), TOP + 0.025));
   const bottleGroup = new THREE.Group();
@@ -691,20 +796,106 @@ function sauceModel(s: Station, sauce: Sauce | Topping): THREE.Group {
   shoulder.scale.set(1, 0.5, 1);
   shoulder.position.y = TOP + 0.45;
   bottleGroup.add(shoulder);
-  const cap = cyl(0.07, 0.08, 0.07, mat(sauce === "garlic" ? "#3f88c5" : "#fbf5e6"), 12);
-  cap.position.y = TOP + 0.52;
-  bottleGroup.add(cap);
-  const nozzle = cyl(0.012, 0.045, 0.14, mat(sauce === "garlic" ? "#3f88c5" : "#fbf5e6"), 10);
-  nozzle.position.y = TOP + 0.62;
-  bottleGroup.add(nozzle);
+
+  if (shaker) {
+    const dome = ball(0.11, steel("#dfe3e8"), 12);
+    dome.scale.set(1, 0.6, 1);
+    dome.position.y = TOP + 0.5;
+    bottleGroup.add(dome);
+  } else {
+    const cap = cyl(0.07, 0.08, 0.07, mat(sauce === "garlic" ? "#3f88c5" : "#fbf5e6"), 12);
+    cap.position.y = TOP + 0.52;
+    bottleGroup.add(cap);
+    const nozzle = cyl(0.012, 0.045, 0.14, mat(sauce === "garlic" ? "#3f88c5" : "#fbf5e6"), 10);
+    nozzle.position.y = TOP + 0.62;
+    bottleGroup.add(nozzle);
+  }
+
   const band = cyl(0.122, 0.132, 0.16, mat("#fff7e8"), 16);
   band.position.y = TOP + 0.24;
   bottleGroup.add(band);
   bottleGroup.add(frontBadge(ICONS[sauce], TOP + 0.24, 0.135, 0.17));
-  const puddle = cyl(0.07, 0.07, 0.012, mat(color, "#000000", 0.2), 12);
+  const puddle = shaker ? sprinkle(sauce, 12, 0.07) : cyl(0.07, 0.07, 0.012, mat(color, "#000000", 0.2), 12);
   puddle.scale.set(1.4, 1, 1);
   puddle.position.set(0.24, TOP + 0.056, 0.12);
   g.add(puddle);
+
+  return g;
+}
+
+/** A stand mixer: a heavy foot, a column and a head over the bowl, the whisk turning under it. */
+function mixerModel(s: Station): THREE.Group {
+  const g = counter(s.x, s.y);
+  const body = mat("#e94f37", "#000000", 0.35);
+  g.add(rbox(0.62, 0.08, 0.66, 0.04, body, TOP + 0.04));
+  const column = rbox(0.26, 0.66, 0.24, 0.08, body, TOP + 0.33);
+  column.position.z = -0.24;
+  g.add(column);
+  const head = rbox(0.34, 0.22, 0.56, 0.1, body, TOP + 0.72);
+  head.position.z = -0.06;
+  g.add(head);
+  const trim = box(0.36, 0.04, 0.3, steel("#e6eaee"), TOP + 0.66);
+  trim.position.z = 0.08;
+  g.add(trim);
+  const whisk = new THREE.Group();
+  whisk.name = "whisk";
+  whisk.position.set(0, TOP + 0.58, 0.04);
+  const shaft = cyl(0.015, 0.015, 0.2, steel(), 6);
+  shaft.position.y = -0.1;
+  whisk.add(shaft);
+
+  for (let i = 0; i < 3; i++) {
+    const wire = ring(0.06, 0.007, steel("#e6eaee"));
+    wire.scale.set(1, 1.6, 1);
+    wire.rotation.y = (i * Math.PI) / 3;
+    wire.position.y = -0.24;
+    whisk.add(wire);
+  }
+
+  g.add(whisk);
+  const lamp = ball(0.035, new THREE.MeshStandardMaterial({ color: "#3a3a3a", emissive: "#000000" }), 10);
+  lamp.name = "lamp";
+  lamp.position.set(0.18, TOP + 0.74, 0.12);
+  g.add(lamp);
+
+  return g;
+}
+
+/** A deck oven: a dark steel box with a door hinged at the bottom that folds down while it stands empty. */
+function ovenModel(s: Station): THREE.Group {
+  const g = counter(s.x, s.y, true);
+  const shell = mat("#3d4148", "#000000", 0.45);
+  g.add(rbox(0.9, 0.08, 0.84, 0.03, shell, TOP + 0.04));
+  g.add(rbox(0.9, 0.08, 0.84, 0.03, shell, TOP + 0.47));
+
+  for (const x of [-0.42, 0.42]) {
+    const wall = box(0.06, 0.4, 0.84, shell, TOP + 0.25);
+    wall.position.x = x;
+    g.add(wall);
+  }
+
+  const back = box(0.84, 0.4, 0.06, shell, TOP + 0.25);
+  back.position.z = -0.39;
+  g.add(back);
+  g.add(box(0.78, 0.02, 0.72, mat("#1c1d20", "#000000", 0.6), TOP + 0.09));
+  const glow = box(0.7, 0.01, 0.6, mat("#ff7a2a", "#c2410c", 0.6), TOP + 0.1);
+  glow.position.z = -0.02;
+  g.add(glow);
+  const lid = new THREE.Group();
+  lid.name = "lid";
+  lid.position.set(0, TOP + 0.09, 0.42);
+  const door = rbox(0.82, 0.34, 0.05, 0.02, mat("#565b63", "#000000", 0.4), 0.17);
+  lid.add(door);
+  const window = rbox(0.5, 0.16, 0.02, 0.02, new THREE.MeshStandardMaterial({ color: "#2a2a2a", emissive: "#000000" }), 0.17);
+  window.name = "lamp";
+  window.position.z = 0.03;
+  lid.add(window);
+  const handle = solid(geo("handle", () => new THREE.CylinderGeometry(0.03, 0.03, 0.62, 10)), steel("#e6eaee"));
+  handle.rotation.z = Math.PI / 2;
+  handle.position.set(0, 0.3, 0.07);
+  lid.add(handle);
+  g.add(lid);
+  g.add(frontBadge("🔥", TOP + 0.47, 0.43, 0.14));
 
   return g;
 }
@@ -945,7 +1136,7 @@ function sinkModel(s: Station): THREE.Group {
 }
 
 /** How far above the counter top an item sits, for stations with something under it. */
-const SLOT_LIFT = new Map<Station["type"], number>([["toaster", 0.15], ["board", 0.065], ["pass", 0.04]]);
+const SLOT_LIFT = new Map<Station["type"], number>([["toaster", 0.15], ["board", 0.065], ["pass", 0.04], ["mixer", 0.06]]);
 
 /** The model of a station. Its `slot` child is where a held item sits. */
 export function stationModel(s: Station): THREE.Group {
@@ -955,7 +1146,7 @@ export function stationModel(s: Station): THREE.Group {
     case "counter": g = counter(s.x, s.y); break;
     case "crate": g = crateModel(s, s.goods); break;
     case "board": g = boardModel(s); break;
-    case "toaster": g = grillModel(s); break;
+    case "toaster": g = s.look === "oven" ? ovenModel(s) : grillModel(s); break;
     case "sauce": g = sauceModel(s, s.sauce); break;
     case "spit": g = spitModel(s); break;
     case "pass": g = passModel(s); break;
@@ -964,7 +1155,7 @@ export function stationModel(s: Station): THREE.Group {
     case "rack": g = rackModel(s); break;
     case "return": g = returnModel(s); break;
     case "sink": g = sinkModel(s); break;
-    case "mixer": g = counter(s.x, s.y); break;
+    case "mixer": g = mixerModel(s); break;
   }
 
   const stock = new THREE.Group();

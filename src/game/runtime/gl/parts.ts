@@ -225,9 +225,30 @@ const EMOJI_FONT = "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans
 
 /**
  * Draws an ingredient icon centred at (x, y). Emoji for most; the flatbread is painted by
- * hand because 🫓 is missing from some emoji fonts and would leave an empty disc.
+ * hand because 🫓 is missing from some emoji fonts and would leave an empty disc, and raw dough
+ * because no emoji shows it (its stand-in 🥟 would read as a pastry).
  */
 export function drawIcon(g: CanvasRenderingContext2D, icon: string, x: number, y: number, size: number): void {
+  if (icon === "🥟") {
+    g.save();
+    g.translate(x, y);
+    g.fillStyle = "#c9a46a";
+    g.beginPath();
+    g.ellipse(0, size * 0.08, size * 0.42, size * 0.3, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#f3e2bd";
+    g.beginPath();
+    g.ellipse(0, 0, size * 0.4, size * 0.3, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#fffaf0";
+    g.beginPath();
+    g.ellipse(-size * 0.12, -size * 0.1, size * 0.14, size * 0.07, -0.4, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+
+    return;
+  }
+
   if (icon === "🫓") {
     g.save();
     g.translate(x, y);

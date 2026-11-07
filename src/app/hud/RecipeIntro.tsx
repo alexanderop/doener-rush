@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
 import { ICONS } from "#/features/kitchen/public.ts";
+import type { Family } from "#/features/kitchen/public.ts";
 import { startAtom } from "#/game/runtime/atoms.ts";
 
 /** Length of the fade-out once the card goes. */
@@ -11,14 +12,39 @@ const MOTION = {
   out: "animate-[card-out_350ms_ease-in_forwards]",
 } as const;
 
-const STEPS: readonly { readonly icons: string; readonly tool: string; readonly label: string }[] = [
-  { icons: ICONS.bread, tool: "♨️", label: "Brot in den Kontaktgrill" },
-  { icons: ICONS.meat, tool: "🔪", label: "Fleisch vom Spieß" },
-  { icons: `${ICONS.lettuce}${ICONS.tomato}${ICONS.onion}`, tool: "🪵", label: "Gemüse schneiden, ab in die Wanne" },
-  { icons: ICONS.garlic, tool: "🥄", label: "Soße drauf" },
-  { icons: "🍽️", tool: "🧽", label: "Auf einen sauberen Teller" },
-  { icons: ICONS.doener, tool: "🛎️", label: "Ab zur Ausgabe" },
-];
+interface Step {
+  readonly icons: string;
+  readonly tool: string;
+  readonly label: string;
+}
+
+/** The card for each kind of dish: its title, how it is made, and the line under the steps. */
+const CARDS: Readonly<Record<Family, { readonly title: string; readonly steps: readonly Step[]; readonly motto: string }>> = {
+  doener: {
+    title: "DÖNER!",
+    steps: [
+      { icons: ICONS.bread, tool: "♨️", label: "Brot in den Kontaktgrill" },
+      { icons: ICONS.meat, tool: "🔪", label: "Fleisch vom Spieß" },
+      { icons: `${ICONS.lettuce}${ICONS.tomato}${ICONS.onion}`, tool: "🪵", label: "Gemüse schneiden, ab in die Wanne" },
+      { icons: ICONS.garlic, tool: "🥄", label: "Soße drauf" },
+      { icons: "🍽️", tool: "🧽", label: "Auf einen sauberen Teller" },
+      { icons: ICONS.doener, tool: "🛎️", label: "Ab zur Ausgabe" },
+    ],
+    motto: "So baut man einen Döner!",
+  },
+  pastry: {
+    title: "BACKEN!",
+    steps: [
+      { icons: `${ICONS.flour}${ICONS.butter}`, tool: "🥣", label: "Mehl und Butter in die Schüssel" },
+      { icons: "🥣", tool: "🌀", label: "Der Mixer knetet den Teig" },
+      { icons: `${ICONS.cinnamon}${ICONS.poppy}${ICONS.lye}`, tool: "🫙", label: "Ein Belag: Zimt, Mohn oder Lauge" },
+      { icons: "🥨", tool: "🔥", label: "Ab in den Ofen" },
+      { icons: "🍽️", tool: "🧽", label: "Auf einen sauberen Teller" },
+      { icons: "🥐🥯", tool: "🛎️", label: "Ab zur Ausgabe" },
+    ],
+    motto: "So backt man Brötchen!",
+  },
+};
 
 function Arrow() {
   return (
@@ -30,10 +56,11 @@ function Arrow() {
 }
 
 /**
- * The recipe card at the start of a shift: how a döner is built. Up while the start is in its
- * intro phase (a few seconds, or until any key), then it fades out for the countdown. Never takes the pointer.
+ * The recipe card at the start of a shift: how the level's dish is made, a döner or a pastry. Up while the start is
+ * in its intro phase (a few seconds, or until any key), then it fades out for the countdown. Never takes the pointer.
  */
-export function RecipeIntro() {
+export function RecipeIntro({ family }: { readonly family: Family }) {
+  const card = CARDS[family];
   const intro = useAtomValue(startAtom).phase === "intro";
   const [shown, setShown] = useState(intro);
 
@@ -53,15 +80,15 @@ export function RecipeIntro() {
 
   return (
     <div className="pointer-events-none absolute inset-0 grid place-items-center" aria-hidden>
-      <div className={`relative w-[min(40rem,calc(100vw-2rem))] overflow-hidden rounded-[1.75rem] border-[5px] border-[#2a1a10] bg-[#fffaf0] text-[#2a1a10] shadow-[0_10px_0_#2a1a10,0_30px_60px_rgb(0_0_0/0.55)] ${MOTION[intro ? "in" : "out"]}`}>
+      <div className={`relative w-[min(48rem,calc(100vw-2rem))] overflow-hidden rounded-[1.75rem] border-[5px] border-[#2a1a10] bg-[#fffaf0] text-[#2a1a10] shadow-[0_10px_0_#2a1a10,0_30px_60px_rgb(0_0_0/0.55)] ${MOTION[intro ? "in" : "out"]}`}>
         <div className="border-b-[5px] border-[#2a1a10] bg-[linear-gradient(#4f97d8,#2f6fb0)] py-2 text-center">
-          <h2 className="hud-stroke text-5xl font-black tracking-wide text-white">DÖNER!</h2>
+          <h2 className="hud-stroke text-5xl font-black tracking-wide text-white">{card.title}</h2>
         </div>
         <div className="absolute -right-2 -top-2 grid size-24 rotate-12 place-items-center bg-[#ffd84a] text-center text-xs font-black uppercase leading-tight text-[#2a1a10] [clip-path:polygon(50%_0,61%_18%,82%_10%,80%_32%,100%_38%,86%_55%,98%_74%,76%_76%,70%_98%,52%_84%,32%_100%,26%_78%,4%_76%,14%_56%,0_38%,20%_32%,18%_10%,39%_18%)]">
           Neues<br />Rezept
         </div>
         <ol className="flex items-start justify-center gap-0.5 px-4 pb-2 pt-5">
-          {STEPS.map((step, i) => (
+          {card.steps.map((step, i) => (
             <li key={step.label} className="flex items-start">
               {i > 0 && <Arrow />}
               <div className="flex w-[5.4rem] flex-col items-center text-center">
@@ -74,7 +101,7 @@ export function RecipeIntro() {
             </li>
           ))}
         </ol>
-        <p className="-rotate-3 pb-4 text-center text-2xl font-black italic text-[#e5322d]">So baut man einen Döner!</p>
+        <p className="-rotate-3 pb-4 text-center text-2xl font-black italic text-[#e5322d]">{card.motto}</p>
       </div>
     </div>
   );

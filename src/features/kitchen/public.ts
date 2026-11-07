@@ -1,3 +1,5 @@
+export type { Family } from "./prototypes.ts";
+
 export type { Base, Bowl, CrateGoods, Dry, Filling, Item, Sauce, Station, Topping, Veg } from "./model.ts";
 
 export {

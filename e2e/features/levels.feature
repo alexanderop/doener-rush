@@ -14,3 +14,10 @@ Feature: The level campaign
     When I play level "erster-tag" and end the shift with 150 points
     And I press "Nächstes Level"
     Then the shift runs in level "imbiss"
+
+  Scenario: A star in the Großküche opens the Backstube, where customers order pastries
+    Given a fresh campaign where "Backstube" is locked
+    When I play level "grosskueche" and end the shift with 150 points
+    Then the end-of-shift card says "Freigeschaltet: Backstube"
+    When I press "Nächstes Level"
+    Then customers order "Franzbrötchen, Mohnbrötchen, Brezel"

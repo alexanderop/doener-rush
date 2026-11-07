@@ -7,8 +7,8 @@
 import * as THREE from "three";
 import { THROW_TICKS, facingTile } from "../../../features/cooks/public.ts";
 import type { Landing, Thrown } from "../../../features/cooks/public.ts";
-import type { Item, Station } from "../../../features/kitchen/public.ts";
-import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, HEAT, SHAVE_TICKS, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
+import type { Station } from "../../../features/kitchen/public.ts";
+import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, HEAT, MIX_TICKS, SHAVE_TICKS, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
 import { LOOKS } from "../looks.ts";
@@ -29,7 +29,7 @@ const ITEM_SCALE = 1.55;
 const BUBBLE = 0.36;
 
 /** Parts the scene moves; everything else in the kitchen and street is baked. */
-const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "bird"]);
+const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "bird", "whisk"]);
 
 /** Veg colours for the bits that fly off the board. */
 const BIT_COLOR = new Map<string, string>([["lettuce", "#6fc23f"], ["tomato", "#e8392b"], ["onion", "#c886b5"]]);
@@ -37,6 +37,7 @@ const BIT_COLOR = new Map<string, string>([["lettuce", "#6fc23f"], ["tomato", "#
 /** The animated pieces of a station model, looked up once. */
 interface StationParts {
   readonly knife: THREE.Object3D;
+  readonly whisk: THREE.Object3D;
   readonly lid: THREE.Object3D;
   readonly cone: THREE.Object3D;
   readonly lamp: THREE.MeshStandardMaterial | null;
@@ -50,6 +51,7 @@ function partsOf(group: THREE.Group): StationParts {
 
   return {
     knife: named(group, "knife"),
+    whisk: named(group, "whisk"),
     lid: named(group, "lid"),
     cone: named(group, "cone"),
     lamp: standardOf(group, "lamp"),
@@ -725,13 +727,33 @@ const spot = new THREE.Vector3();
 
 const spray = new THREE.Vector3();
 
-/** True when the station's work just finished: chopped veg, bread toasted. */
-function finished(item: Item | null): boolean {
-  if (item === null) return false;
+/** True when the station's work is done: chopped on the board, toasted or baked on the heat, kneaded in the mixer. */
+function finished(station: Station): boolean {
+  const item = station.item;
 
-  if (item.kind === "veg") return isChopped(item);
+  if (station.type === "board") return item?.kind === "veg" && isChopped(item);
 
-  return item.kind === "base" && item.toast >= HEAT[item.base].done;
+  if (station.type === "toaster") return item?.kind === "base" && item.toast >= HEAT[item.base].done;
+
+  return station.type === "mixer" && item?.kind === "base";
+}
+
+/**
+ * How each heater moves: the lid angle open and shut (the grill lid hinges at the back and lifts, the oven door
+ * hinges at the bottom and folds down), and the height its steam leaves at, under the lid or through the roof.
+ */
+const HEATER_LOOK = {
+  grill: { open: -1.15, shut: -0.1, vent: TOP + 0.3 },
+  oven: { open: 1.35, shut: 0, vent: TOP + 0.6 },
+} as const;
+
+/** How high above the worktop a station's item bubble floats: over the oven and the mixer head, not inside them. */
+function bubbleLift(station: Station): number {
+  if (station.type === "mixer") return 0.95;
+
+  if (station.type === "toaster") return station.look === "oven" ? 0.78 : 0.62;
+
+  return 0.5;
 }
 
 function every(view: StationView, rate: number, dt: number): number {
@@ -805,16 +827,16 @@ function syncStation(view: StationView, frame: Frame): void {
 
     view.key = key;
     view.pop = 0;
-    view.bubble.position.set(centre.x, TOP + (station.type === "toaster" ? 0.62 : 0.5), centre.z);
+    view.bubble.position.set(centre.x, TOP + bubbleLift(station), centre.z);
     setBubble(view.bubble, station.item, BUBBLE);
   }
 
   syncStock(view, frame);
   view.pop += dt;
   view.slot.scale.setScalar(ITEM_SCALE * popScale(view.pop));
-  const done = finished(station.item);
+  const done = finished(station);
 
-  if (done && !view.done && (station.type === "board" || station.type === "toaster")) view.tickAge = 0;
+  if (done && !view.done) view.tickAge = 0;
   view.done = done;
   bar.group.visible = false;
   bar.group.quaternion.copy(frame.camera.quaternion);
@@ -838,20 +860,36 @@ function syncStation(view: StationView, frame: Frame): void {
     }
   }
 
+  if (station.type === "mixer") {
+    const { whisk, lamp } = view.parts;
+    const bowl = station.item?.kind === "bowl" ? station.item : null;
+    const kneading = bowl !== null && bowl.knead > 0 && station.fire === 0;
+    lamp?.emissive.set(kneading ? "#3cff4a" : "#000000");
+
+    if (kneading) {
+      showBar(bar, bowl.knead / MIX_TICKS, "#5fd068");
+      whisk.rotation.y += dt * 18;
+      whisk.position.x = Math.sin(t * 9) * 0.03;
+      const n = every(view, 6, dt);
+
+      if (n > 0) fx.emit("dust", spot.set(centre.x + Math.sin(t * 11) * 0.12, TOP + 0.3, centre.z + 0.05), n);
+    }
+  }
+
   if (station.type === "toaster") {
     const item = station.item;
     const toast = item?.kind === "base" ? item.toast : 0;
     const { done, burnt } = HEAT[item?.kind === "base" ? item.base : "bread"];
     const { lid, lamp } = view.parts;
-    const open = item === null;
-    lid.rotation.x += ((open ? -1.15 : -0.1) - lid.rotation.x) * Math.min(1, dt * 12);
+    const { open, shut, vent } = HEATER_LOOK[station.look];
+    lid.rotation.x += ((item === null ? open : shut) - lid.rotation.x) * Math.min(1, dt * 12);
 
     if (toast > 0 && toast < done) {
       showBar(bar, toast / done, "#5fd068");
       lamp?.emissive.set("#ff9a1a");
       const n = every(view, 7, dt);
 
-      if (n > 0) fx.emit("steam", spot.set(centre.x + (Math.sin(t * 9) * 0.3), TOP + 0.3, centre.z + 0.1), n);
+      if (n > 0) fx.emit("steam", spot.set(centre.x + (Math.sin(t * 9) * 0.3), vent, centre.z + 0.1), n);
     } else if (toast >= done && toast < burnt) {
       const over = (toast - done) / (burnt - done);
       showBar(bar, over, "#e94f37");
@@ -859,12 +897,12 @@ function syncStation(view: StationView, frame: Frame): void {
       warn = true;
       const n = every(view, 4 + over * 10, dt);
 
-      if (n > 0) fx.emit(over > 0.6 ? "smoke" : "steam", spot.set(centre.x + (Math.sin(t * 7) * 0.3), TOP + 0.3, centre.z + 0.1), n);
+      if (n > 0) fx.emit(over > 0.6 ? "smoke" : "steam", spot.set(centre.x + (Math.sin(t * 7) * 0.3), vent, centre.z + 0.1), n);
     } else if (toast >= burnt) {
       lamp?.emissive.set("#ff1a1a");
       const n = every(view, 5, dt);
 
-      if (n > 0) fx.emit("smoke", spot.set(centre.x, TOP + 0.3, centre.z), n);
+      if (n > 0) fx.emit("smoke", spot.set(centre.x, vent, centre.z), n);
     } else {
       lamp?.emissive.set("#000000");
     }
