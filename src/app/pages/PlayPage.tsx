@@ -1,6 +1,9 @@
 import { useAtomSet } from "@effect/atom-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { pausedAtom } from "#/game/runtime/atoms.ts";
+import { DEFAULT_LEVEL, levelOf } from "#/game/runtime/levels.ts";
+import type { LevelId } from "#/game/runtime/levels.ts";
 import { SCENARIOS } from "#/game/runtime/testing/scenarios.ts";
 import { useGameCanvas } from "#/game/runtime/useGameCanvas.ts";
 import { TWO_PLAYERS, lineupOf } from "#/game/runtime/lineup.ts";
@@ -14,9 +17,12 @@ import { Toasts } from "../hud/Toasts.tsx";
 import { TopBar } from "../hud/TopBar.tsx";
 import type { ScenarioName } from "#/game/runtime/testing/scenarios.ts";
 
-/** The `/play` query after validation: the customers' seed, a named starting state, and who cooks. */
+/** The `/play` query after validation: the customers' seed, the kitchen, a named starting state, and who cooks. */
 export interface PlaySearch {
   readonly seed?: number;
+  /** The campaign level; the original shop when missing. */
+  readonly level?: LevelId;
+  /** A test starting state in the original shop; it replaces the level and is not saved. */
   readonly scenario?: ScenarioName;
   /** Cooks on the keyboard, 0–2. */
   readonly humans?: number;
@@ -36,8 +42,8 @@ export interface PlaySearch {
   readonly minutes?: number;
 }
 
-/** A level from the query, normal when missing. */
-function levelOf(value: number | undefined): Rules["patience"] {
+/** A three-step setting from the query, normal when missing. */
+function settingOf(value: number | undefined): Rules["patience"] {
   return value === 0 || value === 2 ? value : 1;
 }
 
@@ -47,8 +53,8 @@ function rulesOf(search: PlaySearch): Rules {
     burning: search.burn !== 0,
     fire: search.fire !== 0,
     dishes: search.dishes !== 0,
-    patience: levelOf(search.patience),
-    rush: levelOf(search.rush),
+    patience: settingOf(search.patience),
+    rush: settingOf(search.rush),
     minutes: search.minutes ?? NORMAL_RULES.minutes,
   };
 }
@@ -57,19 +63,20 @@ function rulesOf(search: PlaySearch): Rules {
 export function PlayPage({ search }: { readonly search: PlaySearch }) {
   const [round, setRound] = useState(0);
   const setPaused = useAtomSet(pausedAtom);
+  const navigate = useNavigate();
   const seed = search.seed ?? 1;
-  const scenario = search.scenario ?? "shift";
-  const { humans, bots, swap, burn, fire, dishes, patience, rush, minutes } = search;
+  const { scenario, humans, bots, swap, burn, fire, dishes, patience, rush, minutes } = search;
+  const level = search.level === undefined ? DEFAULT_LEVEL : levelOf(search.level);
 
   // a new round gets a new world; `round` is the key that asks for one
   const world = useMemo(() => {
     const lineup = humans === undefined && bots === undefined ? TWO_PLAYERS : lineupOf(humans ?? 1, bots ?? 0, swap === 1);
 
-    const world = SCENARIOS[scenario].build(seed + round, lineup);
+    const world = SCENARIOS[scenario ?? "shift"].build(seed + round, lineup, level);
     setRules(world, rulesOf({ burn, fire, dishes, patience, rush, minutes }));
 
     return world;
-  }, [scenario, seed, round, humans, bots, swap, burn, fire, dishes, patience, rush, minutes]);
+  }, [level, scenario, seed, round, humans, bots, swap, burn, fire, dishes, patience, rush, minutes]);
 
   const canvas = useRef<HTMLCanvasElement>(null);
   useGameCanvas(canvas, world);
@@ -82,7 +89,11 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
       <Toasts />
       <Controls drivers={world.drivers} />
       <RecipeIntro key={round} />
-      <RoundOver onAgain={() => { setPaused(false); setRound(round + 1); }} />
+      <RoundOver
+        level={scenario === undefined ? level : null}
+        onAgain={() => { setPaused(false); setRound(round + 1); }}
+        onNext={(next) => { setPaused(false); void navigate({ to: "/play", search: { ...search, level: next.id } }); }}
+      />
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { Option, Schema } from "effect";
 import { isScenario } from "#/game/runtime/testing/scenarios.ts";
+import { isLevelId } from "#/game/runtime/levels.ts";
 import { MINUTES } from "#/game/runtime/rules.ts";
 import type { PlaySearch } from "./PlayPage.tsx";
 
@@ -30,12 +31,13 @@ const decodeLevel = Schema.decodeUnknownOption(countParam(0, 2));
 const decodeMinutes = Schema.decodeUnknownOption(countParam(MINUTES.min, MINUTES.max));
 
 /**
-Reads the `/play` query (`?seed=<n>`, `?scenario=<name>`, `?humans=<0–2>&bots=<0–4>&swap=1`, and the house rules
+Reads the `/play` query (`?seed=<n>`, `?level=<id>`, `?scenario=<name>`, `?humans=<0–2>&bots=<0–4>&swap=1`, and the house rules
 `burn`, `fire`, `dishes` (0/1), `patience`, `rush` (0–2), `minutes` (2–5)) into typed options; an invalid field is dropped on its own.
 TanStack merges this result over the raw query, so a dropped field is set to `undefined` to overwrite the raw text.
 */
 export const validatePlaySearch = (search: RawPlaySearch): PlaySearch => ({
   seed: Option.getOrUndefined(decodeSeed(search.seed)),
+  level: Option.getOrUndefined(Option.filter(decodeText(search.level), isLevelId)),
   scenario: Option.getOrUndefined(Option.filter(decodeText(search.scenario), isScenario)),
   humans: Option.getOrUndefined(decodeHumans(search.humans)),
   bots: Option.getOrUndefined(decodeBots(search.bots)),
