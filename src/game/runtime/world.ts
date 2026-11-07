@@ -5,31 +5,14 @@ import { newCook } from "../../features/cooks/public.ts";
 import type { Cook, Landing, Thrown } from "../../features/cooks/public.ts";
 import { START_PLATES, newSpit } from "../../features/kitchen/public.ts";
 import type { CrateGoods, Sauce, Station } from "../../features/kitchen/public.ts";
-import { newOrders, paceFor } from "../../features/orders/public.ts";
+import { RECIPES, combinePace, newOrders, paceFor } from "../../features/orders/public.ts";
 import type { OrdersState } from "../../features/orders/public.ts";
+import { DEFAULT_LEVEL } from "./levels.ts";
+import type { Level } from "./levels.ts";
 import { TWO_PLAYERS, crewOf } from "./lineup.ts";
 import type { Driver, Lineup } from "./lineup.ts";
 import { NORMAL_RULES } from "./rules.ts";
 import type { Rules } from "./rules.ts";
-
-/**
- * The shop's floor plan, one character per tile:
- * `.` floor · `=` counter · `S` spit · `R` toaster · `K` cutting board · `P` pass · `X` bin ·
- * crates `B` bread, `W` wrap, `L` lettuce, `T` tomato, `O` onion ·
- * sauces `g` garlic, `h` herb, `s` spicy · `t` prep tray · `D` plate rack · `U` dirty-plate return ·
- * `N` sink · `F` counter with the fire extinguisher · `1`–`4` where the cooks start (floor).
- */
-const SHOP = [
-  "==S=R=B=W=PP=",
-  "=.....3.....U",
-  "K...........g",
-  "K...=ttt=...h",
-  "=...=...=...s",
-  "L...=====...F",
-  "T.....4.....X",
-  "O.1.......2.=",
-  "===D=====N===",
-] as const;
 
 const CRATES = new Map<string, CrateGoods>([["B", "bread"], ["W", "wrap"], ["L", "lettuce"], ["T", "tomato"], ["O", "onion"]]);
 
@@ -73,8 +56,9 @@ interface TutorialState {
   lesson: number;
 }
 
-/** Builds a fresh round from a floor plan with one cook per driver of the lineup, on start tiles `1`, `2`, … */
-export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLAYERS, plan: readonly string[] = SHOP): World {
+/** Builds a fresh round in a level's kitchen with one cook per driver of the lineup, on start tiles `1`, `2`, … */
+export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLAYERS, level: Level = DEFAULT_LEVEL): World {
+  const { plan } = level;
   const height = plan.length;
   const width = Math.max(...plan.map((row) => row.length));
   const stations = new Map<number, Station>();
@@ -106,7 +90,7 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
 
   return {
     seed, tick: 0, rng: seed, width, height, stations, cooks, thrown: [], landings: [], drivers: lineup.drivers, control, parked: new Set(), bots,
-    orders: newOrders(paceFor(crewOf(lineup))), platesDue: [], endTick, rules: NORMAL_RULES, tutorial: null,
+    orders: newOrders(combinePace(paceFor(crewOf(lineup)), level.pace), RECIPES.filter((r) => level.menu.includes(r.id))), platesDue: [], endTick, rules: NORMAL_RULES, tutorial: null,
   };
 }
 

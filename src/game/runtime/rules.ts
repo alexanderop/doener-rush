@@ -1,5 +1,5 @@
 import { BURNT, TOAST_BURNT } from "../../features/kitchen/public.ts";
-import { ROUND_TICKS } from "../../features/orders/public.ts";
+import { ROUND_TICKS, combinePace } from "../../features/orders/public.ts";
 import { seconds } from "../core/grid.ts";
 import type { World } from "./world.ts";
 
@@ -48,13 +48,8 @@ export function setRules(world: World, rules: Rules): void {
   const length = seconds(60 * Math.max(MINUTES.min, Math.min(MINUTES.max, rules.minutes)));
   // a scenario may start late in the shift; keep the time it has left relative to a normal shift
   world.endTick = Math.max(world.tick + 1, world.endTick + length - ROUND_TICKS);
-  const pace = world.orders.pace;
-  world.orders.pace = {
-    patience: pace.patience * PATIENCE[rules.patience],
-    arrival: pace.arrival * ARRIVAL[rules.rush],
-    // a longer shift has time for more döner, so the stars ask for more
-    stars: (pace.stars * length) / ROUND_TICKS,
-  };
+  // a longer shift has time for more döner, so the stars ask for more
+  world.orders.pace = combinePace(world.orders.pace, { patience: PATIENCE[rules.patience], arrival: ARRIVAL[rules.rush], stars: length / ROUND_TICKS });
 }
 
 /** Runs after the stations each tick: with burning off food stops just short of burnt; with fire off nothing burns. */

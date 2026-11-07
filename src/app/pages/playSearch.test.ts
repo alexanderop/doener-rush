@@ -17,3 +17,10 @@ describe("given a /play query with house rules", () => {
     expect(validatePlaySearch({ fire: "2", patience: "3", minutes: "9" })).toMatchObject({ fire: undefined, patience: undefined, minutes: undefined });
   });
 });
+
+describe("given a /play query with a level", () => {
+  it("reads a known level and drops an unknown one", () => {
+    expect(validatePlaySearch({ level: "schlauch" })).toMatchObject({ level: "schlauch" });
+    expect(validatePlaySearch({ level: "mond" })).toMatchObject({ level: undefined });
+  });
+});

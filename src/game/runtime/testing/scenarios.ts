@@ -1,14 +1,18 @@
 import { CHOP_TICKS, TOAST_DONE } from "../../../features/kitchen/public.ts";
 import { ROUND_TICKS, RECIPES, addOrder } from "../../../features/orders/public.ts";
 import type { Recipe } from "../../../features/orders/public.ts";
+import type { Level } from "../levels.ts";
 import type { Lineup } from "../lineup.ts";
 import type { World } from "../world.ts";
 import { newWorld } from "../world.ts";
 
-/** A named starting state for tests, e2e features and `?scenario=` in the browser. */
+/**
+ * A named starting state for tests, e2e features and `?scenario=` in the browser. Only `shift` plays in the level it
+ * is given; the others set up the original shop, whose tiles they name.
+ */
 export interface Scenario {
   readonly description: string;
-  readonly build: (seed: number, lineup?: Lineup) => World;
+  readonly build: (seed: number, lineup?: Lineup, level?: Level) => World;
 }
 
 function recipe(id: string): Recipe {
@@ -22,8 +26,8 @@ function recipe(id: string): Recipe {
 /** Every scenario by name. */
 export const SCENARIOS = {
   shift: {
-    description: "A normal three-minute shift: customers arrive on the seed's schedule.",
-    build: (seed, lineup?) => newWorld(seed, ROUND_TICKS, lineup),
+    description: "A normal three-minute shift in a level (the original shop by default): customers arrive on the seed's schedule.",
+    build: (seed, lineup?, level?) => newWorld(seed, ROUND_TICKS, lineup, level),
   },
   "ready-classic": {
     description: "Cook 1 stands at the pass holding a finished Döner Classic on a plate, and a customer wants one.",

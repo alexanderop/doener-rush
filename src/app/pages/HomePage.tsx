@@ -1,7 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isUnlocked, loadProgress } from "#/game/persistence/progress.ts";
+import type { Progress } from "#/game/persistence/progress.ts";
+import { LEVELS } from "#/game/runtime/levels.ts";
+import type { LevelId } from "#/game/runtime/levels.ts";
 import { MAX_COOKS } from "#/game/runtime/lineup.ts";
 import { NORMAL_RULES } from "#/game/runtime/rules.ts";
 import type { Rules } from "#/game/runtime/rules.ts";
+import { LevelSelect } from "./LevelSelect.tsx";
 import { RulesPanel, rulesQuery } from "./RulesPanel.tsx";
 import { Button } from "#/shared/ui/button.tsx";
 
@@ -25,9 +30,20 @@ function Stepper({ label, value, min, max, onChange }: {
   );
 }
 
-/** The shop front: title, how to play, who cooks, start. */
+/** The furthest level the save has opened: where a returning player carries on. */
+function latestOpen(progress: Progress): LevelId {
+  return [...LEVELS].reverse().find((l) => isUnlocked(progress, l.id))?.id ?? "erster-tag";
+}
+
+/** The shop front: title, how to play, which kitchen, who cooks, start. */
 export function HomePage() {
+  // the save lives in the browser; the server renders a fresh campaign and the effect fills it in
+  const [progress, setProgress] = useState<Progress>({});
+  const [picked, setPicked] = useState<LevelId | null>(null);
+  const level = picked ?? latestOpen(progress);
   const [humans, setHumans] = useState(1);
+
+  useEffect(() => setProgress(loadProgress()), []);
   const [bots, setBots] = useState(1);
   const [swap, setSwap] = useState(false);
   const [rules, setRules] = useState<Rules>(NORMAL_RULES);
@@ -36,7 +52,7 @@ export function HomePage() {
 
   return (
     <main className="grid min-h-screen place-items-center p-6">
-      <div className="max-w-xl text-center">
+      <div className="max-w-2xl text-center">
         <h1 className="neon text-6xl font-black tracking-wide">DÖNER RUSH</h1>
         <p className="mt-4 text-lg">Ein Spieß, drei Minuten, bis zu vier Köche. Baut Döner nach Bestellung, bevor die Kundschaft geht.</p>
         <ol className="mx-auto mt-6 max-w-md space-y-1 text-left text-sm text-muted-foreground">
@@ -46,6 +62,7 @@ export function HomePage() {
           <li>4. Soße drauf, auf einen sauberen Teller, an der Ausgabe abgeben.</li>
           <li>5. Teller spülen, Feuer löschen, Leertaste zum Sprinten.</li>
         </ol>
+        <LevelSelect progress={progress} value={level} onChange={setPicked} />
         <p className="mt-4 text-sm">Controller gehen auch: einstecken, eine Taste drücken. Der erste Controller spielt Spieler 1, der zweite Spieler 2.</p>
         <div className="mt-8 flex justify-center gap-10">
           <Stepper label="Köche am Keyboard" value={humans} min={1} max={2} onChange={(n) => { setHumans(n); setBots(Math.min(bots, MAX_COOKS - (swap && n === 1 ? 2 : n))); }} />
@@ -60,7 +77,7 @@ export function HomePage() {
         <RulesPanel rules={rules} onChange={setRules} />
         <div className="mt-8 flex justify-center gap-3">
           <Button asChild size="lg">
-            <a href={`/play?humans=${humans}&bots=${bots}${pair ? "&swap=1" : ""}${rulesQuery(rules)}`}>Schicht starten</a>
+            <a href={`/play?level=${level}&humans=${humans}&bots=${bots}${pair ? "&swap=1" : ""}${rulesQuery(rules)}`}>Schicht starten</a>
           </Button>
           <Button asChild size="lg" variant="secondary">
             <a href="/tutorial">Tutorial</a>
