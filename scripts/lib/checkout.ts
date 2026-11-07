@@ -56,7 +56,7 @@ export function checkout(cwd = process.cwd()): Checkout {
   }
 
   const hash = fnv1a(root);
-  const port = Number(process.env.PORT) || (worktree ? 3100 + (hash % 800) : 3000);
+  const port = Number(process.env.PORT) || (worktree ? 3100 + (hash % 6000) : 3000);
 
   return {
     root,

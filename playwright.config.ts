@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { defineBddConfig } from "playwright-bdd";
 import { checkout } from "./scripts/lib/checkout.ts";
 
-const { baseUrl } = checkout();
+const { baseUrl, worktree } = checkout();
 
 const testDir = defineBddConfig({
   features: "e2e/features/*.feature",
@@ -25,5 +25,6 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 720 } } }],
   // `__game` only exists in a dev build
-  webServer: { command: "pnpm dev", url: baseUrl, reuseExistingServer: !process.env.CI, timeout: 60_000 },
+  // a worktree never reuses a server: a port taken by another checkout must fail loudly, not test that checkout's code
+  webServer: { command: "pnpm dev", url: baseUrl, reuseExistingServer: !process.env.CI && !worktree, timeout: 60_000 },
 });
