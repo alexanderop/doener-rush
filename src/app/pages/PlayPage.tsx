@@ -7,6 +7,8 @@ import type { LevelId } from "#/game/runtime/levels.ts";
 import { SCENARIOS } from "#/game/runtime/testing/scenarios.ts";
 import { useGameCanvas } from "#/game/runtime/useGameCanvas.ts";
 import { TWO_PLAYERS, lineupOf } from "#/game/runtime/lineup.ts";
+import { DEFAULT_PICKS, crewLooks } from "#/game/runtime/looks.ts";
+import type { LookId } from "#/game/runtime/looks.ts";
 import { NORMAL_RULES, setRules } from "#/game/runtime/rules.ts";
 import type { Rules } from "#/game/runtime/rules.ts";
 import { Controls } from "../hud/Controls.tsx";
@@ -31,6 +33,9 @@ export interface PlaySearch {
   readonly bots?: number;
   /** 1: a single player drives two cooks and switches between them. */
   readonly swap?: number;
+  /** The looks players 1 and 2 picked; the first two looks when missing. */
+  readonly look1?: LookId;
+  readonly look2?: LookId;
   /** House rules, normal when missing: 0 turns burning, fire or dirty dishes off. */
   readonly burn?: number;
   readonly fire?: number;
@@ -66,7 +71,7 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
   const setPaused = useAtomSet(pausedAtom);
   const navigate = useNavigate();
   const seed = search.seed ?? 1;
-  const { scenario, humans, bots, swap, burn, fire, dishes, patience, rush, minutes } = search;
+  const { scenario, humans, bots, swap, look1, look2, burn, fire, dishes, patience, rush, minutes } = search;
   const level = search.level === undefined ? DEFAULT_LEVEL : levelOf(search.level);
 
   // a new round gets a new world; `round` is the key that asks for one
@@ -79,9 +84,10 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
     return world;
   }, [level, scenario, seed, round, humans, bots, swap, burn, fire, dishes, patience, rush, minutes]);
 
+  const looks = useMemo(() => crewLooks(world.drivers, [look1 ?? DEFAULT_PICKS[0], look2 ?? DEFAULT_PICKS[1]]), [world, look1, look2]);
   const canvas = useRef<HTMLCanvasElement>(null);
   // a named scenario is a test or debugging setup: it starts at once
-  useGameCanvas(canvas, world, search.scenario === undefined);
+  useGameCanvas(canvas, world, looks, search.scenario === undefined);
 
   return (
     <main className="relative h-screen overflow-hidden">
@@ -89,7 +95,7 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
       <TopBar />
       <Scoreboard />
       <Toasts />
-      <Controls drivers={world.drivers} />
+      <Controls drivers={world.drivers} looks={looks} />
       <RecipeIntro />
       <Countdown />
       <RoundOver

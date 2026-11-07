@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { snapshotAtom } from "#/game/runtime/atoms.ts";
 import { isPaired } from "#/game/runtime/lineup.ts";
 import type { Driver } from "#/game/runtime/lineup.ts";
+import type { Look } from "#/game/runtime/looks.ts";
 import { pollPads } from "#/game/runtime/input/pads.ts";
 
 /** Key help for each keyboard binding. */
@@ -37,9 +38,6 @@ function usePadCount(): number {
   return count;
 }
 
-/** Name colour of each cook, matching their apron in the kitchen. */
-const COLORS = ["text-[#ff7a64]", "text-[#7fb8ec]", "text-[#6fd6c2]", "text-[#f8c25c]"];
-
 /** What a pill says about a cook: bot, the keys or pad buttons, or for a swap pair whether the player has it now. */
 function help(drivers: readonly Driver[], i: number, control: readonly number[], pads: number): string {
   const driver = drivers[i];
@@ -54,8 +52,8 @@ function help(drivers: readonly Driver[], i: number, control: readonly number[],
   return control[driver.binding] === i ? `Du · ${keys} · ${swap} wechseln` : `wartet · ${swap} wechselt hierher`;
 }
 
-/** Key help under the kitchen: one pill per cook, the keys for players and a note for bots and parked cooks. */
-export function Controls({ drivers }: { readonly drivers: readonly Driver[] }) {
+/** Key help under the kitchen: one pill per cook, named in its look's colour, the keys for players and a note for bots and parked cooks. */
+export function Controls({ drivers, looks }: { readonly drivers: readonly Driver[]; readonly looks: readonly Look[] }) {
   const snap = useAtomValue(snapshotAtom);
   const control = Option.match(snap, { onNone: () => [0, 1], onSome: (s) => s.control });
   const pads = usePadCount();
@@ -64,7 +62,7 @@ export function Controls({ drivers }: { readonly drivers: readonly Driver[] }) {
     <footer className="pointer-events-none absolute inset-x-0 bottom-2 flex flex-wrap justify-center gap-3 px-48 text-xs font-semibold text-white">
       {drivers.map((_, i) => (
         <span key={i} className="rounded-full bg-[#2a1a10]/80 px-3 py-1">
-          <b className={COLORS[i]}>Koch {i + 1}</b> {help(drivers, i, control, pads)}
+          <b style={{ color: `color-mix(in oklab, ${looks[i]?.body ?? "#ffffff"} 70%, white)` }}>Koch {i + 1}</b> {help(drivers, i, control, pads)}
         </span>
       ))}
     </footer>

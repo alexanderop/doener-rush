@@ -11,6 +11,8 @@ import type { Item, Station } from "../../../features/kitchen/public.ts";
 import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, SHAVE_TICKS, TOAST_BURNT, TOAST_DONE, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
+import { LOOKS } from "../looks.ts";
+import type { Look } from "../looks.ts";
 import type { World } from "../world.ts";
 import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
@@ -19,8 +21,6 @@ import { bubbleSprite, nameTag, progressBar, setBubble, showBar, spitBubble, tic
 import type { Bar } from "./overlays.ts";
 import { bakeStatic, contactShadow, geo } from "./parts.ts";
 import { animateStreet, street } from "./street.ts";
-
-const COOK_COLORS = ["#e94f37", "#3f88c5", "#44bba4", "#f6ae2d"];
 
 const TILT = THREE.MathUtils.degToRad(54);
 
@@ -216,8 +216,8 @@ function vignette(): THREE.Mesh {
   return mesh;
 }
 
-/** Sets up three.js on a canvas for one world. */
-export function createShopView(canvas: HTMLCanvasElement, world: World): ShopView {
+/** Sets up three.js on a canvas for one world, cook `i` dressed in `looks[i]`. */
+export function createShopView(canvas: HTMLCanvasElement, world: World, looks: readonly Look[]): ShopView {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
@@ -288,8 +288,9 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
   });
 
   const cooks: CookView[] = world.cooks.map((cook, i) => {
-    const color = COOK_COLORS[i] ?? "#ffffff";
-    const group = cookModel(color);
+    const look = looks[i] ?? LOOKS[0];
+    const color = look.body;
+    const group = cookModel(look);
     group.scale.setScalar(1.22);
     const shadow = contactShadow(0.36, 0.5);
     group.add(shadow);

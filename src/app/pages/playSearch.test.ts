@@ -18,6 +18,12 @@ describe("given a /play query with house rules", () => {
   });
 });
 
+describe("given a /play query with the players' looks", () => {
+  it("reads known looks and drops an unknown one", () => {
+    expect(validatePlaySearch({ look1: "jule", look2: "zorro" })).toMatchObject({ look1: "jule", look2: undefined });
+  });
+});
+
 describe("given a /play query with a level", () => {
   it("reads a known level and drops an unknown one", () => {
     expect(validatePlaySearch({ level: "schlauch" })).toMatchObject({ level: "schlauch" });

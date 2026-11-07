@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from "react";
+import { loadPicks } from "#/game/persistence/picks.ts";
+import { crewLooks } from "#/game/runtime/looks.ts";
 import { newTutorialWorld } from "#/game/runtime/tutorial/tutorial.ts";
 import { useGameCanvas } from "#/game/runtime/useGameCanvas.ts";
 import { Controls } from "../hud/Controls.tsx";
@@ -9,8 +11,9 @@ import { TutorialPanel } from "../hud/TutorialPanel.tsx";
 
 function Lesson({ onAgain }: { readonly onAgain: () => void }) {
   const world = useMemo(newTutorialWorld, []);
+  const looks = useMemo(() => crewLooks(world.drivers, loadPicks()), [world]);
   const canvas = useRef<HTMLCanvasElement>(null);
-  useGameCanvas(canvas, world, false);
+  useGameCanvas(canvas, world, looks, false);
 
   return (
     <main className="relative h-screen overflow-hidden">
@@ -18,7 +21,7 @@ function Lesson({ onAgain }: { readonly onAgain: () => void }) {
       <TopBar />
       <Scoreboard clock={false} />
       <Toasts />
-      <Controls drivers={world.drivers} />
+      <Controls drivers={world.drivers} looks={looks} />
       <TutorialPanel onAgain={onAgain} />
     </main>
   );

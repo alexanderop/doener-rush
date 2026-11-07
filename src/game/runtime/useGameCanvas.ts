@@ -12,6 +12,7 @@ import { GAME_KEYS, keyDown, keyUp, newKeys, releaseAll, takeIntents } from "./i
 import { pollPads } from "./input/pads.ts";
 import { advanceStart, newStart, startView } from "./start.ts";
 import { isOver, snapshot, step } from "./step.ts";
+import type { Look } from "./looks.ts";
 import type { World } from "./world.ts";
 
 /** Most ticks one frame may run; a longer stall drops time instead of spiralling. */
@@ -26,7 +27,7 @@ const SNAPSHOT_EVERY = 6;
  * times a second. With `countdown` the shift opens with the recipe card and "3, 2, 1, LOS!",
  * and the world waits until then.
  */
-export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world: World, countdown: boolean): void {
+export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world: World, looks: readonly Look[], countdown: boolean): void {
   const paused = useAtomValue(pausedAtom);
   const setSnapshot = useAtomSet(snapshotAtom);
   const setStart = useAtomSet(startAtom);
@@ -40,7 +41,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     const element = canvas.current;
 
     if (!element) return;
-    const view = createShopView(element, world);
+    const view = createShopView(element, world, looks);
     const keys = newKeys();
     const pads = [newPad(), newPad()];
     let last = performance.now();
@@ -125,5 +126,5 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
       uninstall();
       view.dispose();
     };
-  }, [canvas, world, countdown, setSnapshot, setStart]);
+  }, [canvas, world, looks, countdown, setSnapshot, setStart]);
 }

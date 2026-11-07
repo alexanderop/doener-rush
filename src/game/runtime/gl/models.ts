@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import type { Base, CrateGoods, Filling, Item, Sauce, Station } from "../../../features/kitchen/public.ts";
 import { BURNT, COOKED, ICONS, TOAST_BURNT, TOAST_DONE, isChopped } from "../../../features/kitchen/public.ts";
+import type { Accessory, Headwear, Look } from "../looks.ts";
 import {
   ball, blob, box, cyl, emojiBadge, geo, hash, label, mapped, mat, meatMap, rbox, ring, solid, steel, woodMap,
 } from "./parts.ts";
@@ -887,17 +888,147 @@ export function stationModel(s: Station): THREE.Group {
 
 // ---------------------------------------------------------------- characters
 
+/** A dome: the top half of a sphere, open underneath. Hats and hair sit on the head with it. */
+function dome(r: number, material: THREE.Material): THREE.Mesh {
+  return solid(geo(`dome|${r}`, () => new THREE.SphereGeometry(r, 16, 7, 0, Math.PI * 2, 0, Math.PI / 2)), material);
+}
+
+/** Hair over the top and back of the head, leaving the forehead free. */
+function hairCap(rig: THREE.Group, look: Look): void {
+  const hair = outlined(dome(0.245, mat(look.hair, "#000000", 0.8)), 1.06);
+  hair.scale.set(1, 0.9, 1);
+  hair.position.set(0, 0.95, -0.02);
+  hair.rotation.x = -0.4;
+  rig.add(hair);
+}
+
+/** What each look wears on its head, built onto the cook's rig. */
+const HEADWEAR: Record<Headwear, (rig: THREE.Group, look: Look) => void> = {
+  toque: (rig, look) => {
+    const brim = outlined(cyl(0.2, 0.21, 0.1, mat("#ffffff", "#000000", 0.8), 18), 1.06);
+    brim.position.y = 1.11;
+    rig.add(brim);
+    const puff = outlined(ball(0.25, mat("#ffffff", "#000000", 0.8), 12), 1.06);
+    puff.scale.set(1, 0.78, 1);
+    puff.position.y = 1.28;
+    rig.add(puff);
+    const band = cyl(0.205, 0.215, 0.035, mat(look.body), 18);
+    band.position.y = 1.08;
+    rig.add(band);
+  },
+  cap: (rig, look) => {
+    const crown = outlined(dome(0.25, mat(look.body, "#000000", 0.6)), 1.06);
+    crown.scale.set(1, 0.72, 1);
+    crown.position.y = 0.99;
+    rig.add(crown);
+    const peak = outlined(rbox(0.26, 0.035, 0.2, 0.015, mat(shade(look.body, -0.12)), 0), 1.1);
+    peak.position.set(0, 1.06, 0.21);
+    peak.rotation.x = -0.12;
+    rig.add(peak);
+    const button = ball(0.035, mat(shade(look.body, 0.2)), 8);
+    button.position.y = 1.17;
+    rig.add(button);
+  },
+  bandana: (rig, look) => {
+    const cloth = outlined(dome(0.248, mat(look.body, "#000000", 0.7)), 1.06);
+    cloth.scale.set(1, 0.72, 1);
+    cloth.position.y = 0.99;
+    rig.add(cloth);
+
+    for (const [x, y, z] of [[0, 1.17, 0.02], [0.13, 1.12, 0.13], [-0.13, 1.12, 0.13], [0.16, 1.12, -0.1], [-0.16, 1.12, -0.1]] as const) {
+      const dot = ball(0.03, mat("#fbf6ec"), 6);
+      dot.scale.set(1, 0.5, 1);
+      dot.position.set(x, y, z);
+      rig.add(dot);
+    }
+
+    for (const x of [-0.05, 0.05]) {
+      const knot = outlined(blob(0.06, mat(shade(look.body, -0.08))), 1.1);
+      knot.position.set(x, 1.0, -0.25);
+      knot.rotation.z = x * 8;
+      rig.add(knot);
+    }
+  },
+  beanie: (rig, look) => {
+    const knit = outlined(dome(0.25, mat(look.body, "#000000", 0.9)), 1.06);
+    knit.scale.set(1, 1.05, 1);
+    knit.position.y = 0.99;
+    rig.add(knit);
+    const cuff = outlined(cyl(0.258, 0.262, 0.08, mat(shade(look.body, -0.1), "#000000", 0.9), 18), 1.04);
+    cuff.position.y = 1.02;
+    rig.add(cuff);
+    const pom = outlined(ball(0.08, mat("#fbf6ec", "#000000", 0.9), 10), 1.1);
+    pom.position.y = 1.27;
+    rig.add(pom);
+  },
+  paperhat: (rig, look) => {
+    hairCap(rig, look);
+    const hat = outlined(rbox(0.44, 0.13, 0.2, 0.05, mat("#ffffff", "#000000", 0.8), 0), 1.06);
+    hat.position.set(0, 1.15, 0.01);
+    rig.add(hat);
+    const stripe = rbox(0.45, 0.04, 0.21, 0.015, mat(look.body), 0);
+    stripe.position.set(0, 1.1, 0.01);
+    rig.add(stripe);
+  },
+  ponytail: (rig, look) => {
+    hairCap(rig, look);
+    const tail = outlined(ball(0.1, mat(look.hair, "#000000", 0.8), 10), 1.08);
+    tail.scale.set(0.85, 1.35, 0.85);
+    tail.position.set(0, 0.92, -0.3);
+    rig.add(tail);
+    const tie = ring(0.055, 0.025, mat(look.body));
+    tie.position.set(0, 1.04, -0.27);
+    rig.add(tie);
+  },
+  bun: (rig, look) => {
+    hairCap(rig, look);
+    const bun = outlined(ball(0.12, mat(look.hair, "#000000", 0.8), 12), 1.08);
+    bun.position.set(0, 1.2, -0.08);
+    rig.add(bun);
+    const tie = ring(0.1, 0.025, mat(look.body));
+    tie.position.set(0, 1.14, -0.07);
+    rig.add(tie);
+  },
+};
+
+/** What each look has on its face. */
+const ACCESSORIES: Record<Accessory, (rig: THREE.Group, look: Look) => void> = {
+  none: () => {},
+  moustache: (rig, look) => {
+    for (const x of [-0.055, 0.055]) {
+      const half = ball(0.055, mat(look.hair, "#000000", 0.8), 8);
+      half.scale.set(1.35, 0.55, 0.6);
+      half.position.set(x, 0.855, 0.215);
+      half.rotation.z = x < 0 ? 0.35 : -0.35;
+      rig.add(half);
+    }
+  },
+  glasses: (rig) => {
+    const frame = mat("#2b1810", "#000000", 0.4);
+
+    for (const x of [-0.08, 0.08]) {
+      const lens = solid(geo("glasses-rim", () => new THREE.TorusGeometry(0.055, 0.013, 6, 14)), frame);
+      lens.position.set(x, 0.95, 0.225);
+      rig.add(lens);
+    }
+
+    const bridge = box(0.05, 0.014, 0.014, frame, 0.96);
+    bridge.position.z = 0.235;
+    rig.add(bridge);
+  },
+};
+
 /**
- * A round little cook: chunky body in the player colour, apron, scarf, tall hat and a
- * dark outline. Parts the scene animates are named: `rig` (squash and stretch), `held`,
- * `handL`/`handR`, `footL`/`footR`, `eyes`.
+ * A round little cook in one chef look: chunky body in the look's colour, apron, scarf, the
+ * look's headwear and face, and a dark outline. Parts the scene animates are named: `rig`
+ * (squash and stretch), `held`, `handL`/`handR`, `footL`/`footR`, `eyes`.
  */
-export function cookModel(color: string): THREE.Group {
+export function cookModel(look: Look): THREE.Group {
   const g = new THREE.Group();
   const rig = new THREE.Group();
   rig.name = "rig";
   g.add(rig);
-  const body = outlined(solid(geo("cook-body", () => new THREE.CapsuleGeometry(0.27, 0.2, 6, 16)), mat(color, "#000000", 0.6)), 1.07);
+  const body = outlined(solid(geo("cook-body", () => new THREE.CapsuleGeometry(0.27, 0.2, 6, 16)), mat(look.body, "#000000", 0.6)), 1.07);
   body.position.y = 0.44;
   rig.add(body);
   const apron = solid(geo("apron", () => new THREE.CylinderGeometry(0.278, 0.285, 0.34, 16, 1, true, -0.95, 1.9)), mat("#fbf6ec"));
@@ -906,11 +1037,11 @@ export function cookModel(color: string): THREE.Group {
   const pocket = rbox(0.14, 0.08, 0.03, 0.01, mat("#e9e0cf"), 0.3);
   pocket.position.z = 0.27;
   rig.add(pocket);
-  const scarf = solid(geo("scarf", () => new THREE.TorusGeometry(0.17, 0.05, 6, 16)), mat(shade(color, 0.12)));
+  const scarf = solid(geo("scarf", () => new THREE.TorusGeometry(0.17, 0.05, 6, 16)), mat(shade(look.body, 0.12)));
   scarf.rotation.x = Math.PI / 2;
   scarf.position.y = 0.72;
   rig.add(scarf);
-  const head = outlined(ball(0.23, mat("#f3c79e", "#000000", 0.6), 18), 1.07);
+  const head = outlined(ball(0.23, mat(look.skin, "#000000", 0.6), 18), 1.07);
   head.position.y = 0.92;
   rig.add(head);
   const eyes = new THREE.Group();
@@ -936,22 +1067,14 @@ export function cookModel(color: string): THREE.Group {
     rig.add(cheek);
   }
 
-  const nose = ball(0.045, mat("#e9ad86"), 8);
+  const nose = ball(0.045, mat(shade(look.skin, -0.06)), 8);
   nose.position.set(0, 0.9, 0.23);
   rig.add(nose);
-  const brim = outlined(cyl(0.2, 0.21, 0.1, mat("#ffffff", "#000000", 0.8), 18), 1.06);
-  brim.position.y = 1.11;
-  rig.add(brim);
-  const puff = outlined(ball(0.25, mat("#ffffff", "#000000", 0.8), 12), 1.06);
-  puff.scale.set(1, 0.78, 1);
-  puff.position.y = 1.28;
-  rig.add(puff);
-  const band = cyl(0.205, 0.215, 0.035, mat(color), 18);
-  band.position.y = 1.08;
-  rig.add(band);
+  HEADWEAR[look.headwear](rig, look);
+  ACCESSORIES[look.accessory](rig, look);
 
   for (const x of [-0.3, 0.3]) {
-    const hand = outlined(ball(0.085, mat("#f3c79e"), 10), 1.12);
+    const hand = outlined(ball(0.085, mat(look.skin), 10), 1.12);
     hand.position.set(x, 0.5, 0.18);
     hand.name = x < 0 ? "handL" : "handR";
     rig.add(hand);
