@@ -15,3 +15,6 @@ export const snapshotAtom = Atom.make(Option.none<Snapshot>()).pipe(Atom.keepAli
 
 /** The start of the shift: recipe card, countdown, or running. The frame loop publishes it when it changes. */
 export const startAtom = Atom.make<StartView>({ phase: "running", beat: -1 }).pipe(Atom.keepAlive);
+
+/** All game sound is off. The HUD's mute button and the M key flip it; the button also saves it. */
+export const mutedAtom = Atom.make(false).pipe(Atom.keepAlive);

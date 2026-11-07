@@ -3,7 +3,8 @@ import { Option } from "effect";
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { TICK_MS } from "../core/grid.ts";
-import { pausedAtom, snapshotAtom, startAtom } from "./atoms.ts";
+import { mutedAtom, pausedAtom, snapshotAtom, startAtom } from "./atoms.ts";
+import { createSoundtrack } from "./audio/soundtrack.ts";
 import { createShopView } from "./gl/scene.ts";
 import { installDevGame } from "./devtools.ts";
 import { GAME_KEYS, keyDown, keyUp, newKeys, releaseAll, takeIntents } from "./input/input.ts";
@@ -28,6 +29,9 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
   const setStart = useAtomSet(startAtom);
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
+  const muted = useAtomValue(mutedAtom);
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
 
   useEffect(() => {
     const element = canvas.current;
@@ -42,9 +46,11 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     let start = newStart(countdown);
     let shown = startView(start);
     let skip = false;
+    const sound = createSoundtrack(world);
 
     const onDown = (e: KeyboardEvent) => {
       skip = true;
+      sound.unlock();
 
       if (!GAME_KEYS.has(e.code)) return;
       e.preventDefault();
@@ -56,6 +62,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("pointerdown", sound.unlock);
     const uninstall = installDevGame(() => world);
     setSnapshot(Option.some(snapshot(world)));
     setStart(shown);
@@ -92,6 +99,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
         setSnapshot(Option.some(snapshot(world)));
       }
 
+      sound.frame(shown, pausedRef.current, mutedRef.current);
       view.render(world, element.clientWidth, element.clientHeight, now);
       frame = requestAnimationFrame(loop);
     };
@@ -103,6 +111,8 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pointerdown", sound.unlock);
+      sound.dispose();
       uninstall();
       view.dispose();
     };

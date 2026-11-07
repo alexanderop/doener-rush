@@ -66,7 +66,7 @@ export function ownerOf(root: string, filename: string): Owner {
     feature,
     entry: directModule && feature && (module === "public" || module === "client") ? module : null,
     simulation: layer === "core" || (feature !== null && simulationModules.has(module)) ||
-      /^src\/game\/runtime\/(?!(?:client|new-world|atoms|audio|devtools|useGameCanvas|WorldProvider|contexts)(?:\.tsx?)?$|(?:testing|canvas|gl|input)\/)/u.test(path),
+      /^src\/game\/runtime\/(?!(?:client|new-world|atoms|audio|devtools|useGameCanvas|WorldProvider|contexts)(?:\.tsx?)?$|(?:testing|canvas|gl|input|audio)\/)/u.test(path),
     test: /\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(path),
   };
 }
