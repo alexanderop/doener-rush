@@ -6,7 +6,9 @@ import { TICK_MS } from "../core/grid.ts";
 import { pausedAtom, snapshotAtom } from "./atoms.ts";
 import { createShopView } from "./gl/scene.ts";
 import { installDevGame } from "./devtools.ts";
+import { newPad, readPad } from "./input/gamepad.ts";
 import { GAME_KEYS, keyDown, keyUp, newKeys, releaseAll, takeIntents } from "./input/input.ts";
+import { pollPads } from "./input/pads.ts";
 import { isOver, snapshot, step } from "./step.ts";
 import type { World } from "./world.ts";
 
@@ -17,8 +19,9 @@ const MAX_TICKS_PER_FRAME = 5;
 const SNAPSHOT_EVERY = 6;
 
 /**
- * Runs the game on a canvas: keyboard in, fixed 60 Hz ticks (Game Loop pattern), one draw
- * per display frame in 3D, and a snapshot for the HUD ten times a second.
+ * Runs the game on a canvas: keyboard and gamepads in (pads polled once a frame), fixed 60 Hz
+ * ticks (Game Loop pattern), one draw per display frame in 3D, and a snapshot for the HUD ten
+ * times a second.
  */
 export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world: World): void {
   const paused = useAtomValue(pausedAtom);
@@ -32,6 +35,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     if (!element) return;
     const view = createShopView(element, world);
     const keys = newKeys();
+    const pads = [newPad(), newPad()];
     let last = performance.now();
     let lag = 0;
     let frame = 0;
@@ -55,9 +59,11 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
       lag += Math.min(now - last, 250);
       last = now;
       let ticks = 0;
+      const polled = pollPads();
+      pads.forEach((pad, i) => readPad(pad, polled[i]));
 
       while (lag >= TICK_MS && ticks < MAX_TICKS_PER_FRAME) {
-        if (!pausedRef.current && !isOver(world)) step(world, takeIntents(keys));
+        if (!pausedRef.current && !isOver(world)) step(world, takeIntents(keys, pads));
         lag -= TICK_MS;
         ticks += 1;
       }

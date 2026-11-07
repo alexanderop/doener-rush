@@ -46,6 +46,7 @@ export function HomePage() {
           <li>4. Soße drauf, auf einen sauberen Teller, an der Ausgabe abgeben.</li>
           <li>5. Teller spülen, Feuer löschen, Leertaste zum Sprinten.</li>
         </ol>
+        <p className="mt-4 text-sm">Controller gehen auch: einstecken, eine Taste drücken. Der erste Controller spielt Spieler 1, der zweite Spieler 2.</p>
         <div className="mt-8 flex justify-center gap-10">
           <Stepper label="Köche am Keyboard" value={humans} min={1} max={2} onChange={(n) => { setHumans(n); setBots(Math.min(bots, MAX_COOKS - (swap && n === 1 ? 2 : n))); }} />
           <Stepper label="Bots" value={bots} min={0} max={MAX_COOKS - players} onChange={setBots} />

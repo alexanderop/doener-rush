@@ -40,3 +40,10 @@ Feature: A shift in the döner shop
     And player 1 holds "d" for 500 ms
     Then the controls say cook 2 is yours
     And cook 2 has moved right since the start
+
+  Scenario: A gamepad moves cook 1
+    Given a gamepad is plugged in
+    And the scenario "shift"
+    Then the controls show the pad buttons for cook 1
+    When the gamepad pushes the stick right for 500 ms
+    Then cook 1 has moved right
