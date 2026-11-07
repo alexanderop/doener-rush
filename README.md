@@ -17,6 +17,9 @@ pnpm storybook    # components in isolation; pnpm test:stories runs them as brow
 | --- | --- | --- | --- | --- |
 | Cook 1 | WASD | Space | E | Q |
 | Cook 2 | Arrows | Right Shift | / | . |
+| Gamepad | Left stick or d-pad | B | A | X |
+
+Gamepads work next to the keyboard: the first pad plugged in plays player 1's binding, the second player 2's, and either the keys or the pad moves that cook. Y or RB switches cooks in a swap pair (like R). LB is kept free for throwing. Browsers only report a pad after one of its buttons is pressed; once they do, the pill under the kitchen shows pad buttons instead of keys. The button table is `PAD_BUTTONS` in `src/game/runtime/input/gamepad.ts`; the loop polls `navigator.getGamepads()` once a frame.
 
 Playing alone, tick "Zwei Köche steuern" on the home page (or open `/play?humans=1&swap=1`): you drive two cooks and switch with R (Enter for player 2's keys). A cook you leave while holding Q at the board, the sink or a fire keeps working until it is done. A solo shift runs at a calmer pace: customers come further apart, wait longer, and the stars need fewer points (`PACES` in `orders/prototypes.ts`, picked by how many cooks act at once).
 
@@ -65,7 +68,7 @@ Feature boundaries are enforced by the `factory-architecture` oxlint plugin; the
 | --- | --- | --- |
 | Examples | `src/**/*.test.ts` | Chop, toast, burn, spit cooking and shaving, sauce, serve rules, walking and collision, a scripted cook making a Döner Pur from scratch, bots running whole shifts (`runtime/bots.test.ts`) |
 | Properties | `src/game/runtime/step.test.ts` | Random two-player input never puts a cook inside a station, and replays the same round |
-| Browser | `pnpm e2e` | Real keyboard input and HUD: walking, dashing, serving at the pass, putting out a fire, the end-of-shift card. Runs one worker: headless WebGL renders on the CPU |
+| Browser | `pnpm e2e` | Real keyboard input and HUD: walking, dashing, a stubbed gamepad walking, serving at the pass, putting out a fire, the end-of-shift card. Runs one worker: headless WebGL renders on the CPU |
 | Lint rules | `tools/oxlint/**/*.test.ts` | The architecture and coding standard rules themselves |
 
 ### Driving the game as an agent
