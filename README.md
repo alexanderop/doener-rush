@@ -24,6 +24,24 @@ The home page also sets the house rules: presets Leicht, Normal and Schwer, or e
 
 Empty cook slots are bots. Pick one or two players on the keyboard and up to four cooks on the home page, or open `/play?humans=1&bots=2` (`humans` 0–2, `bots` fill the rest up to four). A bot cook wears a "BOT" tag.
 
+## Levels and the save
+
+The home page picks one of five kitchens. Each one opens once the kitchen before it has at least one star; the first is always open.
+
+| # | Level | Id | What is new |
+| --- | --- | --- | --- |
+| 1 | Erster Tag | `erster-tag` | Small kitchen, only Döner Pur and Classic, calm customers |
+| 2 | Der Imbiss | `imbiss` | The original shop with the whole menu |
+| 3 | Durchreiche | `durchreiche` | A counter wall splits the kitchen: hand the döner across, the way around is long |
+| 4 | Der Schlauch | `schlauch` | Long and narrow: the spit at the far end, the pass at the other |
+| 5 | Großküche | `grosskueche` | Big kitchen, two grills, customers come faster |
+
+The levels are data in `src/game/runtime/levels.ts`: the floor plan (same legend as before), the menu customers order from, and a pace on top of the crew's (customer gaps, patience, star scores). `levels.test.ts` proves every plan is playable (four start tiles, every station its menu needs, all reachable) and that two bots score in a full shift on each.
+
+In the URL: `/play?level=<id>`; without it a shift plays Der Imbiss, so old links keep working. `?scenario=` always uses Der Imbiss and is never saved.
+
+The best score and stars per level live in `localStorage` under `doener-rush/progress/v1` (`src/game/persistence/progress.ts`, parsed with Effect Schema; a broken or blocked save is an empty one). The end card says "Neuer Rekord!" when a shift beats the best and offers "Nächstes Level" once the next kitchen is open. Clear site data to start the campaign over.
+
 ## How a döner gets made
 
 1. Bread from the crate onto the contact grill (4 s; burns at 14 s, catches fire at 20 s).
@@ -49,7 +67,10 @@ The lessons are a table in `src/game/runtime/tutorial/lessons.ts`. Each one chec
 | `src/features/cooks/` | Walking and dashing with collision against stations and each other, the tile in front |
 | `src/features/bots/` | AI cooks for empty slots. `decide` is a priority table (fire, spit, döner, plates, veg, washing up) asked every tick from a read-only `Sight`; `think` walks the bot there (breadth-first path, dash, stepping aside) and turns the plan into an `Intent` |
 | `src/game/runtime/lineup.ts` | The `Lineup`: one `Driver` per cook, a keyboard binding or a bot |
-| `src/game/runtime/world.ts` | The shop floor plan (ASCII) and the `World` |
+| `src/game/runtime/levels.ts` | The campaign: each level's floor plan (ASCII), menu and pace |
+| `src/game/runtime/world.ts` | The `World`, built from a level |
+| `src/game/persistence/progress.ts` | The save: best score and stars per level, which levels are open |
+| `src/shared/storage.ts` | The one place that touches `localStorage`; never throws |
 | `src/game/runtime/step.ts` | One tick in fixed order: cooks, stations, orders. HUD snapshot |
 | `src/game/runtime/useGameCanvas.ts` | Keyboard, fixed 60 Hz loop, 3D render, snapshot to `snapshotAtom`, dev `window.__game` |
 | `src/game/runtime/gl/` | The 3D view (three.js): low-poly models built from primitives in `models.ts`, camera, lights, storefront and sync from the world in `scene.ts` |
@@ -63,12 +84,12 @@ Feature boundaries are enforced by the `factory-architecture` oxlint plugin; the
 
 | Layer | Where | What it proves |
 | --- | --- | --- |
-| Examples | `src/**/*.test.ts` | Chop, toast, burn, spit cooking and shaving, sauce, serve rules, walking and collision, a scripted cook making a Döner Pur from scratch, bots running whole shifts (`runtime/bots.test.ts`) |
+| Examples | `src/**/*.test.ts` | Chop, toast, burn, spit cooking and shaving, sauce, serve rules, walking and collision, a scripted cook making a Döner Pur from scratch, bots running whole shifts (`runtime/bots.test.ts`), every level playable (`runtime/levels.test.ts`), the save (`persistence/progress.test.ts`) |
 | Properties | `src/game/runtime/step.test.ts` | Random two-player input never puts a cook inside a station, and replays the same round |
-| Browser | `pnpm e2e` | Real keyboard input and HUD: walking, dashing, serving at the pass, putting out a fire, the end-of-shift card. Runs one worker: headless WebGL renders on the CPU |
+| Browser | `pnpm e2e` | Real keyboard input and HUD: walking, dashing, serving at the pass, putting out a fire, the end-of-shift card, a star on level 1 opening level 2. Runs one worker: headless WebGL renders on the CPU |
 | Lint rules | `tools/oxlint/**/*.test.ts` | The architecture and coding standard rules themselves |
 
 ### Driving the game as an agent
 
-1. `pnpm dev`, then open `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `last-seconds`).
+1. `pnpm dev`, then open `http://localhost:3000/play?level=<id>&humans=0&bots=2` for a level, or `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `last-seconds`).
 2. In the console or with `agent-browser eval`: `__game.step(ticks, [intent1, intent2])` runs ticks with intents `{ dx, dy, interact, work, dash }`, `__game.snapshot()` returns what the HUD shows, `__game.world()` the live state.
