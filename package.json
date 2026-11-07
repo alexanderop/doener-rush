@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint --deny-warnings",
+    "lint": "oxlint --deny-warnings --disable-nested-config",
     "knip": "knip",
     "test": "vitest run --project game --project architecture",
     "test:watch": "vitest",
