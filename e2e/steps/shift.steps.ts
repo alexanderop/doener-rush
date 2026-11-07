@@ -84,7 +84,8 @@ Then("the controls show {int} bots", async ({ page }, bots: number) => {
 const swapStart = new WeakMap<object, CookPosition>();
 
 Given("a solo shift with two cooks to swap", async ({ page }) => {
-  await page.goto("/play?humans=1&bots=0&swap=1");
+  // a named scenario skips the opening countdown, so the keys act at once
+  await page.goto("/play?scenario=shift&humans=1&bots=0&swap=1");
   await page.waitForFunction(() => window.__game !== undefined);
   swapStart.set(page, await cookAt(page, 2));
 });
@@ -96,4 +97,17 @@ Then("the controls say cook {int} is yours", async ({ page }, id: number) => {
 Then("cook {int} has moved right since the start", async ({ page }, id: number) => {
   const after = await cookAt(page, id);
   expect(after.x).toBeGreaterThan((swapStart.get(page)?.x ?? 0) + 1);
+});
+
+Then("the countdown shows {string}", async ({ page }, text: string) => {
+  await expect(page.getByTestId("countdown")).toHaveText(text);
+});
+
+Then("the kitchen has not started", async ({ page }) => {
+  expect(await page.evaluate(() => window.__game?.world().tick)).toBe(0);
+});
+
+Then("the kitchen is running", async ({ page }) => {
+  await expect.poll(() => page.evaluate(() => window.__game?.world().tick ?? 0)).toBeGreaterThan(30);
+  await expect(page.getByTestId("countdown")).toHaveCount(0);
 });

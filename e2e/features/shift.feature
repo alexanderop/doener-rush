@@ -40,3 +40,11 @@ Feature: A shift in the döner shop
     And player 1 holds "d" for 500 ms
     Then the controls say cook 2 is yours
     And cook 2 has moved right since the start
+
+  Scenario: A fresh shift counts down before the kitchen opens
+    Given a shift with 1 players and 1 bots
+    When player 1 presses "e"
+    Then the countdown shows "3"
+    And the kitchen has not started
+    Then the countdown shows "LOS!"
+    And the kitchen is running

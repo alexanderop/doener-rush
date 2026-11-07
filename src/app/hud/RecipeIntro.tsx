@@ -1,24 +1,15 @@
 import { useAtomValue } from "@effect/atom-react";
-import { Option } from "effect";
 import { useEffect, useState } from "react";
 import { ICONS } from "#/features/kitchen/public.ts";
-import { snapshotAtom } from "#/game/runtime/atoms.ts";
-
-/** How long the card stays up when nobody presses a key. */
-const SHOW_MS = 3500;
-
-/** Past this many ticks the round is under way (or was fast-forwarded) and the card has no business showing. */
-const LATE_TICKS = 60 * 4;
+import { startAtom } from "#/game/runtime/atoms.ts";
 
 /** Length of the fade-out once the card goes. */
 const OUT_MS = 350;
 
-type Phase = "in" | "out" | "gone";
-
-const MOTION: Readonly<Record<Exclude<Phase, "gone">, string>> = {
+const MOTION = {
   in: "animate-[card-pop_500ms_cubic-bezier(0.3,1.4,0.5,1)_both]",
   out: "animate-[card-out_350ms_ease-in_forwards]",
-};
+} as const;
 
 const STEPS: readonly { readonly icons: string; readonly tool: string; readonly label: string }[] = [
   { icons: ICONS.bread, tool: "♨️", label: "Brot in den Kontaktgrill" },
@@ -38,35 +29,31 @@ function Arrow() {
   );
 }
 
-/** The recipe card at the start of a shift: how a döner is built, gone after a few seconds or on any key. Never takes the pointer. */
+/**
+ * The recipe card at the start of a shift: how a döner is built. Up while the start is in its
+ * intro phase (a few seconds, or until any key), then it fades out for the countdown. Never takes the pointer.
+ */
 export function RecipeIntro() {
-  const [phase, setPhase] = useState<Phase>("in");
-  const late = Option.match(useAtomValue(snapshotAtom), { onNone: () => false, onSome: (snap) => snap.tick > LATE_TICKS });
+  const intro = useAtomValue(startAtom).phase === "intro";
+  const [shown, setShown] = useState(intro);
 
   useEffect(() => {
-    if (phase === "gone") return;
+    if (intro) {
+      setShown(true);
 
-    if (phase === "out") {
-      const timer = setTimeout(() => setPhase("gone"), OUT_MS);
-
-      return () => clearTimeout(timer);
+      return;
     }
 
-    const leave = () => setPhase("out");
-    const timer = setTimeout(leave, SHOW_MS);
-    window.addEventListener("keydown", leave, { once: true });
+    const timer = setTimeout(() => setShown(false), OUT_MS);
 
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("keydown", leave);
-    };
-  }, [phase]);
+    return () => clearTimeout(timer);
+  }, [intro]);
 
-  if (phase === "gone" || late) return null;
+  if (!shown) return null;
 
   return (
     <div className="pointer-events-none absolute inset-0 grid place-items-center" aria-hidden>
-      <div className={`relative w-[min(40rem,calc(100vw-2rem))] overflow-hidden rounded-[1.75rem] border-[5px] border-[#2a1a10] bg-[#fffaf0] text-[#2a1a10] shadow-[0_10px_0_#2a1a10,0_30px_60px_rgb(0_0_0/0.55)] ${MOTION[phase]}`}>
+      <div className={`relative w-[min(40rem,calc(100vw-2rem))] overflow-hidden rounded-[1.75rem] border-[5px] border-[#2a1a10] bg-[#fffaf0] text-[#2a1a10] shadow-[0_10px_0_#2a1a10,0_30px_60px_rgb(0_0_0/0.55)] ${MOTION[intro ? "in" : "out"]}`}>
         <div className="border-b-[5px] border-[#2a1a10] bg-[linear-gradient(#4f97d8,#2f6fb0)] py-2 text-center">
           <h2 className="hud-stroke text-5xl font-black tracking-wide text-white">DÖNER!</h2>
         </div>

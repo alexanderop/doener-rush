@@ -3,10 +3,11 @@ import { Option } from "effect";
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { TICK_MS } from "../core/grid.ts";
-import { pausedAtom, snapshotAtom } from "./atoms.ts";
+import { pausedAtom, snapshotAtom, startAtom } from "./atoms.ts";
 import { createShopView } from "./gl/scene.ts";
 import { installDevGame } from "./devtools.ts";
 import { GAME_KEYS, keyDown, keyUp, newKeys, releaseAll, takeIntents } from "./input/input.ts";
+import { advanceStart, newStart, startView } from "./start.ts";
 import { isOver, snapshot, step } from "./step.ts";
 import type { World } from "./world.ts";
 
@@ -18,11 +19,13 @@ const SNAPSHOT_EVERY = 6;
 
 /**
  * Runs the game on a canvas: keyboard in, fixed 60 Hz ticks (Game Loop pattern), one draw
- * per display frame in 3D, and a snapshot for the HUD ten times a second.
+ * per display frame in 3D, and a snapshot for the HUD ten times a second. With `countdown`
+ * the shift opens with the recipe card and "3, 2, 1, LOS!", and the world waits until then.
  */
-export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world: World): void {
+export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world: World, countdown: boolean): void {
   const paused = useAtomValue(pausedAtom);
   const setSnapshot = useAtomSet(snapshotAtom);
+  const setStart = useAtomSet(startAtom);
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
 
@@ -36,8 +39,13 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     let lag = 0;
     let frame = 0;
     let published = world.tick;
+    let start = newStart(countdown);
+    let shown = startView(start);
+    let skip = false;
 
     const onDown = (e: KeyboardEvent) => {
+      skip = true;
+
       if (!GAME_KEYS.has(e.code)) return;
       e.preventDefault();
       keyDown(keys, e.code);
@@ -50,14 +58,28 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     window.addEventListener("blur", onBlur);
     const uninstall = installDevGame(() => world);
     setSnapshot(Option.some(snapshot(world)));
+    setStart(shown);
 
     const loop = (now: number) => {
-      lag += Math.min(now - last, 250);
+      const dt = Math.min(now - last, 250);
+      lag += dt;
       last = now;
       let ticks = 0;
 
+      if (!pausedRef.current) start = advanceStart(start, dt, skip);
+      skip = false;
+      const opening = startView(start);
+
+      if (opening.phase !== shown.phase || opening.beat !== shown.beat) {
+        shown = opening;
+        setStart(opening);
+      }
+
       while (lag >= TICK_MS && ticks < MAX_TICKS_PER_FRAME) {
-        if (!pausedRef.current && !isOver(world)) step(world, takeIntents(keys));
+        // presses during the countdown or a pause are dropped, so a mashed key does not act on the first tick
+        const intents = takeIntents(keys);
+
+        if (start.phase === "running" && !pausedRef.current && !isOver(world)) step(world, intents);
         lag -= TICK_MS;
         ticks += 1;
       }
@@ -84,5 +106,5 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
       uninstall();
       view.dispose();
     };
-  }, [canvas, world, setSnapshot]);
+  }, [canvas, world, countdown, setSnapshot, setStart]);
 }

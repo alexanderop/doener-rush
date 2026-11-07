@@ -10,7 +10,7 @@ import { TutorialPanel } from "../hud/TutorialPanel.tsx";
 function Lesson({ onAgain }: { readonly onAgain: () => void }) {
   const world = useMemo(newTutorialWorld, []);
   const canvas = useRef<HTMLCanvasElement>(null);
-  useGameCanvas(canvas, world);
+  useGameCanvas(canvas, world, false);
 
   return (
     <main className="relative h-screen overflow-hidden">
