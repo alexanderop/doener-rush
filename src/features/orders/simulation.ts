@@ -7,9 +7,11 @@ import {
 } from "./prototypes.ts";
 import type { Pace } from "./prototypes.ts";
 
-/** An empty counter at a pace: the first customer arrives at once. */
-export function newOrders(pace: Pace = NORMAL_PACE): OrdersState {
-  return { pace, queue: [], nextId: 1, untilNext: 0, score: 0, served: 0, missed: 0, events: [] };
+/** An empty counter at a pace, serving a menu: the first customer arrives at once. */
+export function newOrders(pace: Pace = NORMAL_PACE, menu: readonly Recipe[] = RECIPES): OrdersState {
+  if (menu.length === 0) throw new Error("A shift needs at least one recipe on the menu.");
+
+  return { pace, menu, queue: [], nextId: 1, untilNext: 0, score: 0, served: 0, missed: 0, events: [] };
 }
 
 /** Adds a customer for `recipe` now, as the arrival timer would. */
@@ -43,8 +45,8 @@ export function stepOrders(state: OrdersState, tick: number, rng: number): numbe
   if (state.untilNext <= 0) {
     if (state.queue.length < MAX_ORDERS) {
       const [afterPick, pick] = nextRandom(random);
-      // SAFETY: pick is below 1, so the index is below RECIPES.length, which is not zero.
-      addOrder(state, RECIPES[Math.floor(pick * RECIPES.length)]!);
+      // SAFETY: pick is below 1, so the index is below menu.length, which newOrders keeps above zero.
+      addOrder(state, state.menu[Math.floor(pick * state.menu.length)]!);
       random = afterPick;
     }
 

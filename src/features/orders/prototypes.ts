@@ -47,6 +47,11 @@ export interface Pace {
 /** The pace for two cooks: what the timings above are tuned for. */
 export const NORMAL_PACE: Pace = { arrival: 1, patience: 1, stars: 1 };
 
+/** Two paces applied one on top of the other, such as a crew's pace and a level's. */
+export function combinePace(a: Pace, b: Pace): Pace {
+  return { arrival: a.arrival * b.arrival, patience: a.patience * b.patience, stars: a.stars * b.stars };
+}
+
 /** Pace by crew size: one, two, three and four cooks acting at once. */
 const PACES: readonly Pace[] = [
   { arrival: 1.6, patience: 1.35, stars: 0.6 },

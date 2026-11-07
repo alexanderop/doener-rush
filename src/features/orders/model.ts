@@ -1,9 +1,12 @@
 import type { Base, Filling } from "../kitchen/public.ts";
 import type { Pace } from "./prototypes.ts";
 
+/** The dishes the shop can make. */
+export type RecipeId = "classic" | "durum" | "veggie" | "pur";
+
 /** A dish on the menu: the bread and exactly these fillings. */
 export interface Recipe {
-  readonly id: string;
+  readonly id: RecipeId;
   readonly name: string;
   readonly base: Base;
   readonly fillings: readonly Filling[];
@@ -31,6 +34,8 @@ export type OrderEvent =
 export interface OrdersState {
   /** How busy the shift is, set by the size of the crew and the shift's rules before it starts. */
   pace: Pace;
+  /** What customers may order this shift; never empty. */
+  readonly menu: readonly Recipe[];
   readonly queue: Order[];
   nextId: number;
   /** Ticks until the next customer arrives. */

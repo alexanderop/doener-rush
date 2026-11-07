@@ -95,6 +95,22 @@ describe("given a solo shift", () => {
     expect(arrivals(solo)).toBeLessThan(arrivals());
   });
 
+  it("brings only customers for the shift's menu", () => {
+    const pur = RECIPES.find((r) => r.id === "pur")!;
+    const state = newOrders(solo, [pur]);
+    const ordered: string[] = [];
+    let rng = 5;
+
+    for (let tick = 0; tick < 60 * 180; tick++) {
+      rng = stepOrders(state, tick, rng);
+      ordered.push(...state.queue.map((o) => o.recipe.id));
+      state.queue.length = 0;
+    }
+
+    expect(ordered.length).toBeGreaterThan(5);
+    expect(new Set(ordered)).toEqual(new Set(["pur"]));
+  });
+
   it("asks for lower scores for each star", () => {
     const [one = 0, , three = 0] = ordersSnapshot(newOrders(solo)).targets;
     const [normalOne = 0, , normalThree = 0] = ordersSnapshot(newOrders()).targets;
