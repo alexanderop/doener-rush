@@ -5,7 +5,8 @@
  * never changes it.
  */
 import * as THREE from "three";
-import { facingTile } from "../../../features/cooks/public.ts";
+import { THROW_TICKS, facingTile } from "../../../features/cooks/public.ts";
+import type { Landing, Thrown } from "../../../features/cooks/public.ts";
 import type { Item, Station } from "../../../features/kitchen/public.ts";
 import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, SHAVE_TICKS, TOAST_BURNT, TOAST_DONE, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
@@ -323,6 +324,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
   const passes = stations.flatMap((v) => (v.station.type === "pass" ? [v] : []));
   const customers = new Map<number, CustomerView>();
   const seen = new WeakSet<object>();
+  const flights = new Map<Thrown, { readonly item: THREE.Group; readonly shadow: THREE.Mesh }>();
   const held = new THREE.Vector3();
   const at = new THREE.Vector3();
   let lastW = 0;
@@ -456,6 +458,57 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
         scene.remove(view.group);
         customers.delete(id);
       }
+    }
+  }
+
+  /** Ingredients in the air on an arc, tumbling end over end, with a shadow on the floor below; a puff where each flight ends. */
+  function syncThrown(w: World): void {
+    for (const thrown of w.thrown) {
+      let view = flights.get(thrown);
+
+      if (view === undefined) {
+        const item = new THREE.Group();
+        item.add(itemModel(thrown.item));
+        item.scale.setScalar(1.6);
+        view = { item, shadow: contactShadow(0.2, 0.35) };
+        scene.add(view.item, view.shadow);
+        flights.set(thrown, view);
+      }
+
+      const p = thrown.flown / THROW_TICKS;
+      const spin = thrown.flown * 0.45;
+      view.item.position.set(thrown.x, 0.85 + Math.sin(Math.PI * p) * 0.8 - p * 0.5, thrown.y);
+      view.item.rotation.set(thrown.dir.dy * spin, spin * 0.3, -thrown.dir.dx * spin);
+      view.shadow.position.set(thrown.x, 0.02, thrown.y);
+    }
+
+    for (const [thrown, view] of flights) {
+      if (w.thrown.includes(thrown)) continue;
+      scene.remove(view.item, view.shadow);
+      flights.delete(thrown);
+    }
+
+    for (const entry of w.landings) {
+      if (seen.has(entry)) continue;
+      seen.add(entry);
+      puff(w, entry.landing);
+    }
+  }
+
+  function puff(w: World, landing: Landing): void {
+    const onStation = w.stations.has(Math.floor(landing.y) * w.width + Math.floor(landing.x));
+    at.set(landing.x, onStation ? TOP + 0.15 : 0.1, landing.y);
+    const color = landing.item.kind === "veg" ? BIT_COLOR.get(landing.item.veg) : "#e8c27a";
+
+    if (landing.how === "caught") {
+      at.y = 1.0;
+      fx.emit("pop", at, 6);
+    } else if (landing.how === "landed") {
+      fx.emit("pop", at, 6);
+      fx.emit("dust", at, 4);
+    } else {
+      fx.emit("dust", at, 12);
+      fx.emit("bits", at, 10, color);
     }
   }
 
@@ -629,6 +682,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
     }
 
     for (let i = 0; i < w.cooks.length; i++) syncCook(w, i, dt, t);
+    syncThrown(w);
     syncEvents(w);
     syncArrows(w, t);
     syncCustomers(w, dt, t);
