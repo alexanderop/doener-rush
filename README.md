@@ -31,6 +31,8 @@ The home page also sets the house rules: presets Leicht, Normal and Schwer, or e
 
 Empty cook slots are bots. Pick one or two players on the keyboard and up to four cooks on the home page, or open `/play?humans=1&bots=2` (`humans` 0–2, `bots` fill the rest up to four). A bot cook wears a "BOT" tag.
 
+Each player picks a chef look on the home page with the arrows beside the picture: eight chefs, each with a colour, something on the head (toque, cap, bandana, beanie, paper hat, ponytail, bun) and maybe a moustache or glasses. Bots and the second cook of a swap pair take the next free looks in table order, so no two cooks look alike. The picks are remembered in `localStorage` (`doener-rush/looks/v1`) and go into the link as `look1` and `look2` (a look id such as `mehmet` or `jule`). The table is `LOOKS` in `src/game/runtime/looks.ts`; each headwear and accessory is a small builder in the `HEADWEAR` and `ACCESSORIES` tables of `gl/models.ts`.
+
 ## Levels and the save
 
 The home page picks one of five kitchens. Each one opens once the kitchen before it has at least one star; the first is always open.
@@ -74,6 +76,7 @@ The lessons are a table in `src/game/runtime/tutorial/lessons.ts`. Each one chec
 | `src/features/cooks/` | Walking and dashing with collision against stations and each other, the tile in front |
 | `src/features/bots/` | AI cooks for empty slots. `decide` is a priority table (fire, spit, döner, plates, veg, washing up) asked every tick from a read-only `Sight`; `think` walks the bot there (breadth-first path, dash, stepping aside) and turns the plan into an `Intent` |
 | `src/game/runtime/lineup.ts` | The `Lineup`: one `Driver` per cook, a keyboard binding or a bot |
+| `src/game/runtime/looks.ts` | The chef looks and which cook wears which |
 | `src/game/runtime/levels.ts` | The campaign: each level's floor plan (ASCII), menu and pace |
 | `src/game/runtime/world.ts` | The `World`, built from a level |
 | `src/game/persistence/progress.ts` | The save: best score and stars per level, which levels are open |
