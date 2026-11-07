@@ -5,10 +5,12 @@ import { newCook } from "../../features/cooks/public.ts";
 import type { Cook } from "../../features/cooks/public.ts";
 import { START_PLATES, newSpit } from "../../features/kitchen/public.ts";
 import type { CrateGoods, Sauce, Station } from "../../features/kitchen/public.ts";
-import { newOrders } from "../../features/orders/public.ts";
+import { newOrders, paceFor } from "../../features/orders/public.ts";
 import type { OrdersState } from "../../features/orders/public.ts";
-import { TWO_PLAYERS } from "./lineup.ts";
+import { TWO_PLAYERS, crewOf } from "./lineup.ts";
 import type { Driver, Lineup } from "./lineup.ts";
+import { NORMAL_RULES } from "./rules.ts";
+import type { Rules } from "./rules.ts";
 
 /**
  * The shop's floor plan, one character per tile:
@@ -45,13 +47,19 @@ export interface World {
   readonly cooks: Cook[];
   /** Who drives each cook, by index into `cooks`. */
   readonly drivers: readonly Driver[];
+  /** For each keyboard binding, the index of the cook it moves now; -1 when it drives none. */
+  readonly control: number[];
+  /** Cooks of a swap pair left holding work: they keep chopping, washing or spraying on their own. */
+  readonly parked: Set<number>;
   /** The memory of each bot cook, by cook id. */
   readonly bots: Map<number, BotMind>;
   readonly orders: OrdersState;
   /** Ticks at which a served plate comes back dirty to the return station. */
   readonly platesDue: number[];
-  /** Last tick of the round. */
-  readonly endTick: number;
+  /** Last tick of the round. Set once by the shift's rules before it starts. */
+  endTick: number;
+  /** The house rules: burning, fire, dishes, customers, shift length. Set once before the shift starts. */
+  rules: Rules;
   /** The guided tutorial's progress, or null in a normal shift. */
   tutorial: TutorialState | null;
 }
@@ -90,7 +98,12 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
     if (driver.kind === "bot") bots.set(i + 1, newMind());
   });
 
-  return { seed, tick: 0, rng: seed, width, height, stations, cooks, drivers: lineup.drivers, bots, orders: newOrders(), platesDue: [], endTick, tutorial: null };
+  const control = [0, 1].map((b) => lineup.drivers.findIndex((d) => d.kind === "keys" && d.binding === b));
+
+  return {
+    seed, tick: 0, rng: seed, width, height, stations, cooks, drivers: lineup.drivers, control, parked: new Set(), bots,
+    orders: newOrders(paceFor(crewOf(lineup))), platesDue: [], endTick, rules: NORMAL_RULES, tutorial: null,
+  };
 }
 
 function stationFor(ch: string, x: number, y: number): Station | null {

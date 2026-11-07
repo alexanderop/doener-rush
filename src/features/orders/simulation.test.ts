@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { TOAST_BURNT, TOAST_DONE } from "../kitchen/public.ts";
 import type { Item } from "../kitchen/public.ts";
-import { MISSED_PENALTY, RECIPES } from "./prototypes.ts";
+import { MISSED_PENALTY, RECIPES, paceFor } from "./prototypes.ts";
+import { ordersSnapshot } from "./snapshot.ts";
 import { addOrder, defect, newOrders, serve, stepOrders } from "./simulation.ts";
 
 const classic = RECIPES.find((r) => r.id === "classic")!;
@@ -65,5 +66,39 @@ describe("given an empty counter", () => {
 
     expect(run(7)).toEqual(run(7));
     expect(run(7).length).toBeGreaterThan(1);
+  });
+});
+
+describe("given a solo shift", () => {
+  const solo = paceFor(1);
+
+  it("gives each customer more patience than a two-cook shift does", () => {
+    const state = newOrders(solo);
+    const order = addOrder(state, classic);
+    expect(order.ticksLeft).toBeGreaterThan(classic.patience);
+    expect(ordersSnapshot(state).tickets[0]?.patience).toBe(1);
+  });
+
+  it("sends fewer customers in the same time", () => {
+    const arrivals = (pace = paceFor(2)) => {
+      const state = newOrders(pace);
+      let rng = 3;
+
+      for (let tick = 0; tick < 60 * 120; tick++) {
+        rng = stepOrders(state, tick, rng);
+        state.queue.length = 0;
+      }
+
+      return state.nextId;
+    };
+
+    expect(arrivals(solo)).toBeLessThan(arrivals());
+  });
+
+  it("asks for lower scores for each star", () => {
+    const [one = 0, , three = 0] = ordersSnapshot(newOrders(solo)).targets;
+    const [normalOne = 0, , normalThree = 0] = ordersSnapshot(newOrders()).targets;
+    expect(one).toBeLessThan(normalOne);
+    expect(three).toBeLessThan(normalThree);
   });
 });

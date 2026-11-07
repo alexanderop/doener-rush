@@ -32,3 +32,11 @@ Feature: A shift in the döner shop
     Then the controls show 2 bots
     When 40 seconds pass
     Then the score is more than 0
+
+  Scenario: A solo player switches between two cooks with R
+    Given a solo shift with two cooks to swap
+    Then the controls say cook 1 is yours
+    When player 1 presses "r"
+    And player 1 holds "d" for 500 ms
+    Then the controls say cook 2 is yours
+    And cook 2 has moved right since the start

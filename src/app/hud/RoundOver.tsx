@@ -9,7 +9,7 @@ import type { OrdersSnapshot } from "#/features/orders/public.ts";
 const CARD_DELAY_MS = 1200;
 
 function EndOfShift({ orders, onAgain }: { readonly orders: OrdersSnapshot; readonly onAgain: () => void }) {
-  const { score, stars, served, missed } = orders;
+  const { score, stars, served, missed, targets } = orders;
   const [card, setCard] = useState(false);
 
   useEffect(() => {
@@ -33,6 +33,11 @@ function EndOfShift({ orders, onAgain }: { readonly orders: OrdersSnapshot; read
               {"★".repeat(stars)}<span className="text-[#c9b49d] opacity-60">{"★".repeat(3 - stars)}</span>
             </p>
             <p className="mt-2 text-3xl font-black tabular-nums" data-testid="final-score">{score} Punkte</p>
+            <ol className="mx-auto mt-2 flex justify-center gap-3 text-xs font-bold text-[#6b5444]" aria-label="Punkte für die Sterne">
+              {targets.map((needed, i) => (
+                <li key={needed} className={score >= needed ? "text-[#2a1a10]" : "opacity-60"}>{"★".repeat(i + 1)} {needed}</li>
+              ))}
+            </ol>
             <p className="text-sm font-semibold text-[#6b5444]">{served} serviert · {missed} verpasst</p>
             <Button className="mt-5 h-12 rounded-full border-[3px] border-[#2a1a10] px-9 text-lg font-black shadow-[0_4px_0_#2a1a10]" onClick={onAgain}>Nochmal</Button>
           </div>

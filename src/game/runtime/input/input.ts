@@ -1,4 +1,4 @@
-import type { Intent } from "../../../features/cooks/public.ts";
+import type { PlayerInput } from "../lineup.ts";
 
 /** The keys of one player, by `KeyboardEvent.code`. */
 interface Binding {
@@ -9,12 +9,14 @@ interface Binding {
   readonly interact: string;
   readonly work: string;
   readonly dash: string;
+  /** Switch to the player's other cook in a swap pair. */
+  readonly swap: string;
 }
 
 /** Player 1 on the left of the keyboard, player 2 on the right. */
 const BINDINGS: readonly Binding[] = [
-  { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", interact: "KeyE", work: "KeyQ", dash: "Space" },
-  { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", interact: "Slash", work: "Period", dash: "ShiftRight" },
+  { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", interact: "KeyE", work: "KeyQ", dash: "Space", swap: "KeyR" },
+  { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", interact: "Slash", work: "Period", dash: "ShiftRight", swap: "Enter" },
 ];
 
 /** Every key the game reads, so the page can stop the browser from scrolling on them. */
@@ -51,13 +53,14 @@ export function releaseAll(keys: Keys): void {
  * The intents for one tick. Consumes the presses, so a tap of interact acts once even when
  * a frame runs several ticks, and a tap between two ticks is not lost.
  */
-export function takeIntents(keys: Keys): Intent[] {
+export function takeIntents(keys: Keys): PlayerInput[] {
   const intents = BINDINGS.map((b) => ({
     dx: Number(keys.down.has(b.right)) - Number(keys.down.has(b.left)),
     dy: Number(keys.down.has(b.down)) - Number(keys.down.has(b.up)),
     interact: keys.pressed.has(b.interact),
     work: keys.down.has(b.work),
     dash: keys.pressed.has(b.dash),
+    swap: keys.pressed.has(b.swap),
   }));
 
   keys.pressed.clear();

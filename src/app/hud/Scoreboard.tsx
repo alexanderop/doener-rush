@@ -12,9 +12,28 @@ const CLOCK_TEXT: Readonly<Record<"calm" | "hurry", string>> = {
   hurry: "text-[#ff4b3e] animate-[clock-pulse_0.8s_ease-in-out_infinite]",
 };
 
-function Coin({ score }: { readonly score: number }) {
+/** Three stars over the coin that fill as the score passes each target, and the points the next one needs. */
+function StarMeter({ score, targets }: { readonly score: number; readonly targets: readonly number[] }) {
+  const next = targets.find((needed) => score < needed);
+
   return (
-    <div className="pointer-events-none absolute bottom-5 left-5 drop-shadow-[0_6px_0_rgb(42_26_16/0.9)]">
+    <div className="mb-1 flex flex-col items-center" aria-label={`${targets.filter((n) => score >= n).length} von 3 Sternen`}>
+      <div className="flex gap-0.5 text-3xl leading-none [text-shadow:0_3px_0_#2a1a10]">
+        {targets.map((needed) => (
+          <span key={needed} className={score >= needed ? "animate-[coin-pop_520ms_cubic-bezier(0.3,1.4,0.5,1)] text-[#ffd84a]" : "text-[#7a6656]"}>★</span>
+        ))}
+      </div>
+      <span className="hud-stroke mt-0.5 text-xs font-black text-white [-webkit-text-stroke-width:3px]">
+        {next === undefined ? "Alle Sterne!" : `nächster Stern: ${next}`}
+      </span>
+    </div>
+  );
+}
+
+function Coin({ score, targets }: { readonly score: number; readonly targets: readonly number[] }) {
+  return (
+    <div className="pointer-events-none absolute bottom-5 left-5 flex flex-col items-center drop-shadow-[0_6px_0_rgb(42_26_16/0.9)]">
+      {targets.length > 0 && <StarMeter score={score} targets={targets} />}
       <div key={score} className="relative grid h-24 w-28 animate-[coin-pop_520ms_cubic-bezier(0.3,1.4,0.5,1)] place-items-center">
         <div className="absolute inset-0 bg-[#6e4308]" style={{ clipPath: HEX }} />
         <div className="absolute inset-[5px] bg-[linear-gradient(160deg,#fff3a8,#f7c831_45%,#d9930f)]" style={{ clipPath: HEX }} />
@@ -49,15 +68,16 @@ function Stopwatch({ seconds }: { readonly seconds: number }) {
   );
 }
 
-/** The score coin in the bottom left and, unless `clock` is false, the shift stopwatch in the bottom right. */
+/** The score coin in the bottom left with the star meter over it, and the shift stopwatch in the bottom right; `clock` false (the tutorial) drops both the clock and the stars. */
 export function Scoreboard({ clock = true }: { readonly clock?: boolean }) {
   const snap = useAtomValue(snapshotAtom);
   const seconds = Option.match(snap, { onNone: () => 0, onSome: (s) => s.secondsLeft });
   const score = Option.match(snap, { onNone: () => 0, onSome: (s) => s.orders.score });
+  const targets = Option.match(snap, { onNone: () => [], onSome: (s) => s.orders.targets });
 
   return (
     <>
-      <Coin score={score} />
+      <Coin score={score} targets={clock ? targets : []} />
       {clock && <Stopwatch seconds={seconds} />}
     </>
   );

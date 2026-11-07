@@ -3,17 +3,19 @@ import { TOAST_DONE, isBurntBase } from "../kitchen/public.ts";
 import type { Item } from "../kitchen/public.ts";
 import type { Order, OrderEvent, OrdersState, Recipe } from "./model.ts";
 import {
-  ARRIVAL_MAX, ARRIVAL_MIN, EVENT_TICKS, MAX_ORDERS, MAX_TIP, MISSED_PENALTY, RECIPES,
+  ARRIVAL_MAX, ARRIVAL_MIN, EVENT_TICKS, MAX_ORDERS, MAX_TIP, MISSED_PENALTY, NORMAL_PACE, RECIPES,
 } from "./prototypes.ts";
+import type { Pace } from "./prototypes.ts";
 
-/** An empty counter: the first customer arrives at once. */
-export function newOrders(): OrdersState {
-  return { queue: [], nextId: 1, untilNext: 0, score: 0, served: 0, missed: 0, events: [] };
+/** An empty counter at a pace: the first customer arrives at once. */
+export function newOrders(pace: Pace = NORMAL_PACE): OrdersState {
+  return { pace, queue: [], nextId: 1, untilNext: 0, score: 0, served: 0, missed: 0, events: [] };
 }
 
 /** Adds a customer for `recipe` now, as the arrival timer would. */
 export function addOrder(state: OrdersState, recipe: Recipe): Order {
-  const order: Order = { id: state.nextId, recipe, ticksLeft: recipe.patience };
+  const patience = Math.round(recipe.patience * state.pace.patience);
+  const order: Order = { id: state.nextId, recipe, patience, ticksLeft: patience };
   state.nextId += 1;
   state.queue.push(order);
 
@@ -47,7 +49,7 @@ export function stepOrders(state: OrdersState, tick: number, rng: number): numbe
     }
 
     const [afterWait, wait] = nextRandom(random);
-    state.untilNext = Math.round(ARRIVAL_MIN + wait * (ARRIVAL_MAX - ARRIVAL_MIN));
+    state.untilNext = Math.round((ARRIVAL_MIN + wait * (ARRIVAL_MAX - ARRIVAL_MIN)) * state.pace.arrival);
     random = afterWait;
   }
 
@@ -96,7 +98,7 @@ export function serve(state: OrdersState, item: Item, tick: number): boolean {
   }
 
   state.queue.splice(state.queue.indexOf(order), 1);
-  const tip = Math.round((MAX_TIP * order.ticksLeft) / order.recipe.patience);
+  const tip = Math.round((MAX_TIP * order.ticksLeft) / order.patience);
   state.score += order.recipe.points + tip;
   state.served += 1;
   record(state, tick, { type: "served", orderId: order.id, points: order.recipe.points, tip });

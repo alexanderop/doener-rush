@@ -208,9 +208,9 @@ export function warningSprite(): THREE.Sprite {
   });
 }
 
-/** The "BOT" name tag that floats over a cook a bot drives, in the cook's colour. */
-export function botTag(color: string): THREE.Sprite {
-  const key = `bot-tag|${color}`;
+/** A short name tag in a cook's colour that floats over its head: "BOT" over a bot, "DU" over the cook a player moves now. */
+export function nameTag(color: string, text: string): THREE.Sprite {
+  const key = `name-tag|${color}|${text}`;
 
   const texture = canvasTexture(key, 160, 72, (g) => {
     g.fillStyle = "rgba(40,20,10,0.35)";
@@ -228,7 +228,7 @@ export function botTag(color: string): THREE.Sprite {
     g.font = "900 38px Rubik, sans-serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText("BOT", 80, 35);
+    g.fillText(text, 80, 35);
   });
 
   const s = new THREE.Sprite(spriteMaterial(key, texture));

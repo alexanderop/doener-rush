@@ -18,6 +18,10 @@ pnpm storybook    # components in isolation; pnpm test:stories runs them as brow
 | Cook 1 | WASD | Space | E | Q |
 | Cook 2 | Arrows | Right Shift | / | . |
 
+Playing alone, tick "Zwei Köche steuern" on the home page (or open `/play?humans=1&swap=1`): you drive two cooks and switch with R (Enter for player 2's keys). A cook you leave while holding Q at the board, the sink or a fire keeps working until it is done. A solo shift runs at a calmer pace: customers come further apart, wait longer, and the stars need fewer points (`PACES` in `orders/prototypes.ts`, picked by how many cooks act at once).
+
+The home page also sets the house rules: presets Leicht, Normal and Schwer, or each one on its own under "Einstellungen anpassen": food burns, fire, washing up, customer patience, how many customers come, and the shift length (2–5 minutes). In the URL: `burn`, `fire`, `dishes` (0/1), `patience`, `rush` (0–2), `minutes` (2–5); the rules live in `src/game/runtime/rules.ts`.
+
 Empty cook slots are bots. Pick one or two players on the keyboard and up to four cooks on the home page, or open `/play?humans=1&bots=2` (`humans` 0–2, `bots` fill the rest up to four). A bot cook wears a "BOT" tag.
 
 ## How a döner gets made

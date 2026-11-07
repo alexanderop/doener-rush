@@ -9,11 +9,12 @@ import { facingTile } from "../../../features/cooks/public.ts";
 import type { Item, Station } from "../../../features/kitchen/public.ts";
 import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, SHAVE_TICKS, TOAST_BURNT, TOAST_DONE, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
+import { isPaired } from "../lineup.ts";
 import type { World } from "../world.ts";
 import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
 import { TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
-import { botTag, bubbleSprite, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
+import { bubbleSprite, nameTag, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
 import type { Bar } from "./overlays.ts";
 import { bakeStatic, contactShadow, geo } from "./parts.ts";
 import { animateStreet, street } from "./street.ts";
@@ -92,6 +93,8 @@ interface CookView {
   readonly eyes: THREE.Object3D;
   readonly focus: THREE.Mesh;
   readonly focusBin: THREE.Mesh;
+  /** The "DU" tag of a cook in a swap pair, shown while the player moves it; null otherwise. */
+  readonly you: THREE.Sprite | null;
   key: string;
   yaw: number;
   lastX: number;
@@ -294,14 +297,23 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
     const bubble = bubbleSprite();
     scene.add(group, focus, focusBin, bubble);
 
-    if (world.drivers[i]?.kind === "bot") {
-      const tag = botTag(color);
+    const driver = world.drivers[i];
+
+    if (driver?.kind === "bot") {
+      const tag = nameTag(color, "BOT");
       tag.position.y = 1.62;
       group.add(tag);
     }
 
+    const you = isPaired(world.drivers, i) ? nameTag(color, "DU") : null;
+
+    if (you !== null) {
+      you.position.y = 1.62;
+      group.add(you);
+    }
+
     return {
-      group, focus, focusBin, bubble,
+      group, focus, focusBin, bubble, you,
       rig: named(group, "rig"), held: named(group, "held"), eyes: named(group, "eyes"),
       hands: [named(group, "handL"), named(group, "handR")], feet: [named(group, "footL"), named(group, "footR")],
       key: "", yaw: 0, lastX: cook.x, lastY: cook.y, stride: 0, walking: false, squash: 9, dust: 0, blink: 2 + i,
@@ -401,7 +413,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
       }
 
       view.target = slotOf(i);
-      const patience = order.ticksLeft / Math.max(1, order.recipe.patience);
+      const patience = order.ticksLeft / Math.max(1, order.patience);
       // impatient customers stamp and wobble
       view.rig.rotation.z = patience < 0.25 ? Math.sin(t * 18 + order.id) * 0.08 : 0;
     });
@@ -550,8 +562,13 @@ export function createShopView(canvas: HTMLCanvasElement, world: World): ShopVie
     const front = facingTile(cook);
     const station = w.stations.get(front.y * w.width + front.x);
     const glow = 0.32 + Math.sin(t * 6) * 0.08;
-    view.focus.visible = station !== undefined && station.type !== "bin";
-    view.focusBin.visible = station?.type === "bin";
+    const driver = w.drivers[cookIndex];
+    const active = view.you === null || (driver?.kind === "keys" && w.control[driver.binding] === cookIndex);
+
+    if (view.you !== null) view.you.visible = active;
+    // a parked cook of a swap pair shows no focus, so the one the player moves stands out
+    view.focus.visible = active && station !== undefined && station.type !== "bin";
+    view.focusBin.visible = active && station?.type === "bin";
     view.focus.position.set(front.x + 0.5, TOP - 0.06, front.y + 0.5);
     view.focusBin.position.set(front.x + 0.5, 0.8, front.y + 0.5);
 

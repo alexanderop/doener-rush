@@ -2,17 +2,19 @@ import { think } from "../../features/bots/public.ts";
 import type { Sight } from "../../features/bots/public.ts";
 import { IDLE, facingTile, walk } from "../../features/cooks/public.ts";
 import type { Intent } from "../../features/cooks/public.ts";
-import { interact, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
+import { CHOP_TICKS, interact, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
 import { ordersSnapshot, serve, stepOrders } from "../../features/orders/public.ts";
 import type { OrdersSnapshot } from "../../features/orders/public.ts";
 import type { Item, Station } from "../../features/kitchen/public.ts";
 import { TICK_RATE, seconds } from "../core/grid.ts";
+import type { PlayerInput } from "./lineup.ts";
+import { enforceRules } from "./rules.ts";
 import type { World } from "./world.ts";
 import { isSolid, stationAt } from "./world.ts";
 import { stepTutorial, tutorialView } from "./tutorial/tutorial.ts";
 import type { TutorialView } from "./tutorial/tutorial.ts";
 
-/** Ticks after a serve until its plate comes back dirty. */
+/** Ticks after a serve until its plate comes back: dirty to the return hatch, or clean to the rack when the rules skip the dishes. */
 const PLATE_RETURN = seconds(7);
 
 /** True once the round's time is up; the tick stops changing the world. */
@@ -21,21 +23,24 @@ export function isOver(world: World): boolean {
 }
 
 /**
- * Advances the world by one tick. `intents[b]` drives the cook on keyboard binding `b`; missing
- * intents idle. Bots think for their cook from what they see at
+ * Advances the world by one tick. `intents[b]` drives the cook binding `b` controls now; missing
+ * intents idle. A swap press moves that control to the binding's next cook. Bots think for their cook from what they see at
  * that moment, so a bot sees the moves of the cooks before it.
  * The order is fixed (cooks by id, then stations, then orders), so a seed and the same
  * intents always give the same round.
  */
-export function step(world: World, intents: readonly Intent[]): void {
+export function step(world: World, intents: readonly PlayerInput[]): void {
   if (isOver(world)) return;
   const solid = (x: number, y: number) => isSolid(world, x, y);
+  intents.forEach((input, b) => {
+    if (input.swap === true) swapCook(world, b, input);
+  });
   world.cooks.forEach((cook, i) => {
     const driver = world.drivers[i];
     const mind = world.bots.get(cook.id);
     let intent = IDLE;
 
-    if (driver?.kind === "keys") intent = intents[driver.binding] ?? IDLE;
+    if (driver?.kind === "keys") intent = world.control[driver.binding] === i ? intentOf(intents[driver.binding]) : parkedIntent(world, i);
     else if (mind !== undefined) intent = think(sightOf(world), mind, cook);
     walk(cook, intent, solid, world.cooks);
     const front = facingTile(cook);
@@ -52,11 +57,60 @@ export function step(world: World, intents: readonly Intent[]): void {
   });
 
   for (const station of world.stations.values()) stepStation(station);
+  enforceRules(world);
   spreadFire(world.stations.values(), (x, y) => fightable(world, x, y));
   returnPlates(world);
   world.rng = stepOrders(world.orders, world.tick, world.rng);
   world.tick += 1;
   stepTutorial(world);
+}
+
+/** The cook part of a player's input. */
+function intentOf(input: PlayerInput | undefined): Intent {
+  if (input === undefined) return IDLE;
+
+  return { dx: input.dx, dy: input.dy, interact: input.interact, work: input.work, dash: input.dash };
+}
+
+/**
+ * Moves binding `b` to its next cook. The cook it leaves keeps working if the player was holding
+ * work at a station that still has some: the board, the sink, or a fire with the extinguisher.
+ */
+function swapCook(world: World, b: number, input: PlayerInput): void {
+  const mine = world.drivers.flatMap((d, i) => (d.kind === "keys" && d.binding === b ? [i] : []));
+
+  if (mine.length < 2) return;
+  const current = world.control[b] ?? -1;
+
+  if (input.work && current >= 0) world.parked.add(current);
+  const next = mine[(mine.indexOf(current) + 1) % mine.length] ?? current;
+  world.control[b] = next;
+  world.parked.delete(next);
+}
+
+/** A parked cook holds work while its station still has work left, then stands still. */
+function parkedIntent(world: World, i: number): Intent {
+  const cook = world.cooks[i];
+
+  if (cook === undefined || !world.parked.has(i)) return IDLE;
+  const front = facingTile(cook);
+  const station = stationAt(world, front.x, front.y);
+
+  if (station !== null && hasWorkLeft(station, cook.held)) return { ...IDLE, work: true };
+  world.parked.delete(i);
+
+  return IDLE;
+}
+
+/** True while holding work at this station still does something a parked cook may finish alone. The spit is left out: it would pile on meat. */
+function hasWorkLeft(station: Station, held: Item | null): boolean {
+  if (held?.kind === "extinguisher") return station.fire > 0;
+
+  if (station.type === "board") return held === null && station.item?.kind === "veg" && station.item.chop < CHOP_TICKS;
+
+  if (station.type === "sink") return held === null && station.dirty > 0;
+
+  return false;
 }
 
 /** The station on a tile if a cook can stand next to it; fire skips the rest, since nobody could ever put it out. */
@@ -101,11 +155,13 @@ function handOver(world: World, held: Item | null): Item | null {
 }
 
 function returnPlates(world: World): void {
+  const to = world.rules.dishes ? "return" : "rack";
+
   while (world.platesDue.length > 0 && (world.platesDue[0] ?? Infinity) <= world.tick) {
     world.platesDue.shift();
 
     for (const station of world.stations.values()) {
-      if (station.type === "return") {
+      if (station.type === to) {
         station.plates += 1;
         break;
       }
@@ -114,7 +170,7 @@ function returnPlates(world: World): void {
 }
 
 /** Runs `ticks` ticks with the same intents. */
-export function run(world: World, ticks: number, intents: readonly Intent[] = []): void {
+export function run(world: World, ticks: number, intents: readonly PlayerInput[] = []): void {
   for (let i = 0; i < ticks; i++) step(world, intents);
 }
 
@@ -125,6 +181,8 @@ export interface Snapshot {
   readonly over: boolean;
   readonly orders: OrdersSnapshot;
   readonly held: readonly (Item | null)[];
+  /** For each keyboard binding, the index of the cook it moves now; -1 for none. */
+  readonly control: readonly number[];
   /** The current tutorial lesson, or null in a normal shift. */
   readonly tutorial: TutorialView | null;
 }
@@ -137,6 +195,7 @@ export function snapshot(world: World): Snapshot {
     over: isOver(world),
     orders: ordersSnapshot(world.orders),
     held: world.cooks.map((c) => (c.held === null ? null : structuredClone(c.held))),
+    control: [...world.control],
     tutorial: tutorialView(world),
   };
 }

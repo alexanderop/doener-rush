@@ -67,7 +67,7 @@ function enter(world: World, lesson: number): void {
 }
 
 function calm(world: World): void {
-  for (const order of world.orders.queue) order.ticksLeft = order.recipe.patience;
+  for (const order of world.orders.queue) order.ticksLeft = order.patience;
 
   for (const station of world.stations.values()) {
     if (station.type === "toaster" && station.item?.kind === "base") station.item.toast = Math.min(station.item.toast, TOAST_BURNT - 1);

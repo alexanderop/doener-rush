@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { MAX_COOKS } from "#/game/runtime/lineup.ts";
+import { NORMAL_RULES } from "#/game/runtime/rules.ts";
+import type { Rules } from "#/game/runtime/rules.ts";
+import { RulesPanel, rulesQuery } from "./RulesPanel.tsx";
 import { Button } from "#/shared/ui/button.tsx";
 
 /** A number with − and + buttons, for picking how many cooks of a kind join the shift. */
@@ -26,6 +29,10 @@ function Stepper({ label, value, min, max, onChange }: {
 export function HomePage() {
   const [humans, setHumans] = useState(1);
   const [bots, setBots] = useState(1);
+  const [swap, setSwap] = useState(false);
+  const [rules, setRules] = useState<Rules>(NORMAL_RULES);
+  const pair = swap && humans === 1;
+  const players = pair ? 2 : humans;
 
   return (
     <main className="grid min-h-screen place-items-center p-6">
@@ -40,12 +47,19 @@ export function HomePage() {
           <li>5. Teller spülen, Feuer löschen, Leertaste zum Sprinten.</li>
         </ol>
         <div className="mt-8 flex justify-center gap-10">
-          <Stepper label="Köche am Keyboard" value={humans} min={1} max={2} onChange={(n) => { setHumans(n); setBots(Math.min(bots, MAX_COOKS - n)); }} />
-          <Stepper label="Bots" value={bots} min={0} max={MAX_COOKS - humans} onChange={setBots} />
+          <Stepper label="Köche am Keyboard" value={humans} min={1} max={2} onChange={(n) => { setHumans(n); setBots(Math.min(bots, MAX_COOKS - (swap && n === 1 ? 2 : n))); }} />
+          <Stepper label="Bots" value={bots} min={0} max={MAX_COOKS - players} onChange={setBots} />
         </div>
+        {humans === 1 && (
+          <label className="mt-5 inline-flex cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 accent-[#e94f37]" checked={swap} onChange={(e) => { setSwap(e.target.checked); setBots(Math.min(bots, MAX_COOKS - (e.target.checked ? 2 : 1))); }} />
+            Zwei Köche steuern – mit R wechseln, der andere schneidet oder spült weiter
+          </label>
+        )}
+        <RulesPanel rules={rules} onChange={setRules} />
         <div className="mt-8 flex justify-center gap-3">
           <Button asChild size="lg">
-            <a href={`/play?humans=${humans}&bots=${bots}`}>Schicht starten</a>
+            <a href={`/play?humans=${humans}&bots=${bots}${pair ? "&swap=1" : ""}${rulesQuery(rules)}`}>Schicht starten</a>
           </Button>
           <Button asChild size="lg" variant="secondary">
             <a href="/tutorial">Tutorial</a>

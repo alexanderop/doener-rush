@@ -30,5 +30,32 @@ export const EVENT_TICKS = seconds(3);
 /** Length of a round. */
 export const ROUND_TICKS = seconds(180);
 
-/** Scores for one, two and three stars. */
+/** Scores for one, two and three stars, for the normal pace of two cooks. */
 export const STARS: readonly [number, number, number] = [60, 160, 260];
+
+/**
+ * How busy a shift is for a crew of a given size. A smaller crew gets customers further apart
+ * (`arrival` stretches the wait between two), who wait longer (`patience`), and lower star
+ * scores (`stars`), so a solo shift is as fair as a full one.
+ */
+export interface Pace {
+  readonly arrival: number;
+  readonly patience: number;
+  readonly stars: number;
+}
+
+/** The pace for two cooks: what the timings above are tuned for. */
+export const NORMAL_PACE: Pace = { arrival: 1, patience: 1, stars: 1 };
+
+/** Pace by crew size: one, two, three and four cooks acting at once. */
+const PACES: readonly Pace[] = [
+  { arrival: 1.6, patience: 1.35, stars: 0.6 },
+  NORMAL_PACE,
+  { arrival: 0.85, patience: 1, stars: 1.2 },
+  { arrival: 0.75, patience: 1, stars: 1.35 },
+];
+
+/** The pace for `crew` cooks acting at once; clamps to the table. */
+export function paceFor(crew: number): Pace {
+  return PACES[Math.max(0, Math.min(PACES.length - 1, Math.round(crew) - 1))] ?? NORMAL_PACE;
+}

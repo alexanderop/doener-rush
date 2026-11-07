@@ -1,4 +1,4 @@
-import type { Intent } from "../../features/cooks/public.ts";
+import type { PlayerInput } from "./lineup.ts";
 import type { Snapshot } from "./step.ts";
 import { run, snapshot } from "./step.ts";
 import type { World } from "./world.ts";
@@ -8,7 +8,7 @@ interface DevGame {
   /** The live world, for reading state the HUD does not show. */
   readonly world: () => World;
   /** Runs ticks right now, with the given intents (idle when omitted). */
-  readonly step: (ticks: number, intents?: readonly Intent[]) => Snapshot;
+  readonly step: (ticks: number, intents?: readonly PlayerInput[]) => Snapshot;
   /** What the HUD shows now. */
   readonly snapshot: () => Snapshot;
 }
