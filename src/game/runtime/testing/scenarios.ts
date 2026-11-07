@@ -127,6 +127,28 @@ export const SCENARIOS = {
       return world;
     },
   },
+  catch: {
+    description: "Cook 1 holds a whole lettuce and faces right; four tiles along the same row, cook 2 waits empty-handed for the throw.",
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup);
+      const [thrower, catcher] = world.cooks;
+
+      if (thrower !== undefined) {
+        thrower.x = 2.5;
+        thrower.y = 7.5;
+        thrower.face = { dx: 1, dy: 0 };
+        thrower.held = { kind: "veg", veg: "lettuce", chop: 0 };
+      }
+
+      if (catcher !== undefined) {
+        catcher.x = 6.5;
+        catcher.y = 7.5;
+        catcher.face = { dx: -1, dy: 0 };
+      }
+
+      return world;
+    },
+  },
   "last-seconds": {
     description: "Ten seconds left in the shift, to see the end-of-round screen.",
     build: (seed, lineup?) => {

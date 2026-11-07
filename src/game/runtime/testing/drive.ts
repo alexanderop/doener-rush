@@ -48,7 +48,7 @@ export function walkTo(world: World, cookId: number, target: Station): void {
     while (Math.abs(cook.x - (tile.x + 0.5)) > 0.05 || Math.abs(cook.y - (tile.y + 0.5)) > 0.05) {
       const dx = Math.abs(cook.x - (tile.x + 0.5)) > 0.05 ? Math.sign(tile.x + 0.5 - cook.x) : 0;
       const dy = dx === 0 ? Math.sign(tile.y + 0.5 - cook.y) : 0;
-      step(world, intentsFor(world, cookId, { dx, dy, interact: false, work: false, dash: false }));
+      step(world, intentsFor(world, cookId, { dx, dy, interact: false, work: false, dash: false, throw: false }));
       ticks += 1;
 
       if (ticks > LIMIT) throw new Error(`Cook ${cookId} is stuck walking to ${target.type}.`);
@@ -57,17 +57,30 @@ export function walkTo(world: World, cookId: number, target: Station): void {
 
   const last = path.at(-1) ?? { x: Math.floor(cook.x), y: Math.floor(cook.y) };
   // one short step toward the station turns the cook without leaving the tile
-  step(world, intentsFor(world, cookId, { dx: target.x - last.x, dy: target.y - last.y, interact: false, work: false, dash: false }));
+  step(world, intentsFor(world, cookId, { dx: target.x - last.x, dy: target.y - last.y, interact: false, work: false, dash: false, throw: false }));
 }
 
 /** Presses interact once. */
 export function press(world: World, cookId: number): void {
-  step(world, intentsFor(world, cookId, { dx: 0, dy: 0, interact: true, work: false, dash: false }));
+  step(world, intentsFor(world, cookId, { dx: 0, dy: 0, interact: true, work: false, dash: false, throw: false }));
 }
 
 /** Holds work for `ticks` ticks. */
 export function hold(world: World, cookId: number, ticks: number): void {
-  for (let i = 0; i < ticks; i++) step(world, intentsFor(world, cookId, { dx: 0, dy: 0, interact: false, work: true, dash: false }));
+  for (let i = 0; i < ticks; i++) step(world, intentsFor(world, cookId, { dx: 0, dy: 0, interact: false, work: true, dash: false, throw: false }));
+}
+
+/** Presses throw once, then lets the world run until nothing is in the air. */
+export function toss(world: World, cookId: number): void {
+  step(world, intentsFor(world, cookId, { ...IDLE, throw: true }));
+  let ticks = 0;
+
+  while (world.thrown.length > 0) {
+    step(world, []);
+    ticks += 1;
+
+    if (ticks > LIMIT) throw new Error("A thrown item never came down.");
+  }
 }
 
 /** Lets time pass with everyone idle. */

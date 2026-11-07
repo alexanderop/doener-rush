@@ -68,7 +68,7 @@ describe("given a shift run by two bots and nobody on the keyboard", () => {
   it("plays the same round from the same seed and lineup", () => {
     const play = () => {
       const world = SCENARIOS.shift.build(7, lineupOf(1, 2));
-      run(world, seconds(90), [{ dx: 1, dy: -1, interact: false, work: false, dash: false }]);
+      run(world, seconds(90), [{ dx: 1, dy: -1, interact: false, work: false, dash: false, throw: false }]);
 
       return JSON.stringify({ cooks: world.cooks, orders: world.orders, stations: [...world.stations.values()], bots: [...world.bots] });
     };

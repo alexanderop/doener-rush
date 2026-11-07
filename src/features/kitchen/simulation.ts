@@ -1,7 +1,7 @@
 import type { CrateGoods, Doener, Item, Spit, Station } from "./model.ts";
 import {
   AFTER_SHAVE, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, SHAVE_TICKS, SPIT_HEAT, SPIT_IGNITE, SPIT_TURN,
-  TOAST_BURNT, TOAST_IGNITE, TRAY_PORTIONS, WASH_TICKS, isBase,
+  THROWABLE, TOAST_BURNT, TOAST_IGNITE, TRAY_PORTIONS, WASH_TICKS, isBase,
 } from "./prototypes.ts";
 
 /** A fresh spit, part-cooked all round so the first portion comes quickly. */
@@ -24,6 +24,26 @@ export function isChopped(item: Item): boolean {
 /** True when bread stayed in the toaster too long. */
 export function isBurntBase(item: Item): boolean {
   return item.kind === "base" && item.toast >= TOAST_BURNT;
+}
+
+/** True when a cook may throw the item: a vegetable, whole or chopped, or bread straight from the crate. */
+export function isThrowable(item: Item): boolean {
+  if (!THROWABLE[item.kind]) return false;
+
+  return item.kind !== "base" || (item.toast === 0 && item.fillings.length === 0);
+}
+
+/**
+ * A thrown item reaches a station. It stays there when a cook putting it down would have left
+ * empty-handed: onto a free counter or board, into the toaster, a prep tray or the bin, or into a
+ * döner waiting there. Returns false and changes nothing otherwise, so a station that would only
+ * hand something back (a crate, the pass, a tray that adds a portion to the bread) refuses it.
+ */
+export function land(station: Station, item: Item): boolean {
+  if (interact(structuredClone(station), structuredClone(item)) !== null) return false;
+  interact(station, item);
+
+  return true;
 }
 
 /** The döner an item is or carries: the item itself, or what lies on a plate. */

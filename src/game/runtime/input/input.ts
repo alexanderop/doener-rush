@@ -9,14 +9,19 @@ interface Binding {
   readonly interact: string;
   readonly work: string;
   readonly dash: string;
+  /** Throw the raw ingredient in hand straight ahead. */
+  readonly throw: string;
   /** Switch to the player's other cook in a swap pair. */
   readonly swap: string;
 }
 
 /** Player 1 on the left of the keyboard, player 2 on the right. */
 const BINDINGS: readonly Binding[] = [
-  { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", interact: "KeyE", work: "KeyQ", dash: "Space", swap: "KeyR" },
-  { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", interact: "Slash", work: "Period", dash: "ShiftRight", swap: "Enter" },
+  { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD", interact: "KeyE", work: "KeyQ", dash: "Space", throw: "KeyF", swap: "KeyR" },
+  {
+    up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", interact: "Slash", work: "Period", dash: "ShiftRight", throw: "Quote",
+    swap: "Enter",
+  },
 ];
 
 /** Every key the game reads, so the page can stop the browser from scrolling on them. */
@@ -60,6 +65,7 @@ export function takeIntents(keys: Keys): PlayerInput[] {
     interact: keys.pressed.has(b.interact),
     work: keys.down.has(b.work),
     dash: keys.pressed.has(b.dash),
+    throw: keys.pressed.has(b.throw),
     swap: keys.pressed.has(b.swap),
   }));
 
