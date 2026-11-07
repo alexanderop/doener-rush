@@ -1,6 +1,5 @@
 import { MINUTES, NORMAL_RULES, PRESETS } from "#/game/runtime/rules.ts";
 import type { Rules } from "#/game/runtime/rules.ts";
-import { Button } from "#/shared/ui/button.tsx";
 
 type Level = Rules["patience"];
 
@@ -30,6 +29,10 @@ export function rulesQuery(rules: Rules): string {
   return parts.join("");
 }
 
+const SEGMENT = "rounded-full px-3 py-1.5 text-xs font-semibold transition aria-checked:bg-primary aria-checked:text-primary-foreground aria-checked:shadow not-aria-checked:text-muted-foreground not-aria-checked:hover:text-foreground";
+
+const ROUND = "grid size-7 place-items-center rounded-full bg-white/8 leading-none transition hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none disabled:opacity-30";
+
 /** A row of buttons where one is chosen. */
 function Choice({ label, names, value, onChange }: {
   readonly label: string;
@@ -40,9 +43,9 @@ function Choice({ label, names, value, onChange }: {
   return (
     <div role="radiogroup" aria-label={label} className="flex items-center justify-between gap-3">
       <span className="text-sm">{label}</span>
-      <div className="flex gap-1">
+      <div className="flex gap-0.5 rounded-full bg-black/30 p-1">
         {LEVELS.map((level) => (
-          <Button key={level} role="radio" aria-checked={value === level} size="sm" variant={value === level ? "default" : "secondary"} onClick={() => onChange(level)}>{names[level]}</Button>
+          <button key={level} type="button" role="radio" aria-checked={value === level} className={SEGMENT} onClick={() => onChange(level)}>{names[level]}</button>
         ))}
       </div>
     </div>
@@ -53,7 +56,7 @@ function Toggle({ label, checked, onChange }: { readonly label: string; readonly
   return (
     <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
       {label}
-      <input type="checkbox" className="size-4 accent-[#e94f37]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
     </label>
   );
 }
@@ -61,15 +64,15 @@ function Toggle({ label, checked, onChange }: { readonly label: string; readonly
 /** Difficulty on the home page: three presets, and every house rule on its own under them. */
 export function RulesPanel({ rules, onChange }: { readonly rules: Rules; readonly onChange: (rules: Rules) => void }) {
   return (
-    <section aria-label="Schwierigkeit" className="mx-auto mt-8 max-w-md rounded-2xl border border-border/60 bg-card/60 p-4 text-left">
-      <div role="radiogroup" aria-label="Schwierigkeit" className="flex justify-center gap-2">
+    <div>
+      <div role="radiogroup" aria-label="Schwierigkeit" className="grid grid-cols-3 gap-1 rounded-2xl bg-black/30 p-1">
         {PRESET_NAMES.map(([key, name]) => (
-          <Button key={key} role="radio" aria-checked={same(rules, PRESETS[key])} variant={same(rules, PRESETS[key]) ? "default" : "secondary"} onClick={() => onChange(PRESETS[key])}>{name}</Button>
+          <button key={key} type="button" role="radio" aria-checked={same(rules, PRESETS[key])} className="rounded-xl py-2.5 font-display text-sm font-extrabold transition aria-checked:bg-primary aria-checked:text-primary-foreground aria-checked:shadow-[0_6px_20px_-6px_rgb(255_122_26/0.7)] not-aria-checked:text-muted-foreground not-aria-checked:hover:bg-white/5 not-aria-checked:hover:text-foreground" onClick={() => onChange(PRESETS[key])}>{name}</button>
         ))}
       </div>
       <details className="mt-3">
-        <summary className="cursor-pointer text-center text-sm text-muted-foreground">Einstellungen anpassen</summary>
-        <div className="mt-3 space-y-3">
+        <summary className="cursor-pointer text-sm text-muted-foreground transition hover:text-foreground">Einstellungen anpassen</summary>
+        <div className="mt-3 space-y-3 rounded-2xl bg-black/25 p-4 ring-1 ring-white/5">
           <Toggle label="Essen verbrennt" checked={rules.burning} onChange={(burning) => onChange({ ...rules, burning })} />
           <Toggle label="Feuer in der Küche" checked={rules.fire} onChange={(fire) => onChange({ ...rules, fire })} />
           <Toggle label="Teller spülen" checked={rules.dishes} onChange={(dishes) => onChange({ ...rules, dishes })} />
@@ -78,13 +81,13 @@ export function RulesPanel({ rules, onChange }: { readonly rules: Rules; readonl
           <div role="group" aria-label="Schichtlänge" className="flex items-center justify-between gap-3">
             <span className="text-sm">Schichtlänge</span>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="icon-sm" aria-label="Schicht kürzer" disabled={rules.minutes <= MINUTES.min} onClick={() => onChange({ ...rules, minutes: rules.minutes - 1 })}>−</Button>
+              <button type="button" className={ROUND} aria-label="Schicht kürzer" disabled={rules.minutes <= MINUTES.min} onClick={() => onChange({ ...rules, minutes: rules.minutes - 1 })}>−</button>
               <output className="w-14 text-center text-sm font-bold tabular-nums">{rules.minutes} Min.</output>
-              <Button variant="secondary" size="icon-sm" aria-label="Schicht länger" disabled={rules.minutes >= MINUTES.max} onClick={() => onChange({ ...rules, minutes: rules.minutes + 1 })}>+</Button>
+              <button type="button" className={ROUND} aria-label="Schicht länger" disabled={rules.minutes >= MINUTES.max} onClick={() => onChange({ ...rules, minutes: rules.minutes + 1 })}>+</button>
             </div>
           </div>
         </div>
       </details>
-    </section>
+    </div>
   );
 }

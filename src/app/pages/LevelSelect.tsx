@@ -12,7 +12,7 @@ export function LevelSelect({ progress, value, onChange }: {
   const chosen = LEVELS.find((l) => l.id === value);
 
   return (
-    <section aria-label="Level" className="mx-auto mt-8 max-w-xl text-left">
+    <div>
       <div role="radiogroup" aria-label="Level" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {LEVELS.map((level, i) => {
           const open = isUnlocked(progress, level.id);
@@ -30,27 +30,34 @@ export function LevelSelect({ progress, value, onChange }: {
               data-locked={!open}
               disabled={!open}
               onClick={() => onChange(level.id)}
-              className={`flex min-h-28 flex-col items-center justify-between rounded-xl border-2 p-2 text-center transition-colors disabled:cursor-not-allowed ${
-                picked ? "border-primary bg-primary/15" : "border-border/60 bg-card/60 hover:bg-card"
-              } ${open ? "" : "opacity-45"}`}
+              className={`group relative flex min-h-30 flex-col justify-between overflow-hidden rounded-2xl p-2.5 text-left transition disabled:cursor-not-allowed ${
+                picked
+                  ? "bg-gradient-to-b from-primary/30 to-primary/5 ring-2 ring-primary shadow-[0_10px_30px_-10px_rgb(255_122_26/0.6)]"
+                  : open
+                    ? "bg-black/25 ring-1 ring-white/8 hover:-translate-y-0.5 hover:bg-black/35 hover:ring-white/20"
+                    : "bg-black/15 ring-1 ring-white/5"
+              }`}
             >
-              <span className="text-xs font-bold text-muted-foreground">Level {i + 1}</span>
-              <span className="text-sm font-black leading-tight">{level.name}</span>
+              <span className={`font-display text-3xl leading-none font-extrabold ${picked ? "text-primary" : "text-white/15"}`}>{String(i + 1).padStart(2, "0")}</span>
+              <span className={`mt-2 text-xs leading-tight font-bold tracking-tight break-words ${open ? "" : "text-muted-foreground/60"}`}>{level.name}</span>
               {open ? (
-                <>
-                  <span className="text-lg leading-none text-[#f2b420]" aria-hidden>
-                    {"★".repeat(stars)}<span className="text-muted-foreground/50">{"★".repeat(3 - stars)}</span>
+                <span className="mt-1.5 flex flex-col gap-0.5">
+                  <span className="text-sm leading-none tracking-tight text-[#f2b420]" aria-hidden>
+                    {"★".repeat(stars)}<span className="text-white/15">{"★".repeat(3 - stars)}</span>
                   </span>
-                  <span className="text-[11px] tabular-nums text-muted-foreground">{best === undefined ? "Noch nicht gespielt" : `Rekord ${best.score}`}</span>
-                </>
+                  <span className="text-[10px] leading-tight tabular-nums text-muted-foreground">{best === undefined ? "Noch nicht gespielt" : `Rekord ${best.score}`}</span>
+                </span>
               ) : (
-                <span className="text-lg" aria-hidden>🔒</span>
+                <span className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground/60">
+                  <svg aria-hidden viewBox="0 0 16 16" className="size-3 fill-current"><path d="M5 7V5a3 3 0 0 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-5A1.5 1.5 0 0 1 4.5 7H5Zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2Z" /></svg>
+                  Gesperrt
+                </span>
               )}
             </button>
           );
         })}
       </div>
-      {chosen !== undefined && <p className="mt-2 text-center text-sm text-muted-foreground">{chosen.note}</p>}
-    </section>
+      {chosen !== undefined && <p className="mt-3 text-sm text-muted-foreground"><span className="font-semibold text-foreground">{chosen.name}:</span> {chosen.note}</p>}
+    </div>
   );
 }

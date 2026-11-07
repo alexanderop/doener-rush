@@ -1,6 +1,5 @@
 import { lookOf, stepLook } from "#/game/runtime/looks.ts";
 import type { LookId } from "#/game/runtime/looks.ts";
-import { Button } from "#/shared/ui/button.tsx";
 
 /**
  * One player's chef on the home page: a picture of the cook with arrows to flip through the
@@ -17,21 +16,23 @@ export function LookPicker({ label, value, taken, portrait, onChange }: {
   const look = lookOf(value);
 
   return (
-    <div role="group" aria-label={`Aussehen ${label}`} className="flex flex-col items-center gap-1">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-2">
-        <Button variant="secondary" size="icon-sm" aria-label={`${label}: vorheriger Look`} onClick={() => onChange(stepLook(value, -1, taken))}>‹</Button>
+    <div role="group" aria-label={`Aussehen ${label}`} className="flex flex-col items-center">
+      <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{label}</span>
+      <div className="relative mt-2">
         <div
-          className="grid size-28 place-items-center overflow-hidden rounded-full border-4"
-          style={{ borderColor: look.body, background: `radial-gradient(circle at 50% 40%, color-mix(in oklab, ${look.body} 35%, #2a201b), #1d1612 70%)` }}
+          className="grid size-32 place-items-center overflow-hidden rounded-[2rem] border-2"
+          style={{ borderColor: look.body, background: `radial-gradient(circle at 50% 35%, color-mix(in oklab, ${look.body} 45%, #2a201b), #120d0a 75%)`, boxShadow: `0 14px 40px -12px ${look.body}` }}
         >
           {portrait === undefined
             ? <span className="size-14 rounded-full" style={{ background: look.body }} />
             : <img src={portrait} alt="" className="size-full" />}
         </div>
-        <Button variant="secondary" size="icon-sm" aria-label={`${label}: nächster Look`} onClick={() => onChange(stepLook(value, 1, taken))}>›</Button>
+        <button type="button" className={`${ARROW} -left-4`} aria-label={`${label}: vorheriger Look`} onClick={() => onChange(stepLook(value, -1, taken))}>‹</button>
+        <button type="button" className={`${ARROW} -right-4`} aria-label={`${label}: nächster Look`} onClick={() => onChange(stepLook(value, 1, taken))}>›</button>
       </div>
-      <output className="text-lg font-black" style={{ color: `color-mix(in oklab, ${look.body} 75%, white)` }}>{look.name}</output>
+      <output className="mt-2 font-display text-lg font-extrabold" style={{ color: `color-mix(in oklab, ${look.body} 70%, white)` }}>{look.name}</output>
     </div>
   );
 }
+
+const ARROW = "absolute top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-[#2a201b] text-lg leading-none shadow-lg ring-1 ring-white/15 transition hover:bg-primary hover:text-primary-foreground";
