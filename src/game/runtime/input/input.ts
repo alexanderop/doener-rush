@@ -1,4 +1,6 @@
 import type { PlayerInput } from "../lineup.ts";
+import { clampStep, newPad } from "./gamepad.ts";
+import type { Pad } from "./gamepad.ts";
 
 /** The keys of one player, by `KeyboardEvent.code`. */
 interface Binding {
@@ -50,20 +52,27 @@ export function releaseAll(keys: Keys): void {
 }
 
 /**
- * The intents for one tick. Consumes the presses, so a tap of interact acts once even when
- * a frame runs several ticks, and a tap between two ticks is not lost.
+ * The intents for one tick, from the keyboard and pad `i` for binding `i`; either one works.
+ * Consumes the presses, so a tap of interact acts once even when a frame runs several ticks,
+ * and a tap between two ticks is not lost.
  */
-export function takeIntents(keys: Keys): PlayerInput[] {
-  const intents = BINDINGS.map((b) => ({
-    dx: Number(keys.down.has(b.right)) - Number(keys.down.has(b.left)),
-    dy: Number(keys.down.has(b.down)) - Number(keys.down.has(b.up)),
-    interact: keys.pressed.has(b.interact),
-    work: keys.down.has(b.work),
-    dash: keys.pressed.has(b.dash),
-    swap: keys.pressed.has(b.swap),
-  }));
+export function takeIntents(keys: Keys, pads: readonly Pad[] = []): PlayerInput[] {
+  const intents = BINDINGS.map((b, i) => {
+    const pad = pads[i] ?? newPad();
+
+    return {
+      dx: clampStep(Number(keys.down.has(b.right)) - Number(keys.down.has(b.left)) + pad.dx),
+      dy: clampStep(Number(keys.down.has(b.down)) - Number(keys.down.has(b.up)) + pad.dy),
+      interact: keys.pressed.has(b.interact) || pad.pressed.has("interact"),
+      work: keys.down.has(b.work) || pad.held.has("work"),
+      dash: keys.pressed.has(b.dash) || pad.pressed.has("dash"),
+      swap: keys.pressed.has(b.swap) || pad.pressed.has("swap"),
+    };
+  });
 
   keys.pressed.clear();
+
+  for (const pad of pads) pad.pressed.clear();
 
   return intents;
 }
