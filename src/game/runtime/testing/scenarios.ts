@@ -1,6 +1,7 @@
-import { CHOP_TICKS, HEAT } from "../../../features/kitchen/public.ts";
+import { CHOP_TICKS, HEAT, MIX_TICKS } from "../../../features/kitchen/public.ts";
 import { ROUND_TICKS, RECIPES, addOrder } from "../../../features/orders/public.ts";
 import type { Recipe } from "../../../features/orders/public.ts";
+import { levelOf } from "../levels.ts";
 import type { Level } from "../levels.ts";
 import type { Lineup } from "../lineup.ts";
 import type { World } from "../world.ts";
@@ -8,7 +9,7 @@ import { newWorld } from "../world.ts";
 
 /**
  * A named starting state for tests, e2e features and `?scenario=` in the browser. Only `shift` plays in the level it
- * is given; the others set up the original shop, whose tiles they name.
+ * is given; `backstube` sets up the bakery, the others the original shop, whose tiles they name.
  */
 export interface Scenario {
   readonly description: string;
@@ -148,6 +149,35 @@ export const SCENARIOS = {
         catcher.x = 6.5;
         catcher.y = 7.5;
         catcher.face = { dx: -1, dy: 0 };
+      }
+
+      return world;
+    },
+  },
+  backstube: {
+    description: "The Backstube mid-shift: a bowl half kneaded in the mixer, a Brezel and a Mohnbrötchen in the ovens, a baked Franzbrötchen on a plate, raw dough with a bowl on the counters, a customer for each pastry.",
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup, levelOf("backstube"));
+      world.orders.untilNext = Number.MAX_SAFE_INTEGER;
+
+      for (const id of ["franz", "mohn", "brezel"]) addOrder(world.orders, recipe(id));
+      const ovens = [...world.stations.values()].filter((s) => s.type === "toaster");
+      const pastries = [{ toast: HEAT.dough.done / 2, topping: "lye" }, { toast: HEAT.dough.done + 60, topping: "poppy" }] as const;
+      ovens.forEach((oven, i) => {
+        const { toast, topping } = pastries[i % 2] ?? pastries[0];
+        oven.item = { kind: "base", base: "dough", toast, fillings: [topping] };
+      });
+
+      for (const station of world.stations.values()) {
+        if (station.type === "mixer") station.item = { kind: "bowl", contents: ["flour", "butter"], knead: MIX_TICKS / 2 };
+
+        if (station.type !== "counter" || station.y !== 3) continue;
+
+        if (station.x === 5) station.item = { kind: "plate", dirty: false, food: { kind: "base", base: "dough", toast: HEAT.dough.done, fillings: ["cinnamon"] } };
+
+        if (station.x === 6) station.item = { kind: "base", base: "dough", toast: 0, fillings: [] };
+
+        if (station.x === 7) station.item = { kind: "bowl", contents: ["flour"], knead: 0 };
       }
 
       return world;

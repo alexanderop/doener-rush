@@ -2,7 +2,7 @@ import { NORMAL_PACE } from "../../features/orders/public.ts";
 import type { Pace, RecipeId } from "../../features/orders/public.ts";
 
 /** The kitchens of the campaign, in the order they unlock. */
-export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "grosskueche";
+export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "grosskueche" | "backstube";
 
 /**
  * One kitchen of the campaign: its floor plan, what customers may order there, and how busy it is on top of the
@@ -12,7 +12,8 @@ export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "gr
  * `.` floor · `=` counter · `S` spit · `R` toaster · `K` cutting board · `P` pass (top row, facing the street) · `X` bin ·
  * crates `B` bread, `W` wrap, `L` lettuce, `T` tomato, `O` onion ·
  * sauces `g` garlic, `h` herb, `s` spicy · `t` prep tray · `D` plate rack · `U` dirty-plate return ·
- * `N` sink · `F` counter with the fire extinguisher · `1`–`4` where the cooks start (floor).
+ * `N` sink · `F` counter with the fire extinguisher · `1`–`4` where the cooks start (floor) ·
+ * bakery: crates `M` flour, `Y` butter · `Q` mixer · `E` oven · toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt.
  */
 export interface Level {
   readonly id: LevelId;
@@ -112,6 +113,22 @@ export const LEVELS: readonly Level[] = [
     ],
     menu: ["classic", "durum", "veggie", "pur"],
     pace: { arrival: 0.8, patience: 1, stars: 0.8 },
+  },
+  {
+    id: "backstube",
+    name: "Backstube",
+    note: "Frühschicht: Teig rühren, belegen, backen. Franzbrötchen, Mohnbrötchen, Brezeln.",
+    plan: [
+      "=M=Y=Q=E=E=PP==",
+      "=.1...........U",
+      "z.............=",
+      "m...=====.....F",
+      "l.............X",
+      "=..3.....4..2.=",
+      "====D=====N====",
+    ],
+    menu: ["franz", "mohn", "brezel"],
+    pace: NORMAL_PACE,
   },
 ];
 

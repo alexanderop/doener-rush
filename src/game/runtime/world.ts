@@ -4,7 +4,7 @@ import type { BotMind } from "../../features/bots/public.ts";
 import { newCook } from "../../features/cooks/public.ts";
 import type { Cook, Landing, Thrown } from "../../features/cooks/public.ts";
 import { START_PLATES, newSpit } from "../../features/kitchen/public.ts";
-import type { CrateGoods, Sauce, Station } from "../../features/kitchen/public.ts";
+import type { CrateGoods, Sauce, Station, Topping } from "../../features/kitchen/public.ts";
 import { RECIPES, combinePace, newOrders, paceFor } from "../../features/orders/public.ts";
 import type { OrdersState } from "../../features/orders/public.ts";
 import { DEFAULT_LEVEL } from "./levels.ts";
@@ -14,9 +14,13 @@ import type { Driver, Lineup } from "./lineup.ts";
 import { NORMAL_RULES } from "./rules.ts";
 import type { Rules } from "./rules.ts";
 
-const CRATES = new Map<string, CrateGoods>([["B", "bread"], ["W", "wrap"], ["L", "lettuce"], ["T", "tomato"], ["O", "onion"]]);
+const CRATES = new Map<string, CrateGoods>([
+  ["B", "bread"], ["W", "wrap"], ["L", "lettuce"], ["T", "tomato"], ["O", "onion"], ["M", "flour"], ["Y", "butter"],
+]);
 
-const SAUCE_KEYS = new Map<string, Sauce>([["g", "garlic"], ["h", "herb"], ["s", "spicy"]]);
+const SAUCE_KEYS = new Map<string, Sauce | Topping>([
+  ["g", "garlic"], ["h", "herb"], ["s", "spicy"], ["z", "cinnamon"], ["m", "poppy"], ["l", "lye"],
+]);
 
 /** The whole game state of one round. Plain data the tick mutates; no Effect, no DOM. */
 export interface World {
@@ -108,6 +112,8 @@ function stationFor(ch: string, x: number, y: number): Station | null {
     case "F": return { ...at, type: "counter", item: { kind: "extinguisher" } };
     case "K": return { ...at, type: "board", item: null };
     case "R": return { ...at, type: "toaster", look: "grill", item: null };
+    case "E": return { ...at, type: "toaster", look: "oven", item: null };
+    case "Q": return { ...at, type: "mixer", item: null };
     case "S": return { ...at, type: "spit", item: null, spit: newSpit() };
     case "P": return { ...at, type: "pass", item: null };
     case "X": return { ...at, type: "bin", item: null };
