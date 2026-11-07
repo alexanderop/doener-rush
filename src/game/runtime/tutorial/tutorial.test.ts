@@ -5,7 +5,7 @@ import type { Station } from "../../../features/kitchen/public.ts";
 import { find, hold, press, walkTo, wait } from "../testing/drive.ts";
 import { snapshot, step } from "../step.ts";
 import type { World } from "../world.ts";
-import { LESSONS } from "./lessons.ts";
+import { LESSONS, lessonIndex } from "./lessons.ts";
 import { newTutorialWorld, tutorialTargets } from "./tutorial.ts";
 
 function lesson(world: World): string {
@@ -13,6 +13,43 @@ function lesson(world: World): string {
 }
 
 const crate = (goods: string) => (s: Station) => s.type === "crate" && s.goods === goods;
+
+/** Builds a Döner Classic on a plate and keeps it in hand, the way the lessons teach it. */
+function buildClassic(world: World): void {
+  prep(world, "lettuce");
+  prep(world, "onion");
+  walkTo(world, 1, find(world, crate("bread")));
+  press(world, 1);
+  const toaster = find(world, (s) => s.type === "toaster");
+  walkTo(world, 1, toaster);
+  press(world, 1);
+  walkTo(world, 1, find(world, (s) => s.type === "rack"));
+  press(world, 1);
+  walkTo(world, 1, toaster);
+  wait(world, TOAST_DONE);
+  press(world, 1);
+  walkTo(world, 1, find(world, (s) => s.type === "spit"));
+  hold(world, 1, SHAVE_TICKS * 2);
+
+  for (const veg of ["lettuce", "onion"]) {
+    walkTo(world, 1, find(world, (s) => s.type === "tray" && s.veg === veg));
+    press(world, 1);
+  }
+
+  walkTo(world, 1, find(world, (s) => s.type === "sauce" && s.sauce === "garlic"));
+  press(world, 1);
+}
+
+/** Serves the whole order while the card still says "Sprinten": the player never pressed Space. */
+function serveBeforeSprinting(world: World): void {
+  buildClassic(world);
+  walkTo(world, 1, find(world, (s) => s.type === "pass"));
+  press(world, 1);
+  expect(world.orders.served).toBe(1);
+  expect(lesson(world)).toBe("dash");
+}
+
+const sprint = (world: World) => step(world, [{ ...IDLE, dx: 1, dash: true }]);
 
 /** Takes a vegetable from its crate, chops it on a free board and puts it in a free tray. */
 function prep(world: World, veg: "lettuce" | "onion"): void {
@@ -109,7 +146,7 @@ describe("given the tutorial", () => {
 
   it("goes back to the bread when the player bins the döner", () => {
     const world = newTutorialWorld();
-    world.tutorial = { lesson: LESSONS.findIndex((l) => l.id === "bread") };
+    world.tutorial = { lesson: lessonIndex("bread") };
     walkTo(world, 1, find(world, crate("bread")));
     press(world, 1);
     expect(lesson(world)).toBe("toaster");
@@ -118,9 +155,55 @@ describe("given the tutorial", () => {
     expect(lesson(world)).toBe("bread");
   });
 
+  it("sends a new customer when the player serves before the serve lesson", () => {
+    const world = newTutorialWorld();
+    serveBeforeSprinting(world);
+    expect(world.orders.queue).toHaveLength(1);
+  });
+
+  it("goes back to the bread when the döner is binned after an early serve", () => {
+    const world = newTutorialWorld();
+    serveBeforeSprinting(world);
+    sprint(world);
+    prep(world, "lettuce");
+    prep(world, "onion");
+    walkTo(world, 1, find(world, crate("bread")));
+    press(world, 1);
+    expect(lesson(world)).toBe("toaster");
+    walkTo(world, 1, find(world, (s) => s.type === "bin"));
+    press(world, 1);
+    expect(lesson(world)).toBe("bread");
+  });
+
+  it("still teaches serving and the dishes when the first plate was washed early", () => {
+    const world = newTutorialWorld();
+    serveBeforeSprinting(world);
+    const back = find(world, (s) => s.type === "return");
+    walkTo(world, 1, back);
+    wait(world, 60 * 8);
+    press(world, 1);
+    const sink = find(world, (s) => s.type === "sink");
+    walkTo(world, 1, sink);
+    press(world, 1);
+    hold(world, 1, WASH_TICKS);
+    press(world, 1);
+    walkTo(world, 1, find(world, (s) => s.type === "rack"));
+    press(world, 1);
+    sprint(world);
+    buildClassic(world);
+    expect(lesson(world)).toBe("serve");
+    walkTo(world, 1, find(world, (s) => s.type === "pass"));
+    press(world, 1);
+    expect(lesson(world)).toBe("return");
+    walkTo(world, 1, back);
+    wait(world, 60 * 8);
+    press(world, 1);
+    expect(lesson(world)).toBe("sink");
+  });
+
   it("says why a plate with raw bread is not done", () => {
     const world = newTutorialWorld();
-    world.tutorial = { lesson: LESSONS.findIndex((l) => l.id === "bread") };
+    world.tutorial = { lesson: lessonIndex("bread") };
     walkTo(world, 1, find(world, crate("bread")));
     press(world, 1);
     const toaster = find(world, (s) => s.type === "toaster");

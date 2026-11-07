@@ -11,13 +11,28 @@ type Veg = "lettuce" | "onion";
 /** What the tutorial customer orders: a Döner Classic. */
 const CLASSIC: readonly Filling[] = ["meat", "lettuce", "onion", "garlic"];
 
+/** Every lesson, by id. A transition names its target by id, so a typo does not compile. */
+export type LessonId =
+  | "walk" | "dash" | "lettuce" | "board" | "chop" | "tray" | "onion"
+  | "bread" | "toaster" | "plate" | "plate-up" | "meat" | "veg" | "sauce" | "serve"
+  | "return" | "sink" | "wash" | "rack" | "extinguisher" | "douse" | "finish";
+
+/** A transition out of a lesson that is not "done, go to the next one". */
+interface Back {
+  readonly when: (world: World) => boolean;
+  readonly to: LessonId;
+}
+
 /**
- * One step of the tutorial (a row of a table, not a script): what to do, why it works that way,
- * where to look, and when it is done. Every check reads the world, so a player who skips ahead
- * or does things in another order still moves on. Text marks keys as `{E}`.
+ * One state of the tutorial machine (a row of a table, not a script): what to do, why it works
+ * that way, where to look, and when it is done. Every check reads the world, so a player who
+ * skips ahead or does things in another order still moves on. Text marks keys as `{E}`.
+ *
+ * Transitions: `done` moves to the next lesson in the table, `back` jumps to an earlier one,
+ * and `onEnter` changes the kitchen when the lesson starts.
  */
 export interface Lesson {
-  readonly id: string;
+  readonly id: LessonId;
   readonly title: string;
   readonly text: string;
   /** How the mechanic works, in one or two sentences. */
@@ -27,8 +42,8 @@ export interface Lesson {
   readonly done: (world: World) => boolean;
   /** A hint when the player is stuck or on the wrong path, or null. */
   readonly trouble: (world: World) => string | null;
-  /** The lesson needs the döner being built; when it is gone the tutorial goes back to the bread. */
-  readonly needsDoener: boolean;
+  readonly back?: Back;
+  readonly onEnter?: (world: World) => void;
 }
 
 function me(world: World): Cook {
@@ -114,6 +129,19 @@ function wrongDoener(world: World): string | null {
 
 const NONE = (): null => null;
 
+/** The döner being built is gone (binned, or never made): start it again from the bread. */
+const LOST_DOENER: Back = { when: (world) => doenerOf(world) === null, to: "bread" };
+
+/** Sets the contact grill alight, so the fire lessons have something to put out. */
+function light(world: World): void {
+  for (const station of world.stations.values()) {
+    if (station.type === "toaster") {
+      station.fire = 1;
+      station.douse = 0;
+    }
+  }
+}
+
 /** The tutorial, in order. The last lesson is the goodbye and is never done. */
 export const LESSONS: readonly Lesson[] = [
   {
@@ -124,7 +152,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: () => [],
     done: (world) => Math.hypot(me(world).x - 2.5, me(world).y - 7.5) > 2,
     trouble: NONE,
-    needsDoener: false,
   },
   {
     id: "dash",
@@ -134,7 +161,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: () => [],
     done: (world) => me(world).dashCooldown > 0,
     trouble: NONE,
-    needsDoener: false,
   },
   {
     id: "lettuce",
@@ -144,7 +170,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => stations(world, (s) => s.type === "crate" && s.goods === "lettuce"),
     done: (world) => vegStage(world, "lettuce") >= 1,
     trouble: needsFreeHands,
-    needsDoener: false,
   },
   {
     id: "board",
@@ -154,7 +179,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => vegTargets(world, "lettuce"),
     done: (world) => vegStage(world, "lettuce") >= 2,
     trouble: NONE,
-    needsDoener: false,
   },
   {
     id: "chop",
@@ -164,7 +188,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => vegTargets(world, "lettuce"),
     done: (world) => vegStage(world, "lettuce") >= 3,
     trouble: NONE,
-    needsDoener: false,
   },
   {
     id: "tray",
@@ -174,7 +197,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => vegTargets(world, "lettuce"),
     done: (world) => vegStage(world, "lettuce") >= 4,
     trouble: NONE,
-    needsDoener: false,
   },
   {
     id: "onion",
@@ -184,7 +206,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => vegTargets(world, "onion"),
     done: (world) => vegStage(world, "onion") >= 4,
     trouble: (world) => (vegStage(world, "onion") === 0 ? needsFreeHands(world) : null),
-    needsDoener: false,
   },
   {
     id: "bread",
@@ -194,7 +215,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => stations(world, (s) => s.type === "crate" && s.goods === "bread"),
     done: (world) => doenerOf(world) !== null,
     trouble: needsFreeHands,
-    needsDoener: false,
   },
   {
     id: "toaster",
@@ -208,7 +228,7 @@ export const LESSONS: readonly Lesson[] = [
       return found !== null && (found.plated || found.doener.toast > 0);
     },
     trouble: wrongDoener,
-    needsDoener: true,
+    back: LOST_DOENER,
   },
   {
     id: "plate",
@@ -226,7 +246,7 @@ export const LESSONS: readonly Lesson[] = [
 
       return held !== null && held.kind !== "plate" ? HANDS_FULL : wrongDoener(world);
     },
-    needsDoener: true,
+    back: LOST_DOENER,
   },
   {
     id: "plate-up",
@@ -246,7 +266,7 @@ export const LESSONS: readonly Lesson[] = [
 
       return wrongDoener(world);
     },
-    needsDoener: true,
+    back: LOST_DOENER,
   },
   {
     id: "meat",
@@ -256,7 +276,7 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => stations(world, (s) => s.type === "spit"),
     done: (world) => hasFilling(world, "meat"),
     trouble: wrongDoener,
-    needsDoener: true,
+    back: LOST_DOENER,
   },
   {
     id: "veg",
@@ -272,7 +292,7 @@ export const LESSONS: readonly Lesson[] = [
 
       return wrongDoener(world);
     },
-    needsDoener: true,
+    back: LOST_DOENER,
   },
   {
     id: "sauce",
@@ -282,7 +302,7 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => stations(world, (s) => s.type === "sauce" && s.sauce === "garlic"),
     done: (world) => hasFilling(world, "garlic"),
     trouble: wrongDoener,
-    needsDoener: true,
+    back: LOST_DOENER,
   },
   {
     id: "serve",
@@ -290,9 +310,10 @@ export const LESSONS: readonly Lesson[] = [
     text: "Bring den Teller zur Ausgabe oben rechts ({E}).",
     why: "Passt der Döner zum Bon, gibt es Punkte. Je schneller, desto mehr Trinkgeld. Wer zu lange wartet, geht und kostet Punkte.",
     targets: (world) => stations(world, (s) => s.type === "pass"),
-    done: (world) => world.orders.served > 0,
+    // the customer only leaves by taking the döner, and nobody else orders before this lesson ends
+    done: (world) => world.orders.queue.length === 0,
     trouble: wrongDoener,
-    needsDoener: true,
+    back: LOST_DOENER,
   },
   {
     id: "return",
@@ -307,7 +328,6 @@ export const LESSONS: readonly Lesson[] = [
       return (held?.kind === "plate" && held.dirty) || (basin !== null && basin.dirty + basin.clean > 0);
     },
     trouble: needsFreeHands,
-    needsDoener: false,
   },
   {
     id: "sink",
@@ -321,7 +341,6 @@ export const LESSONS: readonly Lesson[] = [
       return basin !== null && basin.dirty + basin.clean > 0;
     },
     trouble: NONE,
-    needsDoener: false,
   },
   {
     id: "wash",
@@ -331,7 +350,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => stations(world, (s) => s.type === "sink"),
     done: (world) => (sink(world)?.clean ?? 0) > 0,
     trouble: needsFreeHands,
-    needsDoener: false,
   },
   {
     id: "rack",
@@ -341,7 +359,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => (me(world).held?.kind === "plate" ? stations(world, (s) => s.type === "rack") : stations(world, (s) => s.type === "sink")),
     done: (world) => (sink(world)?.clean ?? 0) === 0 && me(world).held?.kind !== "plate",
     trouble: NONE,
-    needsDoener: false,
   },
   {
     id: "extinguisher",
@@ -351,7 +368,7 @@ export const LESSONS: readonly Lesson[] = [
     targets: (world) => stations(world, (s) => s.item?.kind === "extinguisher"),
     done: (world) => me(world).held?.kind === "extinguisher" || burning(world).length === 0,
     trouble: (world) => (me(world).held?.kind === "extinguisher" ? null : needsFreeHands(world)),
-    needsDoener: false,
+    onEnter: light,
   },
   {
     id: "douse",
@@ -361,7 +378,6 @@ export const LESSONS: readonly Lesson[] = [
     targets: burning,
     done: (world) => burning(world).length === 0,
     trouble: (world) => (me(world).held?.kind === "extinguisher" ? null : "Ohne Feuerlöscher geht es nicht. Hol ihn zurück."),
-    needsDoener: false,
   },
   {
     id: "finish",
@@ -371,12 +387,10 @@ export const LESSONS: readonly Lesson[] = [
     targets: () => [],
     done: () => false,
     trouble: NONE,
-    needsDoener: false,
   },
 ];
 
-/** Where the lesson about fire starts: the tutorial sets the grill alight when it gets there. */
-export const FIRE_LESSON = LESSONS.findIndex((l) => l.id === "extinguisher");
-
-/** Where the tutorial goes back to when the döner on the way is gone. */
-export const BREAD_LESSON = LESSONS.findIndex((l) => l.id === "bread");
+/** Where a lesson sits in the table. */
+export function lessonIndex(id: LessonId): number {
+  return LESSONS.findIndex((l) => l.id === id);
+}

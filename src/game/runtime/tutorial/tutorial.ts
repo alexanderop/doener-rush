@@ -4,7 +4,7 @@ import { RECIPES, addOrder } from "../../../features/orders/public.ts";
 import { lineupOf } from "../lineup.ts";
 import type { World } from "../world.ts";
 import { newWorld } from "../world.ts";
-import { BREAD_LESSON, FIRE_LESSON, LESSONS } from "./lessons.ts";
+import { LESSONS, lessonIndex } from "./lessons.ts";
 
 /** What the HUD shows of the tutorial. */
 export interface TutorialView {
@@ -20,22 +20,29 @@ export interface TutorialView {
   readonly side: "left" | "right";
 }
 
+/** The serve lesson: until it is done, a customer waiting for a Döner Classic is always there. */
+const SERVE_LESSON = lessonIndex("serve");
+
+function orderClassic(world: World): void {
+  const classic = RECIPES.find((r) => r.id === "classic");
+
+  if (classic !== undefined) addOrder(world.orders, classic);
+}
+
 /** A calm shop for one player with a single patient customer who wants a Döner Classic. */
 export function newTutorialWorld(): World {
   const world = newWorld(1, Number.MAX_SAFE_INTEGER, lineupOf(1, 0));
   world.orders.untilNext = Number.MAX_SAFE_INTEGER;
-  const classic = RECIPES.find((r) => r.id === "classic");
-
-  if (classic !== undefined) addOrder(world.orders, classic);
+  orderClassic(world);
   world.tutorial = { lesson: 0 };
 
   return world;
 }
 
 /**
- * Runs after every tick of a tutorial world. Keeps the kitchen calm (nothing burns, the
- * customer never leaves, fire stays where the tutorial lit it), then moves to the next lesson
- * once the current one is done. When the döner being built is gone, it goes back to the bread.
+ * Runs after every tick of a tutorial world: one step of the lesson machine. Keeps the kitchen
+ * calm (nothing burns, the customer never leaves, fire stays where the tutorial lit it), moves on
+ * through every lesson that is done, then takes the current lesson's `back` transition if it fires.
  */
 export function stepTutorial(world: World): void {
   const state = world.tutorial;
@@ -43,13 +50,20 @@ export function stepTutorial(world: World): void {
   if (state === null) return;
   calm(world);
 
-  while (state.lesson < LESSONS.length - 1 && LESSONS[state.lesson]?.done(world) === true) {
-    state.lesson += 1;
+  // a player who serves before the serve lesson gets a new customer, so that lesson (and the
+  // dirty plate the dishes lessons need) still happens
+  if (state.lesson < SERVE_LESSON && world.orders.queue.length === 0) orderClassic(world);
 
-    if (state.lesson === FIRE_LESSON) light(world);
-  }
+  while (state.lesson < LESSONS.length - 1 && LESSONS[state.lesson]?.done(world) === true) enter(world, state.lesson + 1);
+  const back = LESSONS[state.lesson]?.back;
 
-  if (LESSONS[state.lesson]?.needsDoener === true && world.orders.served === 0 && LESSONS[BREAD_LESSON]?.done(world) === false) state.lesson = BREAD_LESSON;
+  if (back?.when(world) === true) enter(world, lessonIndex(back.to));
+}
+
+function enter(world: World, lesson: number): void {
+  if (world.tutorial === null) return;
+  world.tutorial.lesson = lesson;
+  LESSONS[lesson]?.onEnter?.(world);
 }
 
 function calm(world: World): void {
@@ -64,15 +78,6 @@ function calm(world: World): void {
 
     // only the grill the tutorial lit may burn: fire does not spread here
     if (station.fire > 0 && station.type !== "toaster") station.fire = 0;
-  }
-}
-
-function light(world: World): void {
-  for (const station of world.stations.values()) {
-    if (station.type === "toaster") {
-      station.fire = 1;
-      station.douse = 0;
-    }
   }
 }
 
