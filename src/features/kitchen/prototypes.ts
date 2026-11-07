@@ -44,7 +44,7 @@ export const FAMILY: Readonly<Record<Base | Filling, Family>> = {
 export const MIX_TICKS = seconds(5);
 
 /** What a bowl needs before the mixer kneads it. */
-const DRY: readonly Dry[] = ["flour", "butter"];
+export const DRY: readonly Dry[] = ["flour", "butter"];
 
 /** Ticks of work on a board to chop a vegetable. */
 export const CHOP_TICKS = seconds(2);

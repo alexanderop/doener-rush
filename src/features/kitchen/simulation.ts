@@ -48,7 +48,7 @@ export function isBaked(dish: Doener): boolean {
  * True when `filling` may go into `dish`: not burnt, not in it yet, and of the dish's own family.
  * A pastry takes exactly one topping, and only while the dough is raw.
  */
-function accepts(dish: Doener, filling: Filling): boolean {
+export function accepts(dish: Doener, filling: Filling): boolean {
   if (isBurntBase(dish) || dish.fillings.includes(filling) || FAMILY[dish.base] !== FAMILY[filling]) return false;
 
   return FAMILY[dish.base] !== "pastry" || (dish.toast === 0 && dish.fillings.length === 0);

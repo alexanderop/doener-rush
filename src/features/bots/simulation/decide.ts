@@ -1,7 +1,7 @@
 import { seconds } from "../../../game/core/grid.ts";
 import type { Tile } from "../../../game/core/grid.ts";
 import type { Cook } from "../../cooks/public.ts";
-import { BURNT, HEAT, TRAY_PORTIONS, isBaked, isBurntBase, isChopped } from "../../kitchen/public.ts";
+import { BURNT, DRY, FAMILY, HEAT, TRAY_PORTIONS, accepts, isBaked, isBurntBase, isChopped } from "../../kitchen/public.ts";
 import type { Filling, Item, Station, Veg } from "../../kitchen/public.ts";
 import type { Order, Recipe } from "../../orders/public.ts";
 import type { BotMind, Plan, Sight, Step } from "../model.ts";
@@ -22,8 +22,8 @@ interface Ctx {
 /** One row of the priority table: a plan when the situation applies, null to ask the next row. */
 type Rule = (ctx: Ctx) => Plan | null;
 
-/** The order fillings go in: meat at the spit first, then the trays, then the sauces by the pass. */
-const FILL_ORDER: readonly Filling[] = ["meat", "lettuce", "tomato", "onion", "garlic", "herb", "spicy"];
+/** The order fillings go in: meat at the spit first, then the trays, then the sauces by the pass; a pastry's one topping. */
+const FILL_ORDER: readonly Filling[] = ["meat", "lettuce", "tomato", "onion", "garlic", "herb", "spicy", "cinnamon", "poppy", "lye"];
 
 const VEGS: readonly Veg[] = ["lettuce", "tomato", "onion"];
 
@@ -111,9 +111,11 @@ function doenerIn(item: Item | null): Doener | null {
   return null;
 }
 
-/** True when the döner can still become `recipe`: same bread, nothing extra, not burnt. */
+/** True when the dish can still become `recipe`: same base, nothing extra, not burnt, and what is missing still goes in. */
 function fits(doener: Doener, recipe: Recipe): boolean {
-  return doener.base === recipe.base && !isBurntBase(doener) && doener.fillings.every((f) => recipe.fillings.includes(f));
+  if (doener.base !== recipe.base || isBurntBase(doener) || !doener.fillings.every((f) => recipe.fillings.includes(f))) return false;
+
+  return missing(doener, recipe).every((f) => accepts(doener, f));
 }
 
 function missing(doener: Doener, recipe: Recipe): Filling[] {
@@ -141,8 +143,9 @@ function freeCounter(ctx: Ctx): Station | null {
   return nearest(ctx, (s) => s.type === "counter" && s.item === null);
 }
 
-function toaster(ctx: Ctx): Station | null {
-  return ctx.sight.stations.find((s) => s.type === "toaster") ?? null;
+/** The nearest grill or oven with nothing on it. */
+function freeHeater(ctx: Ctx): Station | null {
+  return nearest(ctx, (s) => s.type === "toaster" && s.item === null);
 }
 
 /** Puts what the bot holds on the nearest free counter, to come back for it. */
@@ -196,8 +199,9 @@ const discard: Rule = (ctx) => {
   return bin === null ? null : plan(ctx, null, press(bin));
 };
 
+/** A base with nothing in it yet that can still take its fillings: plain bread, raw dough. */
 function isBare(doener: Doener): boolean {
-  return doener.fillings.length === 0 && !isBurntBase(doener);
+  return doener.fillings.length === 0 && FILL_ORDER.some((f) => accepts(doener, f));
 }
 
 function anyFits(ctx: Ctx, doener: Doener): boolean {
@@ -216,16 +220,16 @@ const build: Rule = (ctx) => {
   if (recipe === undefined) return null;
   const task = order === null ? null : `order:${order.id}`;
   const claim = order?.id ?? null;
-
-  if (!isBaked(doener)) {
-    const grill = toaster(ctx);
-
-    if (grill !== null && grill.item === null && grill.fire === 0 && held.kind === "base") return plan(ctx, task, press(grill), claim);
-
-    return park(ctx, task, claim) ?? waitAt(ctx, grill, task, claim);
-  }
-
   const next = missing(doener, recipe)[0];
+
+  // bread is toasted before it is filled; a pastry gets its topping first, then bakes
+  if (!isBaked(doener) && (FAMILY[doener.base] !== "pastry" || next === undefined)) {
+    const heater = freeHeater(ctx);
+
+    if (heater !== null && held.kind === "base") return plan(ctx, task, press(heater), claim);
+
+    return park(ctx, task, claim) ?? waitAt(ctx, nearest(ctx, (s) => s.type === "toaster"), task, claim);
+  }
 
   if (next === undefined) {
     if (held.kind === "plate") {
@@ -258,15 +262,43 @@ function waitAt(ctx: Ctx, station: Station | null, task: string | null, order: n
   return station === null ? null : plan(ctx, task, { kind: "wait", at: at(station) }, order);
 }
 
-/** A döner for `recipe` lying on a counter or in the toaster; with `ready`, only one whose missing vegetables are in the trays. */
+/** How far along a dish waiting on a station is: plated, baked, on the heat, or raw; then by what is in it. */
+function stage(s: Station, dish: Doener): number {
+  let step = 0;
+
+  if (s.item?.kind === "plate") step = 3;
+  else if (isBaked(dish)) step = 2;
+  else if (s.type === "toaster") step = 1;
+
+  return step * 10 + dish.fillings.length;
+}
+
+/**
+ * A dish for `recipe` on a counter, on the heat or fresh from the mixer, the furthest along first and the nearest
+ * of those; with `ready`, only one whose missing vegetables are in the trays.
+ */
 function waiting(ctx: Ctx, recipe: Recipe, ready = true): Station | null {
-  return nearest(ctx, (s) => {
-    if (s.type !== "counter" && s.type !== "toaster") return false;
+  let best: Station | null = null;
+  let bestRank = -Infinity;
+
+  for (const s of ctx.sight.stations) {
+    if (s.type !== "counter" && s.type !== "toaster" && s.type !== "mixer") continue;
     const doener = doenerIn(s.item);
+    const dist = ctx.reach.get(s);
+
+    if (doener === null || dist === undefined || s.fire > 0 || !fits(doener, recipe)) continue;
 
     // toast comes out when it is done, vegetables or not, before it burns
-    return doener !== null && fits(doener, recipe) && (!ready || s.type === "toaster" || vegReady(ctx, missing(doener, recipe)));
-  });
+    if (ready && s.type !== "toaster" && !vegReady(ctx, missing(doener, recipe))) continue;
+    const rank = stage(s, doener) * 1000 - dist;
+
+    if (rank > bestRank) {
+      best = s;
+      bestRank = rank;
+    }
+  }
+
+  return best;
 }
 
 /** Holding a clean empty plate: put the waiting döner on it, or take the plate back. */
@@ -281,7 +313,7 @@ const plateUp: Rule = (ctx) => {
     const spot = waiting(ctx, recipe);
     const doener = doenerIn(spot?.item ?? null);
 
-    if (spot === null || doener === null) continue;
+    if (spot === null || doener === null || spot.item?.kind === "plate") continue;
 
     if (isBaked(doener)) return plan(ctx, task, press(spot));
 
@@ -359,14 +391,18 @@ const tend: Rule = (ctx) => {
   return crate === null ? null : plan(ctx, "spit", press(crate));
 };
 
-/** Bread left in the toaster comes out before it burns, or once burnt before it catches fire. */
+/** Food left on any grill or in any oven comes out before it burns, or once burnt before it catches fire. */
 const rescue: Rule = (ctx) => {
-  const grill = toaster(ctx);
-  const bread = doenerIn(grill?.item ?? null);
+  if (ctx.me.held !== null) return null;
 
-  if (ctx.me.held !== null || grill === null || bread === null || bread.toast < HEAT[bread.base].burnt - SAVE_TOAST || claimedByOther(ctx, "toaster")) return null;
+  for (const s of ctx.sight.stations) {
+    const food = s.type === "toaster" && s.fire === 0 && ctx.reach.has(s) ? doenerIn(s.item) : null;
+    const task = `heat:${s.x},${s.y}`;
 
-  return plan(ctx, "toaster", press(grill));
+    if (food !== null && food.toast >= HEAT[food.base].burnt - SAVE_TOAST && !claimedByOther(ctx, task)) return plan(ctx, task, press(s));
+  }
+
+  return null;
 };
 
 /** Chopping in progress: keep at a board with a raw vegetable, take a chopped one to the trays. */
@@ -407,13 +443,11 @@ function carryOn(ctx: Ctx, order: Order, task: string): Plan | null {
 
   if (spot.item?.kind === "plate") return plan(ctx, task, press(spot), order.id);
 
-  const grill = toaster(ctx);
+  if (!isBaked(doener) && spot.type !== "toaster") {
+    // raw dough is picked up for its topping; parked raw food waits until a grill or oven is free
+    const topping = FAMILY[doener.base] === "pastry" && missing(doener, order.recipe).length > 0;
 
-  if (!isBaked(doener)) {
-    // parked raw bread waits until the toaster is free
-    if (spot.type === "counter" && grill !== null && grill.item === null) return plan(ctx, task, press(spot), order.id);
-
-    if (spot.type === "counter") return null;
+    return topping || freeHeater(ctx) !== null ? plan(ctx, task, press(spot), order.id) : null;
   }
 
   const plates = plateSource(ctx);
@@ -429,20 +463,80 @@ function carryOn(ctx: Ctx, order: Order, task: string): Plan | null {
 function start(ctx: Ctx, order: Order, task: string): Plan | null {
   const base = order.recipe.base;
 
-  if (base === "bread" && !toasterFree(ctx)) return null;
+  if (base === "dough") return startDough(ctx, order);
+
+  if (base === "bread" && !heaterFree(ctx)) return null;
   const crate = nearest(ctx, (s) => s.type === "crate" && s.goods === base);
 
   return crate === null ? null : plan(ctx, task, press(crate), order.id);
 }
 
-/** No bread in the toaster or in another bot's hands on its way there. A person may hold bread as long as they like. */
-function toasterFree(ctx: Ctx): boolean {
-  const grill = toaster(ctx);
+/**
+ * More grills or ovens stand empty than bots carry raw food to them. A person may hold bread as long as they
+ * like.
+ */
+function heaterFree(ctx: Ctx): boolean {
+  const free = ctx.sight.stations.filter((s) => s.type === "toaster" && s.item === null && s.fire === 0 && ctx.reach.has(s)).length;
+  const coming = ctx.sight.cooks.filter((c) => ctx.sight.bots.has(c.id) && c.held?.kind === "base" && !isBaked(c.held)).length;
 
-  if (grill === null || grill.item !== null || grill.fire > 0) return false;
-
-  return !ctx.sight.cooks.some((c) => ctx.sight.bots.has(c.id) && c.held?.kind === "base" && !isBaked(c.held));
+  return free > coming;
 }
+
+/** Dough has no crate: wait at a mixer that kneads a bowl nobody else waits for, or fill a bowl for an empty one. */
+function startDough(ctx: Ctx, order: Order): Plan | null {
+  const kneading = nearest(ctx, (s) => s.type === "mixer" && s.item?.kind === "bowl" && !claimedByOther(ctx, `knead:${s.x},${s.y}`));
+
+  if (kneading !== null) return plan(ctx, `knead:${kneading.x},${kneading.y}`, { kind: "wait", at: at(kneading) }, order.id);
+
+  return feedMixer(ctx, order.id);
+}
+
+/** Toward a bowl for an empty mixer: a bowl left on a counter, else a fresh one from a dry-goods crate. One bot at a time. */
+function feedMixer(ctx: Ctx, order: number | null): Plan | null {
+  if (claimedByOther(ctx, "mixer") || nearest(ctx, (s) => s.type === "mixer" && s.item === null) === null) return null;
+  const bowl = nearest(ctx, (s) => s.type === "counter" && s.item?.kind === "bowl");
+
+  if (bowl !== null) return plan(ctx, "mixer", press(bowl), order);
+  const crate = nearest(ctx, (s) => s.type === "crate" && DRY.some((d) => d === s.goods));
+
+  return crate === null ? null : plan(ctx, "mixer", press(crate), order);
+}
+
+/** Holding a bowl: pour in what it still lacks, then into an empty mixer; with every mixer busy, put it down. */
+const mix: Rule = (ctx) => {
+  const held = ctx.me.held;
+
+  if (held?.kind !== "bowl") return null;
+  const lacking = DRY.find((d) => !held.contents.includes(d));
+
+  const target = lacking === undefined
+    ? nearest(ctx, (s) => s.type === "mixer" && s.item === null)
+    : nearest(ctx, (s) => s.type === "crate" && s.goods === lacking);
+
+  return target === null ? park(ctx, null) : plan(ctx, "mixer", press(target));
+};
+
+/** Pastry customers outnumber the bowls and the dough that could still become their pastries. */
+function doughShort(ctx: Ctx): boolean {
+  const wanted = ctx.sight.orders.filter((o) => o.recipe.base === "dough").length;
+  const items = [...ctx.sight.stations.map((s) => s.item), ...ctx.sight.cooks.map((c) => c.held)];
+
+  const supply = items.filter((item) => {
+    const dish = doenerIn(item);
+
+    return item?.kind === "bowl" || (dish?.base === "dough" && anyFits(ctx, dish));
+  }).length;
+
+  return wanted > supply;
+}
+
+/** An empty mixer and a bowl left on a counter, or too little dough for the pastry customers: start the next bowl. */
+const knead: Rule = (ctx) => {
+  if (ctx.me.held !== null) return null;
+  const left = ctx.sight.stations.some((s) => s.type === "counter" && s.item?.kind === "bowl");
+
+  return left || doughShort(ctx) ? feedMixer(ctx, ctx.order?.id ?? null) : null;
+};
 
 /** Washing up: clean plates to the rack, dirty ones scrubbed, the return hatch emptied. */
 function dishes(ctx: Ctx): Plan | null {
@@ -524,5 +618,6 @@ const topUp: Rule = (ctx) => {
 
 /** The priority table: the first row that has a plan wins. */
 const RULES: readonly Rule[] = [
-  fight, tend, discard, build, plateUp, scrape, prep, rescue, chop, resume, washUrgent, stockNeeded, claim, washSoon, topUp, dishes,
+  fight, tend, discard, build, mix, plateUp, scrape, prep, rescue, chop, resume, washUrgent, stockNeeded, knead, claim, washSoon, topUp,
+  dishes,
 ];

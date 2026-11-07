@@ -4,6 +4,7 @@ import { DOUSE_TICKS, HEAT } from "../../features/kitchen/public.ts";
 import { RECIPES, ROUND_TICKS, addOrder } from "../../features/orders/public.ts";
 import type { Recipe } from "../../features/orders/public.ts";
 import { find, hold, press, walkTo, wait } from "./testing/drive.ts";
+import { levelOf } from "./levels.ts";
 import { SCENARIOS } from "./testing/scenarios.ts";
 import { run, snapshot } from "./step.ts";
 import type { World } from "./world.ts";
@@ -96,6 +97,21 @@ describe("given a bot alone in the shop", () => {
     const world = onlyCustomers(SCENARIOS.shift.build(1, lineupOf(0, 1)), "pur");
     run(world, seconds(40));
     expect(snapshot(world).orders.served).toBe(1);
+  });
+});
+
+describe("given two bots in the Backstube", () => {
+  it("knead, top, bake and serve a Franzbrötchen, a Mohnbrötchen and a Brezel in one shift", () => {
+    const world = onlyCustomers(SCENARIOS.shift.build(1, lineupOf(0, 2), levelOf("backstube")), "franz", "mohn", "brezel");
+    run(world, ROUND_TICKS);
+    expect(snapshot(world).orders.served).toBe(3);
+    expect(world.orders.queue).toHaveLength(0);
+  });
+
+  it.each([1, 2])("four bots never jam the one mixer between them on seed %i: at least eight served", (seed) => {
+    const world = SCENARIOS.shift.build(seed, lineupOf(0, 4), levelOf("backstube"));
+    run(world, ROUND_TICKS);
+    expect(snapshot(world).orders.served).toBeGreaterThanOrEqual(8);
   });
 });
 
