@@ -1,4 +1,4 @@
-import { BURNT, TOAST_BURNT } from "../../../features/kitchen/public.ts";
+import { keepFromBurning } from "../../../features/kitchen/public.ts";
 import type { Station } from "../../../features/kitchen/public.ts";
 import { RECIPES, addOrder } from "../../../features/orders/public.ts";
 import { lineupOf } from "../lineup.ts";
@@ -70,11 +70,7 @@ function calm(world: World): void {
   for (const order of world.orders.queue) order.ticksLeft = order.patience;
 
   for (const station of world.stations.values()) {
-    if (station.type === "toaster" && station.item?.kind === "base") station.item.toast = Math.min(station.item.toast, TOAST_BURNT - 1);
-
-    if (station.type === "spit") station.spit.sides.forEach((level, i) => {
-      station.spit.sides[i] = Math.min(level, BURNT - 0.01);
-    });
+    keepFromBurning(station);
 
     // only the grill the tutorial lit may burn: fire does not spread here
     if (station.fire > 0 && station.type !== "toaster") station.fire = 0;

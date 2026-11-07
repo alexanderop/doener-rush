@@ -1,7 +1,7 @@
 import { seconds } from "../../../game/core/grid.ts";
 import type { Tile } from "../../../game/core/grid.ts";
 import type { Cook } from "../../cooks/public.ts";
-import { BURNT, TOAST_BURNT, TOAST_DONE, TRAY_PORTIONS, isBurntBase, isChopped } from "../../kitchen/public.ts";
+import { BURNT, HEAT, TRAY_PORTIONS, isBaked, isBurntBase, isChopped } from "../../kitchen/public.ts";
 import type { Filling, Item, Station, Veg } from "../../kitchen/public.ts";
 import type { Order, Recipe } from "../../orders/public.ts";
 import type { BotMind, Plan, Sight, Step } from "../model.ts";
@@ -120,10 +120,6 @@ function missing(doener: Doener, recipe: Recipe): Filling[] {
   return FILL_ORDER.filter((f) => recipe.fillings.includes(f) && !doener.fillings.includes(f));
 }
 
-function isToasted(doener: Doener): boolean {
-  return doener.base === "wrap" || doener.toast >= TOAST_DONE;
-}
-
 /** A tray a döner can take a portion of `veg` from. */
 function hasVeg(s: Station, veg: Veg): boolean {
   return s.type === "tray" && s.veg === veg && s.portions > 0;
@@ -189,7 +185,7 @@ const discard: Rule = (ctx) => {
 
   if (held?.kind === "extinguisher") return park(ctx, null);
   const doener = doenerIn(held);
-  const junk = held?.kind === "meat" || (doener !== null && (!anyFits(ctx, doener) || (held?.kind === "plate" && !isToasted(doener))));
+  const junk = held?.kind === "meat" || (doener !== null && (!anyFits(ctx, doener) || (held?.kind === "plate" && !isBaked(doener))));
 
   if (!junk) return null;
 
@@ -221,7 +217,7 @@ const build: Rule = (ctx) => {
   const task = order === null ? null : `order:${order.id}`;
   const claim = order?.id ?? null;
 
-  if (!isToasted(doener)) {
+  if (!isBaked(doener)) {
     const grill = toaster(ctx);
 
     if (grill !== null && grill.item === null && grill.fire === 0 && held.kind === "base") return plan(ctx, task, press(grill), claim);
@@ -287,7 +283,7 @@ const plateUp: Rule = (ctx) => {
 
     if (spot === null || doener === null) continue;
 
-    if (isToasted(doener)) return plan(ctx, task, press(spot));
+    if (isBaked(doener)) return plan(ctx, task, press(spot));
 
     if (spot.type === "toaster") return plan(ctx, task, { kind: "wait", at: at(spot) });
   }
@@ -368,7 +364,7 @@ const rescue: Rule = (ctx) => {
   const grill = toaster(ctx);
   const bread = doenerIn(grill?.item ?? null);
 
-  if (ctx.me.held !== null || grill === null || bread === null || bread.toast < TOAST_BURNT - SAVE_TOAST || claimedByOther(ctx, "toaster")) return null;
+  if (ctx.me.held !== null || grill === null || bread === null || bread.toast < HEAT[bread.base].burnt - SAVE_TOAST || claimedByOther(ctx, "toaster")) return null;
 
   return plan(ctx, "toaster", press(grill));
 };
@@ -413,7 +409,7 @@ function carryOn(ctx: Ctx, order: Order, task: string): Plan | null {
 
   const grill = toaster(ctx);
 
-  if (!isToasted(doener)) {
+  if (!isBaked(doener)) {
     // parked raw bread waits until the toaster is free
     if (spot.type === "counter" && grill !== null && grill.item === null) return plan(ctx, task, press(spot), order.id);
 
@@ -425,7 +421,7 @@ function carryOn(ctx: Ctx, order: Order, task: string): Plan | null {
   if (plates !== null) return plan(ctx, task, press(plates), order.id);
 
   // no clean plate anywhere: fill it now and plate it later
-  if (isToasted(doener) && missing(doener, order.recipe).length > 0) return plan(ctx, task, press(spot), order.id);
+  if (isBaked(doener) && missing(doener, order.recipe).length > 0) return plan(ctx, task, press(spot), order.id);
 
   return null;
 }
@@ -445,7 +441,7 @@ function toasterFree(ctx: Ctx): boolean {
 
   if (grill === null || grill.item !== null || grill.fire > 0) return false;
 
-  return !ctx.sight.cooks.some((c) => ctx.sight.bots.has(c.id) && c.held?.kind === "base" && !isToasted(c.held));
+  return !ctx.sight.cooks.some((c) => ctx.sight.bots.has(c.id) && c.held?.kind === "base" && !isBaked(c.held));
 }
 
 /** Washing up: clean plates to the rack, dirty ones scrubbed, the return hatch emptied. */

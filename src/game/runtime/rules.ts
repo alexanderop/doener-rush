@@ -1,4 +1,4 @@
-import { BURNT, TOAST_BURNT } from "../../features/kitchen/public.ts";
+import { keepFromBurning } from "../../features/kitchen/public.ts";
 import { ROUND_TICKS, combinePace } from "../../features/orders/public.ts";
 import { seconds } from "../core/grid.ts";
 import type { World } from "./world.ts";
@@ -59,11 +59,7 @@ export function enforceRules(world: World): void {
   if (burning && fire) return;
 
   for (const station of world.stations.values()) {
-    if (!burning && station.type === "toaster" && station.item?.kind === "base") station.item.toast = Math.min(station.item.toast, TOAST_BURNT - 1);
-
-    if (!burning && station.type === "spit") station.spit.sides.forEach((level, i) => {
-      station.spit.sides[i] = Math.min(level, BURNT - 0.01);
-    });
+    if (!burning) keepFromBurning(station);
 
     if (!fire) station.fire = 0;
   }

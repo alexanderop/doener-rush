@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seconds } from "../core/grid.ts";
-import { DOUSE_TICKS, TOAST_DONE } from "../../features/kitchen/public.ts";
+import { DOUSE_TICKS, HEAT } from "../../features/kitchen/public.ts";
 import { RECIPES, ROUND_TICKS, addOrder } from "../../features/orders/public.ts";
 import type { Recipe } from "../../features/orders/public.ts";
 import { find, hold, press, walkTo, wait } from "./testing/drive.ts";
@@ -161,7 +161,7 @@ describe("given bread forgotten in the toaster until it catches fire", () => {
   it("stays out once sprayed, with the charred bread still inside", () => {
     const world = SCENARIOS.shift.build(1);
     const toaster = find(world, (s) => s.type === "toaster");
-    toaster.item = { kind: "base", base: "bread", toast: TOAST_DONE, fillings: [] };
+    toaster.item = { kind: "base", base: "bread", toast: HEAT.bread.done, fillings: [] };
     wait(world, seconds(17));
     expect(toaster.fire).toBeGreaterThan(0);
     const [cook] = world.cooks;

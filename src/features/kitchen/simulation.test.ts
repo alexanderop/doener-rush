@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Item, Station } from "./model.ts";
-import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, SHAVE_TICKS, TOAST_DONE, TRAY_PORTIONS, WASH_TICKS } from "./prototypes.ts";
+import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, HEAT, SHAVE_TICKS, TRAY_PORTIONS, WASH_TICKS } from "./prototypes.ts";
 import { addTo, interact, isBurntBase, isChopped, land, newSpit, spreadFire, stepStation, work } from "./simulation.ts";
 
 const board = (): Station => ({ type: "board", x: 0, y: 0, fire: 0, douse: 0, item: null });
@@ -101,8 +101,8 @@ describe("given the toaster", () => {
     const station: Station = { type: "toaster", x: 0, y: 0, fire: 0, douse: 0, item: null };
     interact(station, bread());
 
-    for (let i = 0; i < TOAST_DONE; i++) stepStation(station);
-    expect(station.item).toMatchObject({ toast: TOAST_DONE });
+    for (let i = 0; i < HEAT.bread.done; i++) stepStation(station);
+    expect(station.item).toMatchObject({ toast: HEAT.bread.done });
 
     for (let i = 0; i < 60 * 20; i++) stepStation(station);
     expect(isBurntBase(station.item!)).toBe(true);

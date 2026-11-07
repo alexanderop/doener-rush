@@ -3,7 +3,7 @@
  * small digest of the audible state, `cuesBetween` turns two digests into one-shot sounds and
  * `loopLevels` gives the volume of the running loops. Pure, so Vitest can run it.
  */
-import { BURNT, CHOP_TICKS, TOAST_BURNT, TOAST_DONE } from "../../../features/kitchen/public.ts";
+import { BURNT, CHOP_TICKS, HEAT } from "../../../features/kitchen/public.ts";
 import type { Cook, Landing } from "../../../features/cooks/public.ts";
 import type { OrderEvent } from "../../../features/orders/public.ts";
 import { TICK_RATE } from "../../core/grid.ts";
@@ -28,9 +28,6 @@ const STROKE_TICKS = Math.round(CHOP_TICKS / 8);
 
 /** Ticks of scrubbing per splash. */
 const SCRUB_TICKS = 20;
-
-/** Toast past this is about to burn: the warning beeps. */
-const TOAST_WARN = TOAST_DONE + (TOAST_BURNT - TOAST_DONE) / 2;
 
 /** A spit side this hot is about to burn. */
 const SPIT_WARN = BURNT - 0.2;
@@ -94,10 +91,12 @@ export function hear(world: World): Heard {
 
     if (station.type === "toaster" && station.item?.kind === "base" && station.fire === 0) {
       const { toast } = station.item;
+      const { done, burnt } = HEAT[station.item.base];
 
-      if (toast < TOAST_BURNT) cooking += 1;
+      if (toast < burnt) cooking += 1;
 
-      if (toast >= TOAST_WARN && toast < TOAST_BURNT) warning ||= watched;
+      // past halfway from done to burnt it is about to burn: the warning beeps
+      if (toast >= (done + burnt) / 2 && toast < burnt) warning ||= watched;
     }
 
     if (station.type === "spit" && station.fire === 0) {

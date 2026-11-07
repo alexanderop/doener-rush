@@ -1,7 +1,7 @@
-import type { CrateGoods, Doener, Item, Spit, Station } from "./model.ts";
+import type { CrateGoods, Doener, Filling, Item, Spit, Station } from "./model.ts";
 import {
-  AFTER_SHAVE, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, SHAVE_TICKS, SPIT_HEAT, SPIT_IGNITE, SPIT_TURN,
-  THROWABLE, TOAST_BURNT, TOAST_IGNITE, TRAY_PORTIONS, WASH_TICKS, isBase,
+  AFTER_SHAVE, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FAMILY, FIRE_SPREAD, HEAT, SHAVE_TICKS, SPIT_HEAT, SPIT_IGNITE,
+  SPIT_TURN, THROWABLE, TRAY_PORTIONS, WASH_TICKS, isBase,
 } from "./prototypes.ts";
 
 /** A fresh spit, part-cooked all round so the first portion comes quickly. */
@@ -21,9 +21,21 @@ export function isChopped(item: Item): boolean {
   return item.kind === "veg" && item.chop >= CHOP_TICKS;
 }
 
-/** True when bread stayed in the toaster too long. */
+/** True when a base stayed on the heat too long. */
 export function isBurntBase(item: Item): boolean {
-  return item.kind === "base" && item.toast >= TOAST_BURNT;
+  return item.kind === "base" && item.toast >= HEAT[item.base].burnt;
+}
+
+/** True when a dish had all the heat it needs to be sold: toasted bread; a wrap needs none. */
+export function isBaked(dish: Doener): boolean {
+  const heat = HEAT[dish.base];
+
+  return !heat.required || dish.toast >= heat.done;
+}
+
+/** True when `filling` may go into `dish`: not burnt, not in it yet, and of the dish's own family. */
+function accepts(dish: Doener, filling: Filling): boolean {
+  return !isBurntBase(dish) && !dish.fillings.includes(filling) && FAMILY[dish.base] === FAMILY[filling];
 }
 
 /** True when a cook may throw the item: a vegetable, whole or chopped, or bread straight from the crate. */
@@ -74,14 +86,14 @@ export function addTo(target: Item, extra: Item): boolean {
     return addTo(target.food, extra);
   }
 
-  if (target.kind !== "base" || isBurntBase(target)) return false;
-  let filling: "meat" | "lettuce" | "tomato" | "onion";
+  if (target.kind !== "base") return false;
+  let filling: Filling;
 
   if (extra.kind === "meat" && !extra.burnt) filling = "meat";
   else if (extra.kind === "veg" && isChopped(extra)) filling = extra.veg;
   else return false;
 
-  if (target.fillings.includes(filling)) return false;
+  if (!accepts(target, filling)) return false;
   target.fillings.push(filling);
 
   return true;
@@ -106,7 +118,7 @@ export function interact(station: Station, held: Item | null): Item | null {
     case "sauce": {
       const doener = doenerIn(held);
 
-      if (doener === null || isBurntBase(doener) || doener.fillings.includes(station.sauce)) return held;
+      if (doener === null || !accepts(doener, station.sauce)) return held;
       doener.fillings.push(station.sauce);
 
       return held;
@@ -328,15 +340,26 @@ export function stepStation(station: Station): void {
     station.item.toast += 1;
 
     // only the moment it crosses the line: a doused toaster stays out, with the charred bread still in it
-    if (station.item.toast === TOAST_IGNITE) ignite(station);
+    if (station.item.toast === HEAT[station.item.base].ignite) ignite(station);
   }
 
   if (station.fire > 0) {
     station.fire += 1;
     const food = doenerIn(station.item);
 
-    if (food !== null) food.toast = Math.max(food.toast, TOAST_BURNT);
+    if (food !== null) food.toast = Math.max(food.toast, HEAT[food.base].burnt);
   }
+}
+
+/** Holds food on a station just short of burnt: the easy rule and the tutorial's calm kitchen. */
+export function keepFromBurning(station: Station): void {
+  if (station.type === "toaster" && station.item?.kind === "base") {
+    station.item.toast = Math.min(station.item.toast, HEAT[station.item.base].burnt - 1);
+  }
+
+  if (station.type === "spit") station.spit.sides.forEach((level, i) => {
+    station.spit.sides[i] = Math.min(level, BURNT - 0.01);
+  });
 }
 
 /** Sets a station on fire, unless it is the sink or already burning. */

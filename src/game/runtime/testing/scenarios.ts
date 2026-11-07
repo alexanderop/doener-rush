@@ -1,4 +1,4 @@
-import { CHOP_TICKS, TOAST_DONE } from "../../../features/kitchen/public.ts";
+import { CHOP_TICKS, HEAT } from "../../../features/kitchen/public.ts";
 import { ROUND_TICKS, RECIPES, addOrder } from "../../../features/orders/public.ts";
 import type { Recipe } from "../../../features/orders/public.ts";
 import type { Level } from "../levels.ts";
@@ -41,7 +41,7 @@ export const SCENARIOS = {
         cook.x = 10.5;
         cook.y = 1.5;
         cook.face = { dx: 0, dy: -1 };
-        cook.held = { kind: "plate", dirty: false, food: { kind: "base", base: "bread", toast: TOAST_DONE, fillings: ["meat", "lettuce", "onion", "garlic"] } };
+        cook.held = { kind: "plate", dirty: false, food: { kind: "base", base: "bread", toast: HEAT.bread.done, fillings: ["meat", "lettuce", "onion", "garlic"] } };
       }
 
       return world;

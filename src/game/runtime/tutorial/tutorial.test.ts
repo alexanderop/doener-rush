@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { IDLE } from "../../../features/cooks/public.ts";
-import { CHOP_TICKS, DOUSE_TICKS, SHAVE_TICKS, TOAST_DONE, WASH_TICKS } from "../../../features/kitchen/public.ts";
+import { CHOP_TICKS, DOUSE_TICKS, HEAT, SHAVE_TICKS, WASH_TICKS } from "../../../features/kitchen/public.ts";
 import type { Station } from "../../../features/kitchen/public.ts";
 import { find, hold, press, walkTo, wait } from "../testing/drive.ts";
 import { snapshot, step } from "../step.ts";
@@ -26,7 +26,7 @@ function buildClassic(world: World): void {
   walkTo(world, 1, find(world, (s) => s.type === "rack"));
   press(world, 1);
   walkTo(world, 1, toaster);
-  wait(world, TOAST_DONE);
+  wait(world, HEAT.bread.done);
   press(world, 1);
   walkTo(world, 1, find(world, (s) => s.type === "spit"));
   hold(world, 1, SHAVE_TICKS * 2);
@@ -87,7 +87,7 @@ describe("given the tutorial", () => {
     press(world, 1);
     expect(lesson(world)).toBe("plate-up");
     walkTo(world, 1, toaster);
-    wait(world, TOAST_DONE);
+    wait(world, HEAT.bread.done);
     press(world, 1);
     expect(lesson(world)).toBe("meat");
     walkTo(world, 1, find(world, (s) => s.type === "spit"));

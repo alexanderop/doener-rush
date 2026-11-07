@@ -1,5 +1,5 @@
 import type { Cook } from "../../../features/cooks/public.ts";
-import { TOAST_DONE, isChopped } from "../../../features/kitchen/public.ts";
+import { isBaked, isChopped } from "../../../features/kitchen/public.ts";
 import type { Filling, Item, Station } from "../../../features/kitchen/public.ts";
 import type { World } from "../world.ts";
 
@@ -257,12 +257,12 @@ export const LESSONS: readonly Lesson[] = [
     done: (world) => {
       const found = doenerOf(world);
 
-      return found !== null && found.plated && found.doener.toast >= TOAST_DONE;
+      return found !== null && found.plated && isBaked(found.doener);
     },
     trouble: (world) => {
       const found = doenerOf(world);
 
-      if (found?.plated === true && found.doener.toast < TOAST_DONE) return "Zu früh, das Brot ist noch nicht durch. Ab in den Müll ({E} am Mülleimer rechts) und neues Brot holen.";
+      if (found?.plated === true && !isBaked(found.doener)) return "Zu früh, das Brot ist noch nicht durch. Ab in den Müll ({E} am Mülleimer rechts) und neues Brot holen.";
 
       return wrongDoener(world);
     },

@@ -1,5 +1,5 @@
 import { nextRandom } from "../../game/core/rng.ts";
-import { TOAST_DONE, isBurntBase } from "../kitchen/public.ts";
+import { isBaked, isBurntBase } from "../kitchen/public.ts";
 import type { Item } from "../kitchen/public.ts";
 import type { Order, OrderEvent, OrdersState, Recipe } from "./model.ts";
 import {
@@ -73,7 +73,7 @@ export function defect(item: Item): string | null {
 
   if (isBurntBase(food)) return "Verbranntes Brot!";
 
-  if (food.base === "bread" && food.toast < TOAST_DONE) return "Brot nicht getoastet.";
+  if (!isBaked(food)) return "Brot nicht getoastet.";
 
   return null;
 }

@@ -1,14 +1,42 @@
 import { seconds } from "../../game/core/grid.ts";
 import type { Base, CrateGoods, Filling, Item } from "./model.ts";
 
+/** How a base takes the heat, in ticks on it. */
+export interface Heat {
+  /** Toasted or baked from here on. */
+  readonly done: number;
+  /** Burnt from here on. */
+  readonly burnt: number;
+  /** The station catches fire the moment the base reaches this. */
+  readonly ignite: number;
+  /** The dish cannot be sold before `done`. */
+  readonly required: boolean;
+}
+
+/** The heat timings of each base: the one source for toaster, oven, serving, bots and the view. */
+export const HEAT: Readonly<Record<Base, Heat>> = {
+  bread: { done: seconds(4), burnt: seconds(14), ignite: seconds(20), required: true },
+  wrap: { done: seconds(4), burnt: seconds(14), ignite: seconds(20), required: false },
+};
+
+/** A kind of dish: a filling only goes into a base of its own family. */
+export type Family = "doener";
+
+/** The family of every base and filling. */
+export const FAMILY: Readonly<Record<Base | Filling, Family>> = {
+  bread: "doener",
+  wrap: "doener",
+  meat: "doener",
+  lettuce: "doener",
+  tomato: "doener",
+  onion: "doener",
+  garlic: "doener",
+  herb: "doener",
+  spicy: "doener",
+};
+
 /** Ticks of work on a board to chop a vegetable. */
 export const CHOP_TICKS = seconds(2);
-
-/** Ticks in the toaster until bread is toasted. */
-export const TOAST_DONE = seconds(4);
-
-/** Ticks in the toaster until bread is burnt. */
-export const TOAST_BURNT = seconds(14);
 
 /** Ticks of work at the spit to shave one portion. */
 export const SHAVE_TICKS = seconds(1);
@@ -30,9 +58,6 @@ export const AFTER_SHAVE = 0.2;
 
 /** Cook level at which a burnt side catches fire (about 12 s after it burns). */
 export const SPIT_IGNITE = 2.3;
-
-/** Ticks in the toaster at which forgotten bread catches fire. */
-export const TOAST_IGNITE = TOAST_BURNT + seconds(6);
 
 /** Ticks a fire burns before it jumps to each neighbouring station, and again every as many ticks. */
 export const FIRE_SPREAD = seconds(6);

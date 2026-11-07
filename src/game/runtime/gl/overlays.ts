@@ -6,7 +6,7 @@
  */
 import * as THREE from "three";
 import type { Item } from "../../../features/kitchen/public.ts";
-import { BURNT, COOKED, ICONS, TOAST_BURNT, TOAST_DONE, isChopped } from "../../../features/kitchen/public.ts";
+import { BURNT, COOKED, ICONS, isBaked, isBurntBase, isChopped } from "../../../features/kitchen/public.ts";
 import { canvasTexture, drawIcon, geo } from "./parts.ts";
 
 
@@ -32,12 +32,11 @@ function bubbleContent(item: Item): BubbleContent {
     case "meat":
       return { icons: [item.burnt ? "💀" : ICONS.meat], rim: item.burnt ? RIM.burnt : RIM.done };
     case "base": {
-      const toasted = item.base === "wrap" || item.toast >= TOAST_DONE;
       const icons = [ICONS[item.base], ...item.fillings.map((f) => ICONS[f])];
 
-      if (item.toast >= TOAST_BURNT) return { icons, rim: RIM.burnt };
+      if (isBurntBase(item)) return { icons, rim: RIM.burnt };
 
-      return { icons, rim: toasted ? RIM.done : RIM.plain };
+      return { icons, rim: isBaked(item) ? RIM.done : RIM.plain };
     }
 
     case "plate": {

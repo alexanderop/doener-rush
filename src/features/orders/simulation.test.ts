@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TOAST_BURNT, TOAST_DONE } from "../kitchen/public.ts";
+import { HEAT } from "../kitchen/public.ts";
 import type { Item } from "../kitchen/public.ts";
 import { MISSED_PENALTY, RECIPES, paceFor } from "./prototypes.ts";
 import { ordersSnapshot } from "./snapshot.ts";
@@ -7,7 +7,7 @@ import { addOrder, defect, newOrders, serve, stepOrders } from "./simulation.ts"
 
 const classic = RECIPES.find((r) => r.id === "classic")!;
 
-const classicDoener = (toast = TOAST_DONE): Item => ({ kind: "plate", dirty: false, food: { kind: "base", base: "bread", toast, fillings: ["garlic", "onion", "meat", "lettuce"] } });
+const classicDoener = (toast = HEAT.bread.done): Item => ({ kind: "plate", dirty: false, food: { kind: "base", base: "bread", toast, fillings: ["garlic", "onion", "meat", "lettuce"] } });
 
 describe("given a customer who wants a Döner Classic", () => {
   it("pays the points plus a full tip for one served at once", () => {
@@ -27,18 +27,18 @@ describe("given a customer who wants a Döner Classic", () => {
   });
 
   it("refuses a döner handed over without a plate, and a dirty plate", () => {
-    expect(defect({ kind: "base", base: "bread", toast: TOAST_DONE, fillings: [] })).toBe("Erst auf einen Teller!");
+    expect(defect({ kind: "base", base: "bread", toast: HEAT.bread.done, fillings: [] })).toBe("Erst auf einen Teller!");
     expect(defect({ kind: "plate", dirty: true, food: null })).toBe("Schmutziger Teller!");
   });
 
   it("refuses burnt bread", () => {
-    expect(defect(classicDoener(TOAST_BURNT))).toBe("Verbranntes Brot!");
+    expect(defect(classicDoener(HEAT.bread.burnt))).toBe("Verbranntes Brot!");
   });
 
   it("refuses a döner with a filling missing", () => {
     const state = newOrders();
     addOrder(state, classic);
-    expect(serve(state, { kind: "plate", dirty: false, food: { kind: "base", base: "bread", toast: TOAST_DONE, fillings: ["meat", "garlic"] } }, 0)).toBe(false);
+    expect(serve(state, { kind: "plate", dirty: false, food: { kind: "base", base: "bread", toast: HEAT.bread.done, fillings: ["meat", "garlic"] } }, 0)).toBe(false);
   });
 
   it("leaves when patience runs out and costs points", () => {

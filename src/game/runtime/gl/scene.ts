@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { THROW_TICKS, facingTile } from "../../../features/cooks/public.ts";
 import type { Landing, Thrown } from "../../../features/cooks/public.ts";
 import type { Item, Station } from "../../../features/kitchen/public.ts";
-import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, SHAVE_TICKS, TOAST_BURNT, TOAST_DONE, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
+import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, HEAT, SHAVE_TICKS, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
 import { LOOKS } from "../looks.ts";
@@ -731,7 +731,7 @@ function finished(item: Item | null): boolean {
 
   if (item.kind === "veg") return isChopped(item);
 
-  return item.kind === "base" && item.toast >= TOAST_DONE;
+  return item.kind === "base" && item.toast >= HEAT[item.base].done;
 }
 
 function every(view: StationView, rate: number, dt: number): number {
@@ -841,25 +841,26 @@ function syncStation(view: StationView, frame: Frame): void {
   if (station.type === "toaster") {
     const item = station.item;
     const toast = item?.kind === "base" ? item.toast : 0;
+    const { done, burnt } = HEAT[item?.kind === "base" ? item.base : "bread"];
     const { lid, lamp } = view.parts;
     const open = item === null;
     lid.rotation.x += ((open ? -1.15 : -0.1) - lid.rotation.x) * Math.min(1, dt * 12);
 
-    if (toast > 0 && toast < TOAST_DONE) {
-      showBar(bar, toast / TOAST_DONE, "#5fd068");
+    if (toast > 0 && toast < done) {
+      showBar(bar, toast / done, "#5fd068");
       lamp?.emissive.set("#ff9a1a");
       const n = every(view, 7, dt);
 
       if (n > 0) fx.emit("steam", spot.set(centre.x + (Math.sin(t * 9) * 0.3), TOP + 0.3, centre.z + 0.1), n);
-    } else if (toast >= TOAST_DONE && toast < TOAST_BURNT) {
-      const over = (toast - TOAST_DONE) / (TOAST_BURNT - TOAST_DONE);
+    } else if (toast >= done && toast < burnt) {
+      const over = (toast - done) / (burnt - done);
       showBar(bar, over, "#e94f37");
       lamp?.emissive.set(Math.sin(t * 10) > 0 ? "#3cff4a" : "#1a6020");
       warn = true;
       const n = every(view, 4 + over * 10, dt);
 
       if (n > 0) fx.emit(over > 0.6 ? "smoke" : "steam", spot.set(centre.x + (Math.sin(t * 7) * 0.3), TOP + 0.3, centre.z + 0.1), n);
-    } else if (toast >= TOAST_BURNT) {
+    } else if (toast >= burnt) {
       lamp?.emissive.set("#ff1a1a");
       const n = every(view, 5, dt);
 

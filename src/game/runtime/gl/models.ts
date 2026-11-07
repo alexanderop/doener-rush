@@ -5,7 +5,7 @@
  */
 import * as THREE from "three";
 import type { Base, CrateGoods, Filling, Item, Sauce, Station } from "../../../features/kitchen/public.ts";
-import { BURNT, COOKED, ICONS, TOAST_BURNT, TOAST_DONE, isChopped } from "../../../features/kitchen/public.ts";
+import { BURNT, COOKED, HEAT, ICONS, isChopped } from "../../../features/kitchen/public.ts";
 import type { Accessory, Headwear, Look } from "../looks.ts";
 import {
   ball, blob, box, cyl, emojiBadge, geo, hash, label, mapped, mat, meatMap, rbox, ring, solid, steel, woodMap,
@@ -88,12 +88,14 @@ const VEG_COLOR: Readonly<Record<Veg, string>> = { lettuce: "#6fc23f", tomato: "
 
 const SAUCE_COLOR: Readonly<Record<Sauce, string>> = { garlic: "#fbf5e6", herb: "#7cc04f", spicy: "#e0301e" };
 
-function breadColor(toast: number): string {
-  if (toast >= TOAST_BURNT) return "#3b2a1d";
-  const share = Math.min(1, toast / TOAST_DONE);
+function bakeColor(base: Base, toast: number): string {
+  const { done, burnt } = HEAT[base];
 
-  if (toast <= TOAST_DONE) return `#${new THREE.Color("#e3a456").lerp(new THREE.Color("#c27028"), share).getHexString()}`;
-  const over = (toast - TOAST_DONE) / (TOAST_BURNT - TOAST_DONE);
+  if (toast >= burnt) return "#3b2a1d";
+  const share = Math.min(1, toast / done);
+
+  if (toast <= done) return `#${new THREE.Color("#e3a456").lerp(new THREE.Color("#c27028"), share).getHexString()}`;
+  const over = (toast - done) / (burnt - done);
 
   return `#${new THREE.Color("#c27028").lerp(new THREE.Color("#6e4320"), over).getHexString()}`;
 }
@@ -292,10 +294,10 @@ function lavash(color: string, spots: number): THREE.Group {
 /** A döner under construction: a split pide or a wrap with what is in it so far. */
 function doener(base: Base, toast: number, fillings: readonly Filling[]): THREE.Group {
   const g = new THREE.Group();
-  const toasted = toast >= TOAST_DONE * 0.7;
+  const toasted = toast >= HEAT[base].done * 0.7;
 
   if (base === "wrap") {
-    const color = breadColor(Math.min(toast, TOAST_DONE));
+    const color = bakeColor(base, Math.min(toast, HEAT[base].done));
     g.add(lavash(color, toasted ? 7 : 3));
 
     // the edges start to roll up once something is inside
@@ -308,11 +310,11 @@ function doener(base: Base, toast: number, fillings: readonly Filling[]): THREE.
       }
     }
   } else if (fillings.length === 0) {
-    g.add(pide(breadColor(toast), toasted));
+    g.add(pide(bakeColor(base, toast), toasted));
   } else {
     // cut open: the bottom half, the fillings, the top half tipped back like a lid
-    g.add(pide(breadColor(toast), false, 0.6));
-    const lid = pide(breadColor(toast), toasted, 0.7);
+    g.add(pide(bakeColor(base, toast), false, 0.6));
+    const lid = pide(bakeColor(base, toast), toasted, 0.7);
     lid.position.set(0, 0.13, -0.12);
     lid.rotation.x = -0.75;
     lid.scale.setScalar(0.95);
@@ -445,7 +447,7 @@ export function itemKey(item: Item | null): string {
   switch (item.kind) {
     case "veg": return `veg:${item.veg}:${isChopped(item)}`;
     case "meat": return `meat:${item.burnt}`;
-    case "base": return `base:${item.base}:${Math.min(item.toast, TOAST_BURNT) >> 4}:${item.fillings.join(",")}`;
+    case "base": return `base:${item.base}:${Math.min(item.toast, HEAT[item.base].burnt) >> 4}:${item.fillings.join(",")}`;
     case "plate": return `plate:${item.dirty}:${itemKey(item.food)}`;
     case "extinguisher": return "extinguisher";
   }
@@ -466,7 +468,7 @@ function crateContents(goods: CrateGoods): THREE.Group {
 
   if (goods === "bread") {
     for (const [x, y, z, ry] of [[-0.12, 0.03, -0.06, 0.2], [0.13, 0.03, 0.04, -0.3], [0, 0.13, 0, 0.1]] as const) {
-      const loaf = pide(breadColor(0), false);
+      const loaf = pide(bakeColor("bread", 0), false);
       loaf.position.set(x, y, z);
       loaf.rotation.set(0.12, ry, 0.08);
       loaf.scale.setScalar(0.85);
@@ -478,7 +480,7 @@ function crateContents(goods: CrateGoods): THREE.Group {
 
   if (goods === "wrap") {
     for (let i = 0; i < 6; i++) {
-      const sheet = lavash(breadColor(0), 0);
+      const sheet = lavash(bakeColor("wrap", 0), 0);
       sheet.position.set(Math.sin(i) * 0.02, 0.025 + i * 0.026, Math.cos(i) * 0.02);
       sheet.scale.setScalar(0.95);
       g.add(sheet);

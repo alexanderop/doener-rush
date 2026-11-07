@@ -1,6 +1,6 @@
 import { Arbitrary, Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { BURNT, CHOP_TICKS, DOUSE_TICKS, SHAVE_TICKS, TOAST_BURNT, TOAST_DONE } from "../../features/kitchen/public.ts";
+import { BURNT, CHOP_TICKS, DOUSE_TICKS, HEAT, SHAVE_TICKS } from "../../features/kitchen/public.ts";
 import { ROUND_TICKS } from "../../features/orders/public.ts";
 import { find, hold, press, toss, walkTo, wait } from "./testing/drive.ts";
 import { SCENARIOS } from "./testing/scenarios.ts";
@@ -17,7 +17,7 @@ function makeDoenerPur(world: World): void {
   const toaster = find(world, (s) => s.type === "toaster");
   walkTo(world, 1, toaster);
   press(world, 1);
-  wait(world, TOAST_DONE);
+  wait(world, HEAT.bread.done);
   press(world, 1);
   walkTo(world, 1, find(world, (s) => s.type === "spit"));
   hold(world, 1, SHAVE_TICKS * 2);
@@ -65,9 +65,9 @@ describe("given a cook who forgets the bread", () => {
     const toaster = find(world, (s) => s.type === "toaster");
     walkTo(world, 1, toaster);
     press(world, 1);
-    wait(world, TOAST_BURNT);
+    wait(world, HEAT.bread.burnt);
     expect(toaster.item).toMatchObject({ kind: "base" });
-    expect(toaster.item?.kind === "base" && toaster.item.toast >= TOAST_BURNT).toBe(true);
+    expect(toaster.item?.kind === "base" && toaster.item.toast >= HEAT.bread.burnt).toBe(true);
   });
 });
 
@@ -178,7 +178,7 @@ describe("given cook 1 holding a whole lettuce and cook 2 empty-handed four tile
     const world = SCENARIOS.catch.build(1);
     const thrower = world.cooks[0];
 
-    if (thrower !== undefined) thrower.held = { kind: "base", base: "bread", toast: TOAST_DONE, fillings: [] };
+    if (thrower !== undefined) thrower.held = { kind: "base", base: "bread", toast: HEAT.bread.done, fillings: [] };
     toss(world, 1);
     expect(world.cooks[1]?.held).toBeNull();
 
