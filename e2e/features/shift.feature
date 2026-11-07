@@ -47,3 +47,11 @@ Feature: A shift in the döner shop
     Then the controls show the pad buttons for cook 1
     When the gamepad pushes the stick right for 500 ms
     Then cook 1 has moved right
+
+  Scenario: A fresh shift counts down before the kitchen opens
+    Given a shift with 1 players and 1 bots
+    When player 1 presses "e"
+    Then the countdown shows "3"
+    And the kitchen has not started
+    Then the countdown shows "LOS!"
+    And the kitchen is running

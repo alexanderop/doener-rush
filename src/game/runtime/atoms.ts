@@ -4,6 +4,7 @@
  */
 import { Option } from "effect";
 import * as Atom from "effect/reactivity/Atom";
+import type { StartView } from "./start.ts";
 import type { Snapshot } from "./step.ts";
 
 /** The sim is paused: the frame loop keeps drawing but stops stepping. */
@@ -11,3 +12,9 @@ export const pausedAtom = Atom.make(false).pipe(Atom.keepAlive);
 
 /** The latest snapshot of the world for the HUD, or none until the first one is taken. */
 export const snapshotAtom = Atom.make(Option.none<Snapshot>()).pipe(Atom.keepAlive);
+
+/** The start of the shift: recipe card, countdown, or running. The frame loop publishes it when it changes. */
+export const startAtom = Atom.make<StartView>({ phase: "running", beat: -1 }).pipe(Atom.keepAlive);
+
+/** All game sound is off. The HUD's mute button and the M key flip it; the button also saves it. */
+export const mutedAtom = Atom.make(false).pipe(Atom.keepAlive);

@@ -23,6 +23,8 @@ Throw sends a vegetable (whole or chopped) or fresh bread straight ahead, up to 
 
 Gamepads work next to the keyboard: the first pad plugged in plays player 1's binding, the second player 2's, and either the keys or the pad moves that cook. Y or RB switches cooks in a swap pair (like R). Browsers only report a pad after one of its buttons is pressed; once they do, the pill under the kitchen shows pad buttons instead of keys. The button table is `PAD_BUTTONS` in `src/game/runtime/input/gamepad.ts`; the loop polls `navigator.getGamepads()` once a frame.
 
+A shift opens with the recipe card, then counts "3, 2, 1, LOS!" before the kitchen moves; any key skips the card. M (or the speaker button) turns the sound off, and the choice is remembered.
+
 Playing alone, tick "Zwei Köche steuern" on the home page (or open `/play?humans=1&swap=1`): you drive two cooks and switch with R (Enter for player 2's keys). A cook you leave while holding Q at the board, the sink or a fire keeps working until it is done. A solo shift runs at a calmer pace: customers come further apart, wait longer, and the stars need fewer points (`PACES` in `orders/prototypes.ts`, picked by how many cooks act at once).
 
 The home page also sets the house rules: presets Leicht, Normal and Schwer, or each one on its own under "Einstellungen anpassen": food burns, fire, washing up, customer patience, how many customers come, and the shift length (2–5 minutes). In the URL: `burn`, `fire`, `dishes` (0/1), `patience`, `rush` (0–2), `minutes` (2–5); the rules live in `src/game/runtime/rules.ts`.
@@ -56,7 +58,8 @@ The lessons are a table in `src/game/runtime/tutorial/lessons.ts`. Each one chec
 | `src/game/runtime/lineup.ts` | The `Lineup`: one `Driver` per cook, a keyboard binding or a bot |
 | `src/game/runtime/world.ts` | The shop floor plan (ASCII) and the `World` |
 | `src/game/runtime/step.ts` | One tick in fixed order: cooks, stations, orders. HUD snapshot |
-| `src/game/runtime/useGameCanvas.ts` | Keyboard, fixed 60 Hz loop, 3D render, snapshot to `snapshotAtom`, dev `window.__game` |
+| `src/game/runtime/useGameCanvas.ts` | Keyboard, fixed 60 Hz loop, 3D render, snapshot to `snapshotAtom`, dev `window.__game`. Steps the world only once the `Start` machine (`start.ts`: recipe card, countdown, running) runs |
+| `src/game/runtime/audio/` | Sound with no audio files: `cues.ts` turns two digests of the world into sounds (pure, tested), `recipes.ts` holds every sound and the music as data, `engine.ts` plays them with Web Audio after the first key or click |
 | `src/game/runtime/gl/` | The 3D view (three.js): low-poly models built from primitives in `models.ts`, camera, lights, storefront and sync from the world in `scene.ts` |
 | `src/game/runtime/tutorial/` | The tutorial: lesson table, calm-kitchen rules, the view the HUD card and 3D arrow read |
 | `src/game/runtime/testing/` | Scenarios (`?scenario=` in the browser, Vitest, e2e) and a breadth-first walking driver for scripted cooks |
@@ -75,5 +78,5 @@ Feature boundaries are enforced by the `factory-architecture` oxlint plugin; the
 
 ### Driving the game as an agent
 
-1. `pnpm dev`, then open `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `catch`, `last-seconds`).
+1. `pnpm dev`, then open `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `catch`, `last-seconds`). A named scenario skips the recipe card and the countdown; plain `/play` has them.
 2. In the console or with `agent-browser eval`: `__game.step(ticks, [intent1, intent2])` runs ticks with intents `{ dx, dy, interact, work, dash, throw }`, `__game.snapshot()` returns what the HUD shows, `__game.world()` the live state.

@@ -7,6 +7,7 @@ import { TWO_PLAYERS, lineupOf } from "#/game/runtime/lineup.ts";
 import { NORMAL_RULES, setRules } from "#/game/runtime/rules.ts";
 import type { Rules } from "#/game/runtime/rules.ts";
 import { Controls } from "../hud/Controls.tsx";
+import { Countdown } from "../hud/Countdown.tsx";
 import { RecipeIntro } from "../hud/RecipeIntro.tsx";
 import { RoundOver } from "../hud/RoundOver.tsx";
 import { Scoreboard } from "../hud/Scoreboard.tsx";
@@ -72,7 +73,8 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
   }, [scenario, seed, round, humans, bots, swap, burn, fire, dishes, patience, rush, minutes]);
 
   const canvas = useRef<HTMLCanvasElement>(null);
-  useGameCanvas(canvas, world);
+  // a named scenario is a test or debugging setup: it starts at once
+  useGameCanvas(canvas, world, search.scenario === undefined);
 
   return (
     <main className="relative h-screen overflow-hidden">
@@ -81,7 +83,8 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
       <Scoreboard />
       <Toasts />
       <Controls drivers={world.drivers} />
-      <RecipeIntro key={round} />
+      <RecipeIntro />
+      <Countdown />
       <RoundOver onAgain={() => { setPaused(false); setRound(round + 1); }} />
     </main>
   );
