@@ -16,7 +16,8 @@ import type { Look } from "../looks.ts";
 import type { World } from "../world.ts";
 import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
-import { easeOutCubic, handoffOf } from "./motion.ts";
+import { GESTURES, IDLE_SECONDS, WIND_UP, easeOutCubic, handoffOf, restPose } from "./motion.ts";
+import type { GestureKind, Pose } from "./motion.ts";
 import { TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
 import { bubbleSprite, nameTag, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
 import type { Bar } from "./overlays.ts";
@@ -28,6 +29,9 @@ const TILT = THREE.MathUtils.degToRad(54);
 const ITEM_SCALE = 1.55;
 
 const BUBBLE = 0.36;
+
+/** How close two cooks' centres come before they count as bumping; the walk keeps them PERSONAL_SPACE (0.7) apart. */
+const BUMP_DISTANCE = 0.76;
 
 /** Seconds an item takes between a cook's hand and a station. */
 const TRANSIT_SECONDS = 0.12;
@@ -126,6 +130,16 @@ interface CookView {
   blink: number;
   /** Items on their way here from a station; the hand stays empty until the last one lands. */
   incoming: number;
+  /** The gesture playing over the walk and work, if any. */
+  gesture: { kind: GestureKind; age: number } | null;
+  /** Seconds since the cook last walked, worked or changed what it holds. */
+  still: number;
+  /** Fidgets played so far, to alternate between them. */
+  fidgets: number;
+  /** Close enough to another cook to have bumped this frame. */
+  touching: boolean;
+  /** The forward lean of walking, dashing and working, eased; gestures add to it. */
+  lean: number;
 }
 
 /** An item on its short arc between a cook's hand and a station; the end it flies to hides its real item until it lands. */
@@ -348,6 +362,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       rig: named(group, "rig"), held: named(group, "held"), eyes: named(group, "eyes"),
       hands: [named(group, "handL"), named(group, "handR")], feet: [named(group, "footL"), named(group, "footR")],
       key: "", yaw: 0, lastX: cook.x, lastY: cook.y, stride: 0, walking: false, squash: 9, dust: 0, blink: 2 + i, incoming: 0,
+      gesture: null, still: 0, fidgets: 0, touching: false, lean: 0,
     };
   });
 
@@ -357,7 +372,9 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   const transitTo = new THREE.Vector3();
   const customers = new Map<number, CustomerView>();
   const seen = new WeakSet<object>();
-  const flights = new Map<Thrown, { readonly item: THREE.Group; readonly shadow: THREE.Mesh }>();
+  /** Each throw in the air; it waits in the thrower's hand through the wind-up, then catches up with its real flight. */
+  const flights = new Map<Thrown, { readonly item: THREE.Group; readonly shadow: THREE.Mesh; readonly hand: THREE.Vector3; age: number }>();
+  const pose: Pose = { lean: 0, tilt: 0, turn: 0, stretch: 0, lift: 0 };
   const held = new THREE.Vector3();
   const at = new THREE.Vector3();
   let lastW = 0;
@@ -495,7 +512,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   }
 
   /** Ingredients in the air on an arc, tumbling end over end, with a shadow on the floor below; a puff where each flight ends. */
-  function syncThrown(w: World): void {
+  function syncThrown(w: World, dt: number): void {
     for (const thrown of w.thrown) {
       let view = flights.get(thrown);
 
@@ -503,14 +520,18 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
         const item = new THREE.Group();
         item.add(itemModel(thrown.item));
         item.scale.setScalar(1.6);
-        view = { item, shadow: contactShadow(0.2, 0.35) };
+        const thrower = cooks[w.cooks.findIndex((c) => c.id === thrown.by)];
+        const hand = thrower === undefined ? new THREE.Vector3(thrown.x, 0.85, thrown.y) : thrower.held.getWorldPosition(new THREE.Vector3());
+        view = { item, shadow: contactShadow(0.2, 0.35), hand, age: 0 };
         scene.add(view.item, view.shadow);
         flights.set(thrown, view);
       }
 
+      view.age += dt;
       const p = thrown.flown / THROW_TICKS;
       const spin = thrown.flown * 0.45;
       view.item.position.set(thrown.x, 0.85 + Math.sin(Math.PI * p) * 0.8 - p * 0.5, thrown.y);
+      view.item.position.lerpVectors(view.hand, view.item.position, easeOutCubic((view.age - WIND_UP) / 0.08));
       view.item.rotation.set(thrown.dir.dy * spin, spin * 0.3, -thrown.dir.dx * spin);
       view.shadow.position.set(thrown.x, 0.02, thrown.y);
     }
@@ -607,10 +628,31 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     const bounce = walking ? Math.sin(view.stride * 2) * 0.06 : 0;
     const chop = cook.working ? Math.abs(Math.sin(t * 22)) * 0.05 : 0;
     const squish = view.squash < 0.6 ? -Math.exp(-view.squash * 9) * Math.cos(view.squash * 24) * 0.2 : 0;
-    // a dash leans the cook forward and stretches them along the run
-    const lean = cook.dash > 0 ? 0.25 : 0;
-    view.rig.rotation.x += (lean - view.rig.rotation.x) * Math.min(1, dt * 20);
-    const k = bounce + squish - chop;
+    // a dash leans the cook forward along the run; work leans it over the station, nodding with each stroke
+    const lean = cook.dash > 0 ? 0.25 : cook.working ? 0.18 + chop : 0;
+    view.lean += (lean - view.lean) * Math.min(1, dt * 20);
+    view.still = walking || cook.working || cook.dash > 0 ? 0 : view.still + dt;
+
+    if (view.still > IDLE_SECONDS && view.gesture === null) {
+      view.gesture = { kind: view.fidgets % 2 === 0 ? "look" : "stretch", age: 0 };
+      view.fidgets += 1;
+      view.still = 0;
+    }
+
+    restPose(pose);
+
+    if (view.gesture !== null) {
+      const gesture = GESTURES[view.gesture.kind];
+      view.gesture.age += dt;
+      gesture.pose(view.gesture.age, pose);
+
+      if (view.gesture.age >= gesture.seconds) view.gesture = null;
+    }
+
+    view.rig.rotation.set(view.lean + pose.lean, pose.turn, pose.tilt);
+    // standing idle, the cook breathes
+    const breath = walking || cook.working ? 0 : Math.sin(t * 2.4 + cookIndex) * 0.018;
+    const k = bounce + squish - chop + breath + pose.stretch;
     view.rig.scale.set(1 - k * 0.5, 1 + k, 1 - k * 0.5);
     view.rig.position.y = walking ? Math.abs(Math.sin(view.stride)) * 0.06 : 0;
     view.group.rotation.z = walking ? Math.sin(view.stride) * 0.05 : 0;
@@ -622,7 +664,8 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     view.hands.forEach((hand, side) => {
       const swing = cook.working ? Math.sin(t * 22 + side * Math.PI) * 0.1 : 0;
       const walkSwing = walking && !carrying ? Math.sin(view.stride + side * Math.PI) * 0.08 : 0;
-      hand.position.set(side === 0 ? -0.27 : 0.27, carrying ? 0.62 : 0.5 + swing, carrying || cook.working ? 0.34 : 0.16 + walkSwing);
+      const lift = carrying ? 0 : pose.lift * 0.4;
+      hand.position.set(side === 0 ? -0.27 - lift * 0.2 : 0.27 + lift * 0.2, carrying ? 0.62 : 0.5 + swing + lift, carrying || cook.working ? 0.34 : 0.16 + walkSwing);
     });
     view.blink -= dt;
 
@@ -644,6 +687,9 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       });
 
       const old = view.held.children[0];
+      view.still = 0;
+
+      if (w.thrown.some((t) => t.by === cook.id && !flights.has(t))) view.gesture = { kind: "throw", age: 0 };
 
       if (move === "drop" && old !== undefined && target !== undefined) {
         launch(old, view.held.getWorldPosition(at), { kind: "station", view: target });
@@ -683,6 +729,29 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
 
     for (const m of [view.focus.material, view.focusBin.material]) {
       if (m instanceof THREE.MeshBasicMaterial) m.opacity = glow;
+    }
+  }
+
+  /** Two cooks that come within touching distance while one of them moves both wobble, once per touch. */
+  function syncBumps(w: World): void {
+    for (let i = 0; i < cooks.length; i++) {
+      const view = cooks[i];
+      const a = w.cooks[i];
+
+      if (view === undefined || a === undefined) continue;
+      let touching = false;
+
+      for (let j = 0; j < w.cooks.length; j++) {
+        const b = w.cooks[j];
+
+        if (j === i || b === undefined) continue;
+        const moving = view.walking || cooks[j]?.walking === true || a.dash > 0 || b.dash > 0;
+
+        if (moving && Math.hypot(a.x - b.x, a.y - b.y) < BUMP_DISTANCE) touching = true;
+      }
+
+      if (touching && !view.touching && view.gesture?.kind !== "throw") view.gesture = { kind: "bump", age: 0 };
+      view.touching = touching;
     }
   }
 
@@ -765,6 +834,8 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       worked.add(front.y * w.width + front.x);
     }
 
+    syncBumps(w);
+
     // cooks first: a hand-off they start hides the station's new item before it is drawn
     for (let i = 0; i < w.cooks.length; i++) syncCook(w, i, dt, t);
 
@@ -775,7 +846,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     }
 
     syncTransits(dt);
-    syncThrown(w);
+    syncThrown(w, dt);
     syncEvents(w);
     syncArrows(w, t);
     syncCustomers(w, dt, t);
