@@ -1137,7 +1137,7 @@ function sinkModel(s: Station): THREE.Group {
 }
 
 /** Chevrons on one belt tile; the scene slides them along so the belt reads as running. */
-const BELT_CHEVRONS = 4;
+export const BELT_CHEVRONS = 4;
 
 /**
  * A conveyor belt set into a steel counter: dark rubber between two rails, yellow chevrons pointing the way it
@@ -1165,8 +1165,8 @@ function beltModel(s: Extract<Station, { type: "belt" }>): THREE.Group {
 
     for (const side of [-1, 1]) {
       const arm = box(0.05, 0.012, 0.3, mat("#f2c230", "#3a2a00", 0.6), TOP + 0.04);
-      arm.position.set(0, 0, side * 0.12);
-      arm.rotation.y = side * 0.75;
+      arm.position.z = side * 0.12;
+      arm.rotation.y = -side * 0.75;
       chevron.add(arm);
     }
 

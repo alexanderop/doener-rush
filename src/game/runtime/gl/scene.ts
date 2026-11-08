@@ -8,18 +8,20 @@
 import * as THREE from "three";
 import { THROW_TICKS, facingTile } from "../../../features/cooks/public.ts";
 import type { Landing, Thrown } from "../../../features/cooks/public.ts";
-import type { Station } from "../../../features/kitchen/public.ts";
-import { BURNT, CHOPPED, CHOP_TICKS, DIRTY, HEAT, MIX_TICKS, RAW, SHAVE_TICKS, WASH_TICKS, cutTicks, dousing, isBurning, isChopped } from "../../../features/kitchen/public.ts";
+import type { Item, Station } from "../../../features/kitchen/public.ts";
+import { BELT_TICKS, BURNT, CHOPPED, CHOP_TICKS, DIRTY, HEAT, MIX_TICKS, RAW, SHAVE_TICKS, WASH_TICKS, cutTicks, dousing, isBurning, isChopped } from "../../../features/kitchen/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
 import { LOOKS } from "../looks.ts";
 import type { Look } from "../looks.ts";
 import type { World } from "../world.ts";
+import { isWater } from "../world.ts";
+import { createCanal } from "./canal.ts";
 import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
 import { GESTURES, IDLE_SECONDS, WIND_UP, easeOutCubic, handoffOf, restPose } from "./motion.ts";
 import type { GestureKind, Pose } from "./motion.ts";
-import { TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
+import { BELT_CHEVRONS, TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
 import { bubbleSprite, nameTag, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
 import type { Bar } from "./overlays.ts";
 import { bakeStatic, contactShadow, geo } from "./parts.ts";
@@ -57,7 +59,7 @@ const TRANSIT_SECONDS = 0.12;
 const TRANSIT_ARC = 0.22;
 
 /** Parts the scene moves; everything else in the kitchen and street is baked. */
-const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "whisk", "water"]);
+const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "whisk", "water", "belt"]);
 
 /** Veg colours for the bits that fly off the board. */
 const BIT_COLOR = new Map<string, string>([["lettuce", "#6fc23f"], ["tomato", "#e8392b"], ["onion", "#c886b5"]]);
@@ -75,6 +77,8 @@ interface StationParts {
   readonly water: THREE.Object3D;
   /** Where the sink's water rests when nobody scrubs. */
   readonly waterRest: number;
+  /** A belt's chevrons, which slide along the way it runs. */
+  readonly belt: THREE.Object3D;
 }
 
 function partsOf(group: THREE.Group): StationParts {
@@ -92,6 +96,7 @@ function partsOf(group: THREE.Group): StationParts {
     heat: heat instanceof THREE.PointLight ? heat : null,
     water,
     waterRest: water.position.y,
+    belt: named(group, "belt"),
   };
 }
 
@@ -122,6 +127,10 @@ interface StationView {
   blink: number;
   /** Items on their way here from a hand; the slot stays hidden until the last one lands. */
   incoming: number;
+  /** The tick the belt moved the item here, while it glides in from the tile before; -1 when it did not come by belt. */
+  glide: number;
+  /** The item changed by gliding along a belt: it moves in without the landing pop. */
+  slid: boolean;
 }
 
 interface CookView {
@@ -353,11 +362,17 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     scene.add(bar.group, bubble, tick, warning, danger);
     stations.push({
       station, group, parts: partsOf(group), slot: named(group, "slot"), stock: named(group, "stock"), stockKey: "", bar, bubble, tick, warning, danger, centre,
-      key: "", pop: 9, tickAge: 9, done: false, shave: 0, emitAcc: 0, blink: 0, incoming: 0,
+      key: "", pop: 9, tickAge: 9, done: false, shave: 0, emitAcc: 0, blink: 0, incoming: 0, glide: -1, slid: false,
     });
   }
 
   scene.add(bakeStatic(still, ANIMATED));
+  const canal = createCanal(world);
+
+  if (canal !== null) scene.add(canal.group);
+  const belts = stations.filter((v) => v.station.type === "belt");
+  /** Which belt each item on a belt lay on last frame, to notice it moving on. */
+  let onBelt = new Map<Item, StationView>();
 
   const arrows = Array.from({ length: ARROWS }, () => {
     const arrow = tutorialArrow();
@@ -629,7 +644,10 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     at.set(landing.x, onStation ? TOP + 0.15 : 0.1, landing.y);
     const color = landing.item.kind === "veg" ? BIT_COLOR.get(landing.item.veg) : "#e8c27a";
 
-    if (landing.how === "caught") {
+    if (landing.how === "dropped" && isWater(w, Math.floor(landing.x), Math.floor(landing.y))) {
+      fx.emit("splash", at.set(landing.x, 0.05, landing.y), 16);
+      fx.emit("foam", at, 5);
+    } else if (landing.how === "caught") {
       at.y = 1.0;
       fx.emit("pop", at, 6);
     } else if (landing.how === "landed") {
@@ -639,6 +657,46 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       fx.emit("dust", at, 12);
       fx.emit("bits", at, 10, color);
     }
+  }
+
+  /**
+   * Belts: the chevrons run one tile per BELT_TICKS, and an item the belt just moved glides in from the tile before
+   * over the same time, so a line of food rides smoothly instead of hopping.
+   */
+  function syncBelts(w: World): void {
+    const travelled = w.tick / BELT_TICKS;
+    const seen = new Map<Item, StationView>();
+
+    for (const view of belts) {
+      const { station } = view;
+
+      if (station.type !== "belt") continue;
+      view.parts.belt.children.forEach((chevron, i) => {
+        chevron.position.x = -0.5 + ((i / BELT_CHEVRONS + travelled) % 1);
+      });
+      const item = station.item;
+
+      if (item === null) {
+        view.glide = -1;
+        continue;
+      }
+
+      seen.set(item, view);
+      const from = onBelt.get(item);
+
+      if (from !== undefined && from !== view && from.station.x + station.dir.dx === station.x && from.station.y + station.dir.dy === station.y) {
+        view.glide = w.tick - 1 - ((w.tick - 1) % BELT_TICKS);
+        view.slid = true;
+      }
+
+      const left = view.glide < 0 ? 0 : 1 - Math.min(1, (w.tick - view.glide) / BELT_TICKS);
+      view.slot.position.x = -station.dir.dx * left;
+      view.slot.position.z = -station.dir.dy * left;
+      view.bubble.position.x = view.centre.x - station.dir.dx * left;
+      view.bubble.position.z = view.centre.z - station.dir.dy * left;
+    }
+
+    onBelt = seen;
   }
 
   function syncEvents(w: World): void {
@@ -927,6 +985,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
 
     // cooks first: a hand-off they start hides the station's new item before it is drawn
     for (let i = 0; i < w.cooks.length; i++) syncCook(w, i, dt, t);
+    syncBelts(w);
 
     for (const view of stations) {
       syncStation(view, {
@@ -939,6 +998,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     syncEvents(w);
     syncArrows(w, t);
     syncCustomers(w, dt, t);
+    canal?.sync(w, t, fx);
     outside.animate(t);
     syncFireLight(t);
     shakeCamera(t, dt);
@@ -1312,15 +1372,19 @@ function syncStation(view: StationView, frame: Frame): void {
     if (station.item !== null) {
       view.slot.add(itemModel(station.item));
 
-      if (view.incoming === 0) fx.emit("pop", spot.set(centre.x, TOP + 0.1, centre.z), 6);
+      if (view.incoming === 0 && !view.slid) fx.emit("pop", spot.set(centre.x, TOP + 0.1, centre.z), 6);
     }
 
     view.key = key;
-    view.pop = 0;
-    view.bubble.position.set(centre.x, TOP + bubbleLift(station), centre.z);
+    view.pop = view.slid ? 9 : 0;
+
+    // a belt's bubble rides along with its item; syncBelts places it across
+    if (station.type === "belt") view.bubble.position.y = TOP + bubbleLift(station);
+    else view.bubble.position.set(centre.x, TOP + bubbleLift(station), centre.z);
     setBubble(view.bubble, station.item, BUBBLE);
   }
 
+  view.slid = false;
   syncStock(view, frame);
   view.slot.visible = view.incoming === 0;
   view.pop += dt;
