@@ -16,6 +16,7 @@ import type { Look } from "../looks.ts";
 import type { World } from "../world.ts";
 import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
+import { easeOutCubic, handoffOf } from "./motion.ts";
 import { TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
 import { bubbleSprite, nameTag, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
 import type { Bar } from "./overlays.ts";
@@ -27,6 +28,12 @@ const TILT = THREE.MathUtils.degToRad(54);
 const ITEM_SCALE = 1.55;
 
 const BUBBLE = 0.36;
+
+/** Seconds an item takes between a cook's hand and a station. */
+const TRANSIT_SECONDS = 0.12;
+
+/** How high the hand-off arc lifts at its middle. */
+const TRANSIT_ARC = 0.22;
 
 /** Parts the scene moves; everything else in the kitchen and street is baked. */
 const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "bird", "whisk"]);
@@ -84,6 +91,8 @@ interface StationView {
   done: boolean;
   shave: number;
   emitAcc: number;
+  /** Items on their way here from a hand; the slot stays hidden until the last one lands. */
+  incoming: number;
 }
 
 interface CookView {
@@ -107,6 +116,16 @@ interface CookView {
   squash: number;
   dust: number;
   blink: number;
+  /** Items on their way here from a station; the hand stays empty until the last one lands. */
+  incoming: number;
+}
+
+/** An item on its short arc between a cook's hand and a station; the end it flies to hides its real item until it lands. */
+interface Transit {
+  readonly model: THREE.Object3D;
+  readonly from: THREE.Vector3;
+  readonly to: { readonly kind: "station"; readonly view: StationView } | { readonly kind: "hand"; readonly view: CookView };
+  age: number;
 }
 
 interface CustomerView {
@@ -276,7 +295,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     scene.add(bar.group, bubble, tick, warning, danger);
     stations.push({
       station, group, parts: partsOf(group), slot: named(group, "slot"), stock: named(group, "stock"), stockKey: "", bar, bubble, tick, warning, danger, centre,
-      key: "", pop: 9, tickAge: 9, done: false, shave: 0, emitAcc: 0,
+      key: "", pop: 9, tickAge: 9, done: false, shave: 0, emitAcc: 0, incoming: 0,
     });
   }
 
@@ -320,11 +339,14 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       group, focus, focusBin, bubble, you,
       rig: named(group, "rig"), held: named(group, "held"), eyes: named(group, "eyes"),
       hands: [named(group, "handL"), named(group, "handR")], feet: [named(group, "footL"), named(group, "footR")],
-      key: "", yaw: 0, lastX: cook.x, lastY: cook.y, stride: 0, walking: false, squash: 9, dust: 0, blink: 2 + i,
+      key: "", yaw: 0, lastX: cook.x, lastY: cook.y, stride: 0, walking: false, squash: 9, dust: 0, blink: 2 + i, incoming: 0,
     };
   });
 
   const passes = stations.flatMap((v) => (v.station.type === "pass" ? [v] : []));
+  const stationAt = new Map(stations.map((v) => [v.station.y * world.width + v.station.x, v]));
+  const transits: Transit[] = [];
+  const transitTo = new THREE.Vector3();
   const customers = new Map<number, CustomerView>();
   const seen = new WeakSet<object>();
   const flights = new Map<Thrown, { readonly item: THREE.Group; readonly shadow: THREE.Mesh }>();
@@ -599,15 +621,40 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     if (view.blink < -0.12) view.blink = 2 + ((cookIndex * 1.7 + t) % 2.5);
     view.eyes.scale.y = view.blink < 0 ? 0.15 : 1;
     const key = itemKey(cook.held);
+    const front = facingTile(cook);
+    const station = w.stations.get(front.y * w.width + front.x);
 
     if (key !== view.key) {
+      const target = stationAt.get(front.y * w.width + front.x);
+
+      const move = handoffOf({
+        heldBefore: view.key !== "",
+        heldAfter: cook.held !== null,
+        threw: w.thrown.some((t) => t.by === cook.id && !flights.has(t)),
+        caught: w.landings.some((e) => !seen.has(e) && e.landing.how === "caught" && Math.hypot(e.landing.x - cook.x, e.landing.y - cook.y) < 1),
+        facesStation: target !== undefined,
+      });
+
+      const old = view.held.children[0];
+
+      if (move === "drop" && old !== undefined && target !== undefined) {
+        launch(old, view.held.getWorldPosition(at), { kind: "station", view: target });
+      }
+
       view.held.clear();
 
       if (cook.held !== null) view.held.add(itemModel(cook.held));
+
+      if (move === "take" && cook.held !== null && target !== undefined) {
+        launch(itemModel(cook.held), target.slot.getWorldPosition(at), { kind: "hand", view });
+      }
+
       view.key = key;
       view.squash = 0;
       setBubble(view.bubble, cook.held, BUBBLE);
     }
+
+    view.held.visible = view.incoming === 0;
 
     // facing away from the camera the body would hide the item, so the cook lifts it up
     const away = Math.max(0, -Math.cos(view.yaw));
@@ -615,8 +662,6 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     view.held.scale.setScalar(1.35 * popScale(view.squash));
     view.held.getWorldPosition(held);
     view.bubble.position.set(held.x, held.y + 0.42, held.z);
-    const front = facingTile(cook);
-    const station = w.stations.get(front.y * w.width + front.x);
     const glow = 0.32 + Math.sin(t * 6) * 0.08;
     const driver = w.drivers[cookIndex];
     const active = view.you === null || (driver?.kind === "keys" && w.control[driver.binding] === cookIndex);
@@ -630,6 +675,40 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
 
     for (const m of [view.focus.material, view.focusBin.material]) {
       if (m instanceof THREE.MeshBasicMaterial) m.opacity = glow;
+    }
+  }
+
+  function launch(model: THREE.Object3D, from: THREE.Vector3, to: Transit["to"]): void {
+    model.position.copy(from);
+    scene.add(model);
+    to.view.incoming += 1;
+    transits.push({ model, from: from.clone(), to, age: 0 });
+  }
+
+  /** Moves every hand-off along its arc; a landing shows the real item with a squish. */
+  function syncTransits(dt: number): void {
+    for (let i = transits.length - 1; i >= 0; i--) {
+      const transit = transits[i];
+
+      if (transit === undefined) continue;
+      transit.age += dt;
+      const p = Math.min(1, transit.age / TRANSIT_SECONDS);
+      const { to, model } = transit;
+
+      if (to.kind === "station") to.view.slot.getWorldPosition(transitTo);
+      else to.view.held.getWorldPosition(transitTo);
+      model.position.lerpVectors(transit.from, transitTo, easeOutCubic(p));
+      model.position.y += Math.sin(Math.PI * p) * TRANSIT_ARC;
+      model.scale.setScalar(ITEM_SCALE * (1 + Math.sin(Math.PI * p) * 0.12));
+
+      if (p < 1) continue;
+      scene.remove(model);
+      transits.splice(i, 1);
+      to.view.incoming -= 1;
+      fx.emit("pop", transitTo, 4);
+
+      if (to.kind === "station") to.view.pop = 0;
+      else to.view.squash = 0;
     }
   }
 
@@ -678,13 +757,16 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       worked.add(front.y * w.width + front.x);
     }
 
+    // cooks first: a hand-off they start hides the station's new item before it is drawn
+    for (let i = 0; i < w.cooks.length; i++) syncCook(w, i, dt, t);
+
     for (const view of stations) {
       syncStation(view, {
         camera, fx, t, dt, worked: worked.has(view.station.y * w.width + view.station.x),
       });
     }
 
-    for (let i = 0; i < w.cooks.length; i++) syncCook(w, i, dt, t);
+    syncTransits(dt);
     syncThrown(w);
     syncEvents(w);
     syncArrows(w, t);
@@ -822,7 +904,8 @@ function syncStation(view: StationView, frame: Frame): void {
 
     if (station.item !== null) {
       view.slot.add(itemModel(station.item));
-      fx.emit("pop", spot.set(centre.x, TOP + 0.1, centre.z), 6);
+
+      if (view.incoming === 0) fx.emit("pop", spot.set(centre.x, TOP + 0.1, centre.z), 6);
     }
 
     view.key = key;
@@ -832,6 +915,7 @@ function syncStation(view: StationView, frame: Frame): void {
   }
 
   syncStock(view, frame);
+  view.slot.visible = view.incoming === 0;
   view.pop += dt;
   view.slot.scale.setScalar(ITEM_SCALE * popScale(view.pop));
   const done = finished(station);

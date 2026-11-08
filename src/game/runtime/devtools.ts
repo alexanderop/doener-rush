@@ -14,6 +14,8 @@ interface DevGame {
   readonly snapshot: () => Snapshot;
   /** What the music does: the worklet loaded, the DJ and its decks, the bar, the intensity, the output loudness. */
   readonly music: () => MusicProbe;
+  /** Plays the 3D view's animations at `factor` of real time (1 is normal), to look at a quick one frame by frame. */
+  readonly slowmo: (factor: number) => void;
 }
 
 declare global {
@@ -22,8 +24,8 @@ declare global {
   }
 }
 
-/** Installs `window.__game` for the given world and its music; returns the uninstaller. */
-export function installDevGame(current: () => World, music: () => MusicProbe): () => void {
+/** Installs `window.__game` for the given world, its music and the view's clock speed; returns the uninstaller. */
+export function installDevGame(current: () => World, music: () => MusicProbe, slowmo: (factor: number) => void): () => void {
   window.__game = {
     world: current,
     step: (ticks, intents = []) => {
@@ -33,6 +35,7 @@ export function installDevGame(current: () => World, music: () => MusicProbe): (
     },
     snapshot: () => snapshot(current()),
     music,
+    slowmo,
   };
 
   return () => {

@@ -53,6 +53,9 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     let start = newStart(countdown);
     let shown = startView(start);
     let skip = false;
+    // the view's own clock, which `__game.slowmo` can slow down to inspect an animation
+    let viewSpeed = 1;
+    let viewTime = 0;
     const sound = createSoundtrack(world, level);
 
     const onDown = (e: KeyboardEvent) => {
@@ -70,7 +73,11 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     window.addEventListener("keyup", onUp);
     window.addEventListener("blur", onBlur);
     window.addEventListener("pointerdown", sound.unlock);
-    const uninstall = installDevGame(() => world, sound.music);
+
+    const uninstall = installDevGame(() => world, sound.music, (factor) => {
+      viewSpeed = Math.max(0, factor);
+    });
+
     setSnapshot(Option.some(snapshot(world)));
     setStart(shown);
 
@@ -112,7 +119,8 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
       }
 
       sound.frame(shown, pausedRef.current, mutedRef.current);
-      view.render(world, element.clientWidth, element.clientHeight, now);
+      viewTime += dt * viewSpeed;
+      view.render(world, element.clientWidth, element.clientHeight, viewTime);
       frame = requestAnimationFrame(loop);
     };
 
