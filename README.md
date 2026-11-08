@@ -95,7 +95,7 @@ The lessons are a table in `src/game/runtime/tutorial/lessons.ts`. Each one chec
 | `src/shared/storage.ts` | The one place that touches `localStorage`; never throws |
 | `src/game/runtime/step.ts` | One tick in fixed order: cooks, stations, orders. HUD snapshot |
 | `src/game/runtime/useGameCanvas.ts` | Keyboard, fixed 60 Hz loop, 3D render, snapshot to `snapshotAtom`, dev `window.__game`. Steps the world only once the `Start` machine (`start.ts`: recipe card, countdown, running) runs |
-| `src/game/runtime/audio/` | Sound with no audio files: `cues.ts` turns two digests of the world into sounds (pure, tested), `recipes.ts` holds every sound and the music as data, `engine.ts` plays them with Web Audio after the first key or click |
+| `src/game/runtime/audio/` | Sound with no audio files: `cues.ts` turns two digests of the world into sounds (pure, tested), `recipes.ts` holds every sound effect as data, `engine.ts` plays them with Web Audio after the first key or click |
 | `src/game/runtime/gl/` | The 3D view (three.js): low-poly models built from primitives in `models.ts`, camera, lights, storefront and sync from the world in `scene.ts` |
 | `src/game/runtime/tutorial/` | The tutorial: lesson table, calm-kitchen rules, the view the HUD card and 3D arrow read |
 | `src/game/runtime/testing/` | Scenarios (`?scenario=` in the browser, Vitest, e2e) and a breadth-first walking driver for scripted cooks |

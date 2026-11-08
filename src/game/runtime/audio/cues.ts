@@ -36,7 +36,7 @@ const SPIT_WARN = BURNT - 0.2;
 const WARN_TICKS = 30;
 
 /** The clock ticks every second from here on. */
-export const LAST_SECONDS = 30;
+const LAST_SECONDS = 30;
 
 /** What each order event sounds like. */
 const ORDER_CUES: Readonly<Record<OrderEvent["type"], readonly Cue[]>> = {

@@ -1,6 +1,6 @@
 import type { StartView } from "../start.ts";
 import type { World } from "../world.ts";
-import { LAST_SECONDS, SILENT, cuesBetween, hear, loopLevels } from "./cues.ts";
+import { SILENT, cuesBetween, hear, loopLevels } from "./cues.ts";
 import { createEngine } from "./engine.ts";
 
 /** The sound of one shift: listens to its world each frame and plays what changed. */
@@ -40,8 +40,7 @@ export function createSoundtrack(world: World): Soundtrack {
       }
 
       const live = !paused && !heard.over && start.phase !== "intro";
-      const music = heard.secondsLeft <= LAST_SECONDS ? "fast" : "on";
-      engine.frame(live ? loopLevels(heard) : SILENT, live ? music : "off", muted);
+      engine.frame(live ? loopLevels(heard) : SILENT, muted);
     },
     dispose: engine.dispose,
   };

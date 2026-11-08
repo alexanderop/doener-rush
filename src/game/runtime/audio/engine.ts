@@ -5,42 +5,28 @@
  */
 import { Option } from "effect";
 import type { Cue, Loop, LoopLevels } from "./cues.ts";
-import { BAND, CRACKLE, GROOVE, LOOPS, SOUNDS } from "./recipes.ts";
+import { CRACKLE, LOOPS, SOUNDS } from "./recipes.ts";
 import type { Voice } from "./recipes.ts";
 
-/** What the music does this frame. */
-type Music = "off" | "on" | "fast";
-
-/** The game's sound: one-shots, loops and music, all quiet until unlocked. */
+/** The game's sound effects: one-shots and loops, all quiet until unlocked. */
 export interface Engine {
   /** Starts (or resumes) audio. Call from a key or pointer event. */
   readonly unlock: () => void;
   readonly play: (cue: Cue) => void;
-  /** Once per display frame: loop volumes, the music, and the mute switch. */
-  readonly frame: (levels: LoopLevels, music: Music, muted: boolean) => void;
+  /** Once per display frame: loop volumes and the mute switch. */
+  readonly frame: (levels: LoopLevels, muted: boolean) => void;
   readonly dispose: () => void;
 }
 
 const VOLUME = 0.8;
 
-const MUSIC_VOLUME = 0.3;
-
-/** Seconds of music scheduled ahead of the clock, so a slow frame never leaves a gap. */
-const LOOKAHEAD = 0.15;
-
-const STEPS = 16;
-
 const LOOP_NAMES: readonly Loop[] = ["sizzle", "fire", "spray"];
-
-/** Semitones above the bar's root for each bass letter. */
-const BASS_NOTES = new Map([["R", 0], ["O", 12], ["F", 7]]);
 
 /** The live audio graph: buses, the shared noise and the loop gains. */
 interface Graph {
   readonly ctx: AudioContext;
   readonly master: GainNode;
   readonly sfx: GainNode;
-  readonly music: GainNode;
   readonly noise: AudioBuffer;
   readonly loops: Readonly<Record<Loop, GainNode>>;
 }
@@ -50,9 +36,6 @@ export function createEngine(): Engine {
   let graph = Option.none<Graph>();
   let muted = false;
   const levels: Record<Loop, number> = { sizzle: 0, fire: 0, spray: 0 };
-  let playing = false;
-  let step = 0;
-  let next = 0;
 
   const unlock = () => {
     if (Option.isSome(graph)) {
@@ -65,27 +48,6 @@ export function createEngine(): Engine {
     graph = Option.some(build(new AudioContext(), muted));
   };
 
-  const sequence = (g: Graph, music: Music) => {
-    if (music === "off") {
-      playing = false;
-
-      return;
-    }
-
-    const now = g.ctx.currentTime;
-
-    // starting, or back from a stalled tab: pick up from now instead of firing a burst of missed steps
-    if (!playing || next < now) next = now + 0.05;
-    playing = true;
-    const stepLength = 60 / (music === "fast" ? GROOVE.fastBpm : GROOVE.bpm) / 4;
-
-    while (next < now + LOOKAHEAD) {
-      playStep(g, step, next);
-      step = (step + 1) % (STEPS * GROOVE.bars.length);
-      next += stepLength;
-    }
-  };
-
   return {
     unlock,
     play: (cue) => {
@@ -93,7 +55,7 @@ export function createEngine(): Engine {
 
       for (const v of SOUNDS[cue]) voice(graph.value, v, graph.value.ctx.currentTime, graph.value.sfx);
     },
-    frame: (wanted, music, mute) => {
+    frame: (wanted, mute) => {
       const flipped = mute !== muted;
       muted = mute;
 
@@ -113,8 +75,6 @@ export function createEngine(): Engine {
       if (levels.fire > 0 && Math.random() < levels.fire * 0.3) {
         for (const v of CRACKLE) voice(g, v, now + Math.random() * 0.03, g.sfx);
       }
-
-      sequence(g, music);
     },
     dispose: () => {
       if (Option.isSome(graph)) void graph.value.ctx.close();
@@ -126,7 +86,6 @@ export function createEngine(): Engine {
 function build(ctx: AudioContext, muted: boolean): Graph {
   const master = gainTo(ctx, muted ? 0 : VOLUME, ctx.destination);
   const sfx = gainTo(ctx, 1, master);
-  const music = gainTo(ctx, MUSIC_VOLUME, master);
   const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const samples = noise.getChannelData(0);
 
@@ -148,7 +107,7 @@ function build(ctx: AudioContext, muted: boolean): Graph {
     return gain;
   };
 
-  return { ctx, master, sfx, music, noise, loops: { sizzle: loop("sizzle"), fire: loop("fire"), spray: loop("spray") } };
+  return { ctx, master, sfx, noise, loops: { sizzle: loop("sizzle"), fire: loop("fire"), spray: loop("spray") } };
 }
 
 function gainTo(ctx: AudioContext, value: number, to: AudioNode): GainNode {
@@ -191,29 +150,4 @@ function voice(g: Graph, v: Voice, t: number, bus: AudioNode): void {
   osc.connect(env);
   osc.start(start);
   osc.stop(end + 0.02);
-}
-
-/** Plays one sixteenth of the groove at `t`. */
-function playStep(g: Graph, step: number, t: number): void {
-  const bar = GROOVE.bars[Math.floor(step / STEPS)] ?? GROOVE.bars[0];
-  const i = step % STEPS;
-  const { patterns } = GROOVE;
-
-  const band = (voices: readonly Voice[]) => {
-    for (const v of voices) voice(g, v, t, g.music);
-  };
-
-  if (patterns.kick[i] === "x") band(BAND.kick(0));
-
-  if (patterns.hat[i] === "x") band(BAND.hat(0));
-  const bass = BASS_NOTES.get(patterns.bass[i] ?? ".");
-
-  if (bass !== undefined) band(BAND.bass(hz(bar.root + bass)));
-
-  if (patterns.stab[i] === "x") for (const note of bar.chord) band(BAND.stab(hz(note)));
-}
-
-/** A MIDI note's pitch in Hz. */
-function hz(note: number): number {
-  return 440 * 2 ** ((note - 69) / 12);
 }

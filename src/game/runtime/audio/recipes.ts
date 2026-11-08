@@ -1,6 +1,6 @@
 /**
- * Every sound of the game as data: one-shots as a list of voices, loops as filtered noise, and
- * the music as a step pattern. `engine.ts` plays them; nothing here touches Web Audio.
+ * Every sound effect of the game as data: one-shots as a list of voices, loops as filtered noise.
+ * `engine.ts` plays them; nothing here touches Web Audio.
  */
 import type { Cue, Loop } from "./cues.ts";
 
@@ -61,37 +61,4 @@ export const LOOPS: Readonly<Record<Loop, LoopSound>> = {
   sizzle: { filter: "highpass", freq: 3200, q: 0.7, gain: 0.07 },
   fire: { filter: "lowpass", freq: 520, q: 0.9, gain: 0.45 },
   spray: { filter: "bandpass", freq: 2600, q: 0.6, gain: 0.3 },
-};
-
-/** A part of the band. */
-type Part = "kick" | "bass" | "stab" | "hat";
-
-/**
- * The music: four bars in E Phrygian dominant, sixteen steps each. A pattern letter plays its
- * part on that step: `x` hits, and the bass plays `R` root, `O` octave, `F` fifth.
- */
-export const GROOVE = {
-  bpm: 124,
-  /** The last thirty seconds. */
-  fastBpm: 150,
-  bars: [
-    { root: 40, chord: [64, 68, 71] },
-    { root: 41, chord: [65, 69, 72] },
-    { root: 38, chord: [62, 65, 69] },
-    { root: 40, chord: [64, 68, 71] },
-  ],
-  patterns: {
-    kick: "x...x...x...x...",
-    bass: "R..O..R.R..F..O.",
-    stab: "..x...x...x...x.",
-    hat: "x.x.x.x.x.x.x.x.",
-  } satisfies Record<Part, string>,
-} as const;
-
-/** How each part sounds at a pitch in Hz. */
-export const BAND: Readonly<Record<Part, (hz: number) => readonly Voice[]>> = {
-  kick: () => [tone("sine", 150, 45, 0.14, 0.7)],
-  bass: (hz) => [tone("square", hz, hz, 0.15, 0.13)],
-  stab: (hz) => [tone("triangle", hz, hz, 0.1, 0.12), tone("square", hz, hz, 0.06, 0.03)],
-  hat: () => [noise("highpass", 7500, 7000, 0.035, 0.18)],
 };
