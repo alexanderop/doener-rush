@@ -64,11 +64,3 @@ export function recordShift(progress: Progress, level: LevelId, score: number, s
 
   return { progress: { ...progress, [level]: best }, record, previous: Option.fromUndefinedOr(before?.score) };
 }
-
-/** True when a level can be played: the first always, every other once the level before it has a star. */
-export function isUnlocked(progress: Progress, level: LevelId): boolean {
-  const index = LEVELS.findIndex((l) => l.id === level);
-  const before = LEVELS[index - 1];
-
-  return index === 0 || (before !== undefined && (progress[before.id]?.stars ?? 0) >= 1);
-}

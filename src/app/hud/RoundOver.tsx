@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { snapshotAtom } from "#/game/runtime/atoms.ts";
 import { nextLevel } from "#/game/runtime/levels.ts";
 import type { Level } from "#/game/runtime/levels.ts";
-import { isUnlocked, loadProgress, recordShift, saveProgress } from "#/game/persistence/progress.ts";
+import { loadProgress, recordShift, saveProgress } from "#/game/persistence/progress.ts";
 import type { Outcome } from "#/game/persistence/progress.ts";
 import { Button } from "#/shared/ui/button.tsx";
 import type { OrdersSnapshot } from "#/features/orders/public.ts";
@@ -17,10 +17,8 @@ const BUTTON = "h-12 rounded-full border-[3px] border-[#2a1a10] px-5 text-base f
 /** What a campaign shift did to the save, and the level it leads to. */
 interface Result {
   readonly outcome: Outcome;
-  /** The next level when it can be played now, or null. */
+  /** The next level, or null after the last one. */
   readonly next: Level | null;
-  /** True when this shift opened `next`. */
-  readonly opened: boolean;
 }
 
 /**
@@ -30,12 +28,9 @@ interface Result {
 function useResult(level: Level | null, score: number, stars: number): Result | null {
   const [result] = useState(() => {
     if (level === null) return null;
-    const before = loadProgress();
-    const outcome = recordShift(before, level.id, score, stars);
-    const next = nextLevel(level.id);
-    const open = next !== null && isUnlocked(outcome.progress, next.id);
+    const outcome = recordShift(loadProgress(), level.id, score, stars);
 
-    return { outcome, next: open ? next : null, opened: open && !isUnlocked(before, next.id) };
+    return { outcome, next: nextLevel(level.id) };
   });
 
   useEffect(() => {
@@ -90,7 +85,6 @@ function EndOfShift({ orders, level, onAgain, onNext }: {
               ))}
             </ol>
             <p className="text-sm font-semibold text-[#6b5444]">{served} serviert · {missed} verpasst</p>
-            {result?.opened === true && next !== null && <p className="mt-3 text-sm font-black text-[#2f7d3a]">Freigeschaltet: {next.name}</p>}
             <div className="mt-5 flex justify-center gap-2">
               <Button className={BUTTON} variant={next === null ? "default" : "secondary"} onClick={onAgain}>Nochmal</Button>
               {next !== null && <Button className={BUTTON} onClick={() => onNext(next)}>Nächstes Level</Button>}
@@ -104,7 +98,7 @@ function EndOfShift({ orders, level, onAgain, onNext }: {
 
 /**
  * The end of the shift: a "SCHICHT VORBEI!" banner slams in, then the card with score and stars. On a campaign level
- * (`level` set) the shift goes into the save, and the card names a new record and offers the next level once it is open.
+ * (`level` set) the shift goes into the save, and the card names a new record and offers the next level.
  */
 export function RoundOver({ level, onAgain, onNext }: {
   readonly level: Level | null;

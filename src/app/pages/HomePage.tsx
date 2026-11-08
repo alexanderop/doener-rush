@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isUnlocked, loadProgress } from "#/game/persistence/progress.ts";
+import { loadProgress } from "#/game/persistence/progress.ts";
 import type { Progress } from "#/game/persistence/progress.ts";
 import { loadPicks, savePicks } from "#/game/persistence/picks.ts";
 import { LEVELS } from "#/game/runtime/levels.ts";
@@ -61,9 +61,9 @@ const STEPS = [
   ["Nebenbei", "Teller spülen, Feuer löschen, Leertaste sprintet"],
 ] as const;
 
-/** The furthest level the save has opened: where a returning player carries on. */
-function latestOpen(progress: Progress): LevelId {
-  return [...LEVELS].reverse().find((l) => isUnlocked(progress, l.id))?.id ?? "erster-tag";
+/** The first kitchen without a star yet: where a returning player carries on. */
+function carryOn(progress: Progress): LevelId {
+  return LEVELS.find((l) => (progress[l.id]?.stars ?? 0) === 0)?.id ?? "erster-tag";
 }
 
 /** Pictures of every look, drawn in the browser once the page is up; none while drawing or without WebGL. */
@@ -91,7 +91,7 @@ export function HomePage() {
   // the save lives in the browser; the server renders a fresh campaign and the effect fills it in
   const [progress, setProgress] = useState<Progress>({});
   const [picked, setPicked] = useState<LevelId | null>(null);
-  const level = picked ?? latestOpen(progress);
+  const level = picked ?? carryOn(progress);
   const [humans, setHumans] = useState(1);
 
   const [picks, setPicks] = useState<Picks>(DEFAULT_PICKS);

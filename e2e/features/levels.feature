@@ -1,23 +1,26 @@
 Feature: The level campaign
 
-  Scenario: A star on the first level opens the second
-    Given a fresh campaign where "Der Imbiss" is locked
+  Scenario: Every kitchen can be picked on a fresh campaign
+    Given a fresh campaign
+    Then "Erster Tag" can be picked
+    And "Der Imbiss" can be picked
+    And "Backstube" can be picked
+
+  Scenario: A shift keeps its record
+    Given a fresh campaign
     When I play level "erster-tag" and end the shift with 150 points
     Then the end-of-shift card says "Neuer Rekord!"
-    And the end-of-shift card says "Freigeschaltet: Der Imbiss"
     When I go back to the home page
-    Then "Der Imbiss" can be picked
-    And "Erster Tag" shows a record of 150
+    Then "Erster Tag" shows a record of 150
 
-  Scenario: The next level button plays the level it opened
-    Given a fresh campaign where "Der Imbiss" is locked
+  Scenario: The next level button plays the next kitchen
+    Given a fresh campaign
     When I play level "erster-tag" and end the shift with 150 points
     And I press "Nächstes Level"
     Then the shift runs in level "imbiss"
 
-  Scenario: A star in the Großküche opens the Backstube, where customers order pastries
-    Given a fresh campaign where "Backstube" is locked
+  Scenario: After the Großküche comes the Backstube, where customers order pastries
+    Given a fresh campaign
     When I play level "grosskueche" and end the shift with 150 points
-    Then the end-of-shift card says "Freigeschaltet: Backstube"
-    When I press "Nächstes Level"
+    And I press "Nächstes Level"
     Then customers order "Franzbrötchen, Mohnbrötchen, Brezel"

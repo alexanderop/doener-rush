@@ -50,7 +50,7 @@ The levels are data in `src/game/runtime/levels.ts`: the floor plan (its legend 
 
 In the URL: `/play?level=<id>`; without it a shift plays Der Imbiss, so old links keep working. `?scenario=` always uses Der Imbiss and is never saved.
 
-The best score and stars per level live in `localStorage` under `doener-rush/progress/v1` (`src/game/persistence/progress.ts`, parsed with Effect Schema; a broken or blocked save is an empty one). The end card says "Neuer Rekord!" when a shift beats the best and offers "Nächstes Level" once the next kitchen is open. Clear site data to start the campaign over.
+The best score and stars per level live in `localStorage` under `doener-rush/progress/v1` (`src/game/persistence/progress.ts`, parsed with Effect Schema; a broken or blocked save is an empty one). The end card says "Neuer Rekord!" when a shift beats the best and offers "Nächstes Level". Every kitchen can be played from the start. Clear site data to reset the records.
 
 ## How a döner gets made
 

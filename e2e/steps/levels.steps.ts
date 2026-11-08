@@ -1,9 +1,9 @@
 import { expect } from "@playwright/test";
 import { Given, Then, When } from "../fixtures.ts";
 
-Given("a fresh campaign where {string} is locked", async ({ page }, name: string) => {
+Given("a fresh campaign", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("radio", { name: `${name}, gesperrt` })).toBeDisabled();
+  await expect(page.getByRole("radio", { name: /^Erster Tag, 0 von 3 Sternen$/ })).toBeVisible();
 });
 
 When("I play level {string} and end the shift with {int} points", async ({ page }, level: string, score: number) => {

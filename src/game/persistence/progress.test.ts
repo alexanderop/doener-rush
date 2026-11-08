@@ -1,6 +1,6 @@
 import { Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { isUnlocked, loadProgress, parseProgress, recordShift, saveProgress } from "./progress.ts";
+import { loadProgress, parseProgress, recordShift, saveProgress } from "./progress.ts";
 import type { ProgressStore } from "./progress.ts";
 
 function memory(): ProgressStore {
@@ -8,24 +8,6 @@ function memory(): ProgressStore {
 
   return { read: (key) => Option.fromUndefinedOr(items.get(key)), write: (key, value) => void items.set(key, value) };
 }
-
-describe("given a fresh save", () => {
-  it("opens only the first level", () => {
-    expect(isUnlocked({}, "erster-tag")).toBe(true);
-    expect(isUnlocked({}, "imbiss")).toBe(false);
-  });
-
-  it("opens the next level once a shift there earns a star, and keeps it open after a worse shift", () => {
-    const { progress } = recordShift({}, "erster-tag", 80, 1);
-    expect(isUnlocked(progress, "imbiss")).toBe(true);
-    expect(isUnlocked(progress, "durchreiche")).toBe(false);
-    expect(isUnlocked(recordShift(progress, "erster-tag", 10, 0).progress, "imbiss")).toBe(true);
-  });
-
-  it("does not open the next level for a shift without stars", () => {
-    expect(isUnlocked(recordShift({}, "erster-tag", 20, 0).progress, "imbiss")).toBe(false);
-  });
-});
 
 describe("given a level played before", () => {
   const before = recordShift({}, "imbiss", 120, 1).progress;
