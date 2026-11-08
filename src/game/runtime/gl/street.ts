@@ -1,12 +1,15 @@
 /**
  * Everything around the cooking: the checkered kitchen floor with grout and soft corners,
  * the thick brick rim that turns the kitchen into a diorama, the striped awning and neon
- * sign over the pass, and the street outside with lamps, plants, café tables and pigeons.
- * Static except for the pigeons, which `animateStreet` hops around.
+ * sign over the pass (`shopShell`, shared by every backdrop), and the default backdrop: the
+ * town street with lamps, plants, café tables, houses across the road, traffic and pigeons.
  */
 import * as THREE from "three";
 import type { World } from "../world.ts";
+import { flock } from "./flock.ts";
+import { customerModel } from "./models.ts";
 import { ball, box, canvasTexture, cyl, geo, hash, mapped, mat, rbox, solid, steel } from "./parts.ts";
+import type { Backdrop } from "./scenery.ts";
 
 const WALL_H = 1.05;
 
@@ -328,7 +331,8 @@ function neonSign(text: string): THREE.Mesh {
   return new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: texture, toneMapped: false, transparent: true }));
 }
 
-function plant(x: number, z: number, big: boolean): THREE.Group {
+/** A potted spiky plant. */
+export function plant(x: number, z: number, big: boolean): THREE.Group {
   const g = new THREE.Group();
   g.position.set(x, 0, z);
   const pot = solid(geo("pot", () => new THREE.CylinderGeometry(0.34, 0.26, 0.5, 10)), mat("#c46a3c"));
@@ -350,7 +354,8 @@ function plant(x: number, z: number, big: boolean): THREE.Group {
   return g;
 }
 
-function lamp(x: number, z: number): THREE.Group {
+/** A street lamp, its head reaching towards +z. */
+export function lamp(x: number, z: number): THREE.Group {
   const g = new THREE.Group();
   g.position.set(x, 0, z);
   const post = cyl(0.06, 0.08, 3, steel("#3a3d42"), 8);
@@ -467,32 +472,139 @@ function pigeons(spots: readonly (readonly [number, number])[]): THREE.Group[] {
   });
 }
 
-/** The scenery around the kitchen and the pigeons in it. */
-export interface Street {
-  readonly group: THREE.Group;
-  readonly birds: readonly THREE.Group[];
+const FACADES = ["#e8c9a0", "#d98b6a", "#9cc5c0", "#e7dcc8", "#c7a4c4", "#f0b85a", "#b8c98e"];
+
+const ROOFS = ["#7a4a3a", "#5a5f6a", "#8a3a30", "#4a5560"];
+
+const CARS = ["#e94f37", "#3f88c5", "#f6ae2d", "#44bba4", "#f7f1e6"];
+
+/** A narrow town house, its front facing +z before `facing` turns it: windows, a shop awning or a door, a pitched roof. */
+function house(x: number, z: number, width: number, floors: number, seed: number, facing: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  g.rotation.y = facing;
+  const tall = floors * 1.15 + 0.3;
+  g.add(box(width, tall, 3, mat(FACADES[Math.floor(hash(seed, 1) * FACADES.length)] ?? "#e8c9a0"), tall / 2));
+  const roof = solid(geo("roof", () => new THREE.CylinderGeometry(1, 1, 1, 3)), mat(ROOFS[Math.floor(hash(seed, 2) * ROOFS.length)] ?? "#7a4a3a"));
+  roof.scale.set(1.75, width + 0.1, 0.9);
+  roof.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+  roof.position.y = tall + 0.45;
+  g.add(roof);
+  const glass = mat("#7fb8cf", "#20384a", 0.2);
+  const frame = mat("#f7f1e6");
+  const cols = Math.max(1, Math.floor(width / 1.1));
+
+  for (let f = 1; f < floors; f++) {
+    for (let c = 0; c < cols; c++) {
+      const wx = -width / 2 + (c + 0.5) * (width / cols);
+      const y = f * 1.15 + 0.55;
+      const pane = box(0.5, 0.6, 0.06, frame, y);
+      pane.position.set(wx, y, 1.5);
+      g.add(pane);
+      const inner = box(0.38, 0.48, 0.06, hash(seed + f, c) > 0.75 ? mat("#ffe2a0", "#c08a30") : glass, y);
+      inner.position.set(wx, y, 1.53);
+      g.add(inner);
+    }
+  }
+
+  if (hash(seed, 5) > 0.4) {
+    const shop = box(width - 0.6, 0.8, 0.06, glass, 0.6);
+    shop.position.z = 1.52;
+    g.add(shop);
+    const awning = mat(CARS[Math.floor(hash(seed, 6) * CARS.length)] ?? "#e94f37");
+    const stripe = (width - 0.4) / 5;
+
+    for (let i = 0; i < 5; i++) {
+      const s = box(stripe, 0.04, 0.6, i % 2 === 0 ? awning : mat("#f7f1e6"), 1.15);
+      s.position.set(-width / 2 + 0.2 + (i + 0.5) * stripe, 1.15, 1.75);
+      s.rotation.x = 0.4;
+      g.add(s);
+    }
+  } else {
+    const door = box(0.6, 0.95, 0.06, mat("#5a3a2a"), 0.48);
+    door.position.z = 1.52;
+    g.add(door);
+  }
+
+  return g;
 }
 
-/** Builds the floor, rim, street, storefront and props for a world. */
-export function street(world: World): Street {
+/** A round low-poly tree about 2.2 tall at `scale` 1. */
+function tree(x: number, z: number, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  g.scale.setScalar(scale);
+  const trunk = cyl(0.1, 0.14, 1, mat("#7a5236"), 6);
+  trunk.position.y = 0.5;
+  g.add(trunk);
+  const crown = solid(geo("crown", () => new THREE.IcosahedronGeometry(0.75, 0)), mat(hash(x, z) > 0.5 ? "#4f9a3c" : "#5fae46"));
+  crown.position.y = 1.5;
+  g.add(crown);
+  const top = solid(geo("crown-top", () => new THREE.IcosahedronGeometry(0.45, 0)), mat("#6cbd50"));
+  top.position.set(0.2, 2, 0.1);
+  g.add(top);
+
+  return g;
+}
+
+function lawn(x0: number, z0: number, x1: number, z1: number): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), mat("#7fae54", "#000000", 1));
+  m.rotation.x = -Math.PI / 2;
+  m.position.set((x0 + x1) / 2, 0.003, (z0 + z1) / 2);
+  m.receiveShadow = true;
+
+  return m;
+}
+
+function car(color: string): THREE.Group {
+  const g = new THREE.Group();
+  const paint = mat(color, "#000000", 0.4);
+  g.add(rbox(1.7, 0.45, 0.85, 0.12, paint, 0.38));
+  const cabin = rbox(0.95, 0.38, 0.78, 0.1, mat("#cfe6ef", "#1d3340", 0.2), 0.78);
+  cabin.position.x = -0.1;
+  g.add(cabin);
+  const roof = rbox(0.8, 0.06, 0.74, 0.03, paint, 0.99);
+  roof.position.x = -0.12;
+  g.add(roof);
+
+  for (const [wx, wz] of [[-0.55, 0.42], [0.55, 0.42], [-0.55, -0.42], [0.55, -0.42]] as const) {
+    const wheel = cyl(0.17, 0.17, 0.12, mat("#1d1d1d"), 10);
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(wx, 0.17, wz);
+    g.add(wheel);
+  }
+
+  return g;
+}
+
+/** Something that loops along x: a car on its lane or a passer-by on the far pavement. */
+interface Mover {
+  readonly group: THREE.Group;
+  readonly rig: THREE.Object3D;
+  readonly z: number;
+  /** +1 drives left to right. */
+  readonly dir: number;
+  readonly speed: number;
+  readonly offset: number;
+}
+
+const LOOP = 64;
+
+/** Where a mover is at `t` on a loop `LOOP` long, centred on `centre`. */
+function along(centre: number, t: number, m: Mover): number {
+  const x = (((m.offset + t * m.speed) % LOOP) + LOOP) % LOOP;
+
+  return centre + m.dir * (x - LOOP / 2);
+}
+
+/**
+ * The kitchen every backdrop shares: the tiled floor, the brick rim and splashback, and the
+ * storefront over the pass (canopies, neon sign).
+ */
+export function shopShell(world: World): THREE.Group {
   const g = new THREE.Group();
   const w = world.width;
   const h = world.height;
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(90, 90), mat("#4b4a52", "#000000", 0.95));
-  road.rotation.x = -Math.PI / 2;
-  road.position.set(w / 2, -0.02, h / 2);
-  road.receiveShadow = true;
-  g.add(road);
-  const pavers = paverMap();
-  pavers.repeat.set((w + 8) / 1.5, (h + 6) / 1.5);
-  const walk = new THREE.Mesh(new THREE.PlaneGeometry(w + 8, h + 6), mapped("#ffffff", pavers, 0.9));
-  walk.rotation.x = -Math.PI / 2;
-  walk.position.set(w / 2, 0, h / 2 - 0.5);
-  walk.receiveShadow = true;
-  g.add(walk);
-  const curb = box(w + 8, 0.08, 0.2, mat("#d9d2c4"), 0.04);
-  curb.position.set(w / 2, 0.04, -3.6);
-  g.add(curb);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: floorTexture(world), roughness: 0.55 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(w / 2, 0.005, h / 2);
@@ -500,20 +612,6 @@ export function street(world: World): Street {
   g.add(floor);
   g.add(rimWall(world));
   g.add(backWall(world));
-
-  for (let x = -12; x < w + 12; x += 2) {
-    const dash = new THREE.Mesh(geo("dash", () => new THREE.PlaneGeometry(1.1, 0.14)), mat("#f2efe6"));
-    dash.rotation.x = -Math.PI / 2;
-    dash.position.set(x, 0.006, -6.4);
-    g.add(dash);
-  }
-
-  for (const z of [-4.2, -8.6]) {
-    const line = new THREE.Mesh(new THREE.PlaneGeometry(w + 40, 0.1), mat("#e6b93a"));
-    line.rotation.x = -Math.PI / 2;
-    line.position.set(w / 2, 0.006, z);
-    g.add(line);
-  }
 
   // small striped canopies over the two windows; the pass stays open so the queue is in view
   for (const x of [w * 0.28, w * 0.52]) {
@@ -536,6 +634,88 @@ export function street(world: World): Street {
     g.add(post);
   }
 
+  return g;
+}
+
+/**
+ * The town street: pavement round the shop, the road with traffic in front, a row of houses
+ * across it, gardens with trees on the other three sides, pigeons and passers-by.
+ */
+export function street(world: World): Backdrop {
+  const g = new THREE.Group();
+  const live = new THREE.Group();
+  const w = world.width;
+  const h = world.height;
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), mat("#4b4a52", "#000000", 0.95));
+  road.rotation.x = -Math.PI / 2;
+  road.position.set(w / 2, -0.02, h / 2);
+  road.receiveShadow = true;
+  g.add(road);
+  const pavers = paverMap();
+  pavers.repeat.set((w + 8) / 1.5, (h + 6) / 1.5);
+  const walk = new THREE.Mesh(new THREE.PlaneGeometry(w + 8, h + 6), mapped("#ffffff", pavers, 0.9));
+  walk.rotation.x = -Math.PI / 2;
+  walk.position.set(w / 2, 0, h / 2 - 0.5);
+  walk.receiveShadow = true;
+  g.add(walk);
+  const curb = box(w + 8, 0.08, 0.2, mat("#d9d2c4"), 0.04);
+  curb.position.set(w / 2, 0.04, -3.6);
+  g.add(curb);
+
+  for (let x = -40; x < w + 40; x += 2) {
+    const dash = new THREE.Mesh(geo("dash", () => new THREE.PlaneGeometry(1.1, 0.14)), mat("#f2efe6"));
+    dash.rotation.x = -Math.PI / 2;
+    dash.position.set(x, 0.006, -5.8);
+    g.add(dash);
+  }
+
+  for (const z of [-4.2, -7.4]) {
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(w + 80, 0.1), mat("#e6b93a"));
+    line.rotation.x = -Math.PI / 2;
+    line.position.set(w / 2, 0.006, z);
+    g.add(line);
+  }
+
+  // the far pavement and the houses across the road
+  const far = paverMap().clone();
+  far.needsUpdate = true;
+  far.repeat.set((w + 80) / 1.5, 3 / 1.5);
+  const farWalk = new THREE.Mesh(new THREE.PlaneGeometry(w + 80, 3), mapped("#ffffff", far, 0.9));
+  farWalk.rotation.x = -Math.PI / 2;
+  farWalk.position.set(w / 2, 0.004, -9.3);
+  farWalk.receiveShadow = true;
+  g.add(farWalk);
+  const farCurb = box(w + 80, 0.08, 0.2, mat("#d9d2c4"), 0.04);
+  farCurb.position.set(w / 2, 0.04, -7.9);
+  g.add(farCurb);
+
+  for (let x = -26, seed = 0; x < w + 26; seed++) {
+    const width = 2.6 + Math.floor(hash(seed, 9) * 3) * 0.8;
+    g.add(house(x + width / 2, -12.3, width, 2 + Math.floor(hash(seed, 4) * 3), seed, 0));
+    x += width + 0.1;
+  }
+
+  // gardens on the other three sides, with trees, hedges and a house further out
+  g.add(lawn(-40, -3.5, -4, h + 40));
+  g.add(lawn(w + 4, -3.5, w + 40, h + 40));
+  g.add(lawn(-4, h + 2.5, w + 4, h + 40));
+
+  for (let i = 0; i < 16; i++) {
+    const x = i % 2 === 0 ? -5.5 - hash(i, 1) * 7 : w + 5.5 + hash(i, 1) * 7;
+    g.add(tree(x, -1.5 + hash(i, 2) * (h + 6), 0.9 + hash(i, 3) * 0.4));
+  }
+
+  for (let i = 0; i < 6; i++) g.add(tree((w * (i + 0.5)) / 6 + hash(i, 8) - 0.5, h + 3.3 + hash(i, 6) * 1.2, 0.8 + hash(i, 7) * 0.3));
+
+  for (const x of [-4.4, w + 4.4]) {
+    const hedge = rbox(0.6, 0.7, h + 5.5, 0.2, mat("#4a8a3a"), 0.35);
+    hedge.position.set(x, 0.35, h / 2 - 0.4);
+    g.add(hedge);
+  }
+
+  g.add(house(-16, h / 2, 5, 3, 41, Math.PI / 2));
+  g.add(house(w + 16, h / 2 - 1, 5, 2, 42, -Math.PI / 2));
+
   for (const [x, z, big] of [[-1.4, 1.2, true], [w + 1.4, 1.4, false], [-1.4, h - 1.2, false], [w + 1.4, h - 1], [-2.2, -2.4, true], [w + 2.4, -2.2, true]] as const) {
     g.add(plant(x, z, big === true));
   }
@@ -553,13 +733,47 @@ export function street(world: World): Street {
 
   const birds = pigeons([[3.2, -2.6], [3.6, -2.9], [w - 3.5, -2.4]]);
 
-  for (const b of birds) g.add(b);
+  for (const b of birds) live.add(b);
 
-  return { group: g, birds };
+  const cars: Mover[] = [0, 1, 2, 3].map((i) => {
+    const group = car(CARS[i % CARS.length] ?? "#e94f37");
+    const dir = i % 2 === 0 ? 1 : -1;
+    group.rotation.y = dir > 0 ? 0 : Math.PI;
+    live.add(group);
+
+    return { group, rig: group, z: dir > 0 ? -5 : -6.6, dir, speed: 3.2 + hash(i, 4) * 1.5, offset: i * 17 };
+  });
+
+  const walkers: Mover[] = [0, 1, 2].map((i) => {
+    const group = customerModel(101 + i * 2);
+    const dir = i === 1 ? -1 : 1;
+    group.rotation.y = (dir * Math.PI) / 2;
+    live.add(group);
+
+    return { group, rig: group.getObjectByName("rig") ?? group, z: -8.9 - i * 0.35, dir, speed: 0.9 + hash(i, 6) * 0.3, offset: i * 21 };
+  });
+
+  const birdsAbove = flock(w, h, "#8a8f99", "#6a7080");
+  live.add(birdsAbove.group);
+
+  const animate = (t: number) => {
+    animatePigeons(birds, t);
+
+    for (const c of cars) c.group.position.set(along(w / 2, t, c), 0, c.z);
+
+    for (const p of walkers) {
+      p.group.position.set(along(w / 2, t, p), 0, p.z);
+      p.rig.position.y = Math.abs(Math.sin(t * 7 + p.offset)) * 0.05;
+    }
+
+    birdsAbove.animate(t);
+  };
+
+  return { still: g, live, sky: "#a9c7d6", animate };
 }
 
 /** Pigeons peck and hop now and then. */
-export function animateStreet(birds: readonly THREE.Group[], t: number): void {
+function animatePigeons(birds: readonly THREE.Group[], t: number): void {
   birds.forEach((b, i) => {
     const phase = t * 1.3 + i * 2.7;
     const hop = Math.max(0, Math.sin(phase * 3)) * (Math.sin(phase * 0.5) > 0.6 ? 0.08 : 0);
@@ -569,3 +783,4 @@ export function animateStreet(birds: readonly THREE.Group[], t: number): void {
     if (head !== undefined) head.position.y = 0.23 - Math.max(0, Math.sin(phase * 5)) * 0.08;
   });
 }
+

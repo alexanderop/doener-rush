@@ -107,7 +107,7 @@ The music is rendered sample by sample in an AudioWorklet (`music/chip.worklet.t
 | `src/game/runtime/useGameCanvas.ts` | Keyboard, fixed 60 Hz loop, 3D render, snapshot to `snapshotAtom`, dev `window.__game`. Steps the world only once the `Start` machine (`start.ts`: recipe card, countdown, running) runs |
 | `src/game/runtime/audio/` | Sound with no audio files: `cues.ts` turns two digests of the world into sounds, the music's intensity and the DJ take it asks for (pure, tested), `recipes.ts` holds every sound effect as data, `engine.ts` plays them with Web Audio after the first key or click |
 | `src/game/runtime/audio/music/` | The music, synthesized live in an AudioWorklet (see Music below) |
-| `src/game/runtime/gl/` | The 3D view (three.js): low-poly models built from primitives in `models.ts`, camera, lights, storefront and sync from the world in `scene.ts` |
+| `src/game/runtime/gl/` | The 3D view (three.js): low-poly models built from primitives in `models.ts`, camera, lights and sync from the world in `scene.ts`. The world around the kitchen is a backdrop picked per level in `scenery.ts` (`SCENERY`, default the street in `street.ts`; `harbor.ts` stands the shop on a pier over the water). `?scenery=harbor` previews one on any level |
 | `src/game/runtime/tutorial/` | The tutorial: lesson table, calm-kitchen rules, the view the HUD card and 3D arrow read |
 | `src/game/runtime/testing/` | Scenarios (`?scenario=` in the browser, Vitest, e2e) and a breadth-first walking driver for scripted cooks |
 | `src/app/` | HUD (top bar, toasts, end-of-shift card) and pages |

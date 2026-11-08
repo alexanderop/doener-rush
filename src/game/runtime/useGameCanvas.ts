@@ -6,6 +6,7 @@ import { TICK_MS } from "../core/grid.ts";
 import { mutedAtom, pausedAtom, snapshotAtom, startAtom } from "./atoms.ts";
 import { createSoundtrack } from "./audio/soundtrack.ts";
 import { createShopView } from "./gl/scene.ts";
+import { sceneryOf } from "./gl/scenery.ts";
 import { installDevGame } from "./devtools.ts";
 import { newPad, readPad } from "./input/gamepad.ts";
 import { GAME_KEYS, keyDown, keyUp, newKeys, releaseAll, takeIntents } from "./input/input.ts";
@@ -42,7 +43,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     const element = canvas.current;
 
     if (!element) return;
-    const view = createShopView(element, world, looks);
+    const view = createShopView(element, world, looks, sceneryOf(level, new URLSearchParams(window.location.search).get("scenery")));
     const keys = newKeys();
     const pads = [newPad(), newPad()];
     const solo = !world.drivers.some((d) => d.kind === "keys" && d.binding === 1);

@@ -1,6 +1,7 @@
 /**
- * The 3D view of the shop (three.js): a steep camera over the kitchen diorama, warm sun with
- * soft shadows, the brick rim and the street, customers walking up to the pass, and the
+ * The 3D view of the shop (three.js): a camera far enough out that the kitchen diorama sits
+ * in its world (the level's backdrop from `scenery.ts`), warm sun with soft shadows,
+ * customers walking up to the pass, and the
  * overlays and particles that make every action read. It reads the world each frame and
  * never changes it.
  */
@@ -22,9 +23,19 @@ import { TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStac
 import { bubbleSprite, nameTag, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
 import type { Bar } from "./overlays.ts";
 import { bakeStatic, contactShadow, geo } from "./parts.ts";
-import { animateStreet, street } from "./street.ts";
+import { backdrop } from "./scenery.ts";
+import type { Scenery } from "./scenery.ts";
+import { shopShell } from "./street.ts";
 
-const TILT = THREE.MathUtils.degToRad(54);
+const TILT = THREE.MathUtils.degToRad(46);
+
+/**
+ * How much of the screen the kitchen may fill, in NDC from the centre: a wide screen keeps
+ * a third of itself for the world around (and the HUD over it), a phone in portrait gives
+ * the kitchen nearly its full width. `drop` lowers the kitchen on screen with a lens shift,
+ * so more of the world beyond the pass shows than of the ground behind the kitchen.
+ */
+const REACH = { wide: 0.6, tall: 0.94, high: 0.6, drop: 0.12 } as const;
 
 const ITEM_SCALE = 1.55;
 
@@ -46,7 +57,7 @@ const TRANSIT_SECONDS = 0.12;
 const TRANSIT_ARC = 0.22;
 
 /** Parts the scene moves; everything else in the kitchen and street is baked. */
-const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "bird", "whisk", "water"]);
+const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "whisk", "water"]);
 
 /** Veg colours for the bits that fly off the board. */
 const BIT_COLOR = new Map<string, string>([["lettuce", "#6fc23f"], ["tomato", "#e8392b"], ["onion", "#c886b5"]]);
@@ -277,7 +288,7 @@ function vignette(): THREE.Mesh {
 }
 
 /** Sets up three.js on a canvas for one world, cook `i` dressed in `looks[i]`. */
-export function createShopView(canvas: HTMLCanvasElement, world: World, looks: readonly Look[]): ShopView {
+export function createShopView(canvas: HTMLCanvasElement, world: World, looks: readonly Look[], scenery: Scenery): ShopView {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
@@ -285,9 +296,11 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
-  const background = new THREE.Color("#3d3a40");
+  const outside = backdrop(world, scenery);
+  const background = new THREE.Color(outside.sky);
   scene.background = background;
-  scene.fog = new THREE.Fog(background, 24, 46);
+  const fog = new THREE.Fog(background, 30, 80);
+  scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
   scene.add(new THREE.HemisphereLight("#fff3dc", "#6a4a3a", 1.25));
   const sun = new THREE.DirectionalLight("#ffe0b0", 2.7);
@@ -306,11 +319,10 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   const fill = new THREE.DirectionalLight("#cfe0ff", 0.55);
   fill.position.set(world.width / 2 + 8, 8, world.height / 2 + 10);
   scene.add(fill);
-  const outside = street(world);
   // everything that never moves is merged into a few meshes once the stations are built
   const still = new THREE.Group();
-  still.add(outside.group);
-  scene.add(still);
+  still.add(shopShell(world), outside.still);
+  scene.add(still, outside.live);
   const fx: Fx = createFx();
   scene.add(fx.object);
   // one light lends its flicker to the fire; it stays in the scene at zero so lighting shaders never recompile
@@ -430,7 +442,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     }
   }
 
-  function fits(cx: number, cz: number, distance: number, points: readonly THREE.Vector3[]): boolean {
+  function fits(cx: number, cz: number, distance: number, reach: number, points: readonly THREE.Vector3[]): boolean {
     camera.position.set(cx, Math.sin(TILT) * distance, cz + Math.cos(TILT) * distance);
     camera.lookAt(cx, 0, cz);
     camera.updateProjectionMatrix();
@@ -439,12 +451,13 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     return points.every((p) => {
       const v = p.clone().project(camera);
 
-      return Math.abs(v.x) <= 0.97 && v.y <= 0.97 && v.y >= -0.97;
+      return Math.abs(v.x) <= reach && Math.abs(v.y + REACH.drop) <= REACH.high;
     });
   }
 
   function fitCamera(width: number, height: number): void {
     camera.aspect = width / Math.max(1, height);
+    camera.setViewOffset(width, height, 0, (-REACH.drop / 2) * height, width, height);
     const w = world.width;
     const h = world.height;
 
@@ -457,10 +470,14 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
 
     const cx = w / 2;
     const cz = h / 2 - 0.3;
+    const reach = THREE.MathUtils.mapLinear(THREE.MathUtils.clamp(camera.aspect, 0.7, 1.2), 0.7, 1.2, REACH.tall, REACH.wide);
     let distance = 6;
 
-    while (distance < 60 && !fits(cx, cz, distance, points)) distance += 0.2;
+    while (distance < 120 && !fits(cx, cz, distance, reach, points)) distance += 0.25;
     cameraHome.copy(camera.position);
+    // the haze starts just past the kitchen, so the far world fades into the sky
+    fog.near = distance * 1.05;
+    fog.far = distance * 2.6;
     const pass = passes[0];
 
     // the HUD flies a served customer's coins from here to the score
@@ -922,7 +939,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     syncEvents(w);
     syncArrows(w, t);
     syncCustomers(w, dt, t);
-    animateStreet(outside.birds, t);
+    outside.animate(t);
     syncFireLight(t);
     shakeCamera(t, dt);
     fx.update(dt);
