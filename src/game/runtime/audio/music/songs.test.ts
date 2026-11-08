@@ -36,6 +36,27 @@ describe("the soundtrack", () => {
     expect(lift.bars.map((bar) => bar.lead)).not.toEqual(kitchen.bars.map((bar) => bar.lead));
   });
 
+  it("keeps every note and chord tone in E Phrygian dominant", () => {
+    const scale = new Set([4, 5, 8, 9, 11, 0, 2]);
+    const strays = new Set<string>();
+
+    for (const level of kitchens) {
+      for (const tune of tunes) {
+        for (const bar of compile(songFor(tune, level)).bars) {
+          for (const step of [bar.lead, bar.arp, bar.counter, bar.bass, bar.pad].flat()) {
+            if (step.kind !== "note") continue;
+
+            for (const offset of step.arp) {
+              if (!scale.has((step.note + offset) % 12)) strays.add(`${tune} in ${level}: ${step.note}+${offset}`);
+            }
+          }
+        }
+      }
+    }
+
+    expect([...strays]).toEqual([]);
+  });
+
   it("blends the kitchen into the busy take and duets into the last-seconds take", () => {
     expect(mixKind(songFor("imbiss", "imbiss"), songFor("lift", "imbiss"))).toBe("blend");
     expect(mixKind(songFor("lift", "imbiss"), songFor("peak", "imbiss"))).toBe("duet");
