@@ -1,13 +1,16 @@
 /**
  * What the kitchen sounds like, read from the world without touching Web Audio: `hear` takes a
- * small digest of the audible state, `cuesBetween` turns two digests into one-shot sounds and
- * `loopLevels` gives the volume of the running loops. Pure, so Vitest can run it.
+ * small digest of the audible state, `cuesBetween` turns two digests into one-shot sounds,
+ * `loopLevels` gives the volume of the running loops, `intensity` how much the music gives and
+ * `nextTake` which DJ take it plays. Pure, so Vitest can run it.
  */
 import { BURNT, CHOP_TICKS, HEAT } from "../../../features/kitchen/public.ts";
 import type { Cook, Landing } from "../../../features/cooks/public.ts";
+import { MAX_ORDERS } from "../../../features/orders/public.ts";
 import type { OrderEvent } from "../../../features/orders/public.ts";
-import { TICK_RATE } from "../../core/grid.ts";
+import { TICK_RATE, seconds } from "../../core/grid.ts";
 import type { World } from "../world.ts";
+import type { Take } from "./music/songs.ts";
 
 /** A one-shot sound. */
 export type Cue =
@@ -71,6 +74,10 @@ export interface Heard {
   readonly burning: number;
   /** A cook holds work with the extinguisher. */
   readonly spraying: boolean;
+  /** Customers waiting. */
+  readonly waiting: number;
+  /** How much of its patience the most impatient waiting customer has used up, 0 to 1. */
+  readonly urgency: number;
 }
 
 /** Takes the audible digest of a world. */
@@ -122,6 +129,8 @@ export function hear(world: World): Heard {
     cooking,
     burning,
     spraying: world.cooks.some((cook) => cook.working && cook.held?.kind === "extinguisher"),
+    waiting: world.orders.queue.length,
+    urgency: Math.max(0, ...world.orders.queue.map((order) => 1 - order.ticksLeft / order.patience)),
   };
 }
 
@@ -180,4 +189,50 @@ export function loopLevels(heard: Heard): LoopLevels {
     fire: Math.min(1, heard.burning / 2),
     spray: heard.spraying ? 1 : 0,
   };
+}
+
+/** The last seconds play at least this hard, enough to bring in every layer. */
+const FINALE = 0.9;
+
+/** How much the music gives, 0 to 1: each waiting customer, one running out of patience, fire, and the last seconds. */
+export function intensity(heard: Heard): number {
+  const load = heard.waiting / MAX_ORDERS;
+  // a customer is only worrying past half their patience
+  const impatience = Math.max(0, heard.urgency * 2 - 1);
+  const fire = Math.min(1, heard.burning / 2);
+  const level = 0.2 + 0.6 * load + 0.15 * impatience + 0.4 * fire;
+
+  return Math.min(1, heard.secondsLeft <= LAST_SECONDS ? Math.max(level, FINALE) : level);
+}
+
+/** The kitchen counts as busy from this intensity, and as calm below `CALM`. */
+const BUSY = 0.65;
+
+const CALM = 0.45;
+
+/** The kitchen leans this long one way before the DJ follows it. */
+const LEAN_TICKS = seconds(10);
+
+/** The DJ take the kitchen asks for: its own song, the busy "lift" or the last-seconds "peak". */
+export interface TakeChoice {
+  readonly take: "level" | Take;
+  /** The tick since which the kitchen has leaned away from the take; -1 while it does not. */
+  readonly leaning: number;
+}
+
+/** Every shift starts on its kitchen's own song. */
+export const FIRST_TAKE: TakeChoice = { take: "level", leaning: -1 };
+
+/** The take after `heard`: "lift" once the kitchen has been busy a while, back when it has been calm a while, "peak" at the end. */
+export function nextTake(choice: TakeChoice, heard: Heard): TakeChoice {
+  if (heard.secondsLeft <= LAST_SECONDS) return { take: "peak", leaning: -1 };
+  const level = intensity(heard);
+  const away = choice.take === "level" ? level >= BUSY : level < CALM;
+
+  if (!away) return { take: choice.take, leaning: -1 };
+  const leaning = choice.leaning < 0 ? heard.tick : choice.leaning;
+
+  if (heard.tick - leaning < LEAN_TICKS) return { take: choice.take, leaning };
+
+  return { take: choice.take === "level" ? "lift" : "level", leaning: -1 };
 }

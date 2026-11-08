@@ -183,6 +183,17 @@ export const SCENARIOS = {
       return world;
     },
   },
+  rush: {
+    description: "Four customers wait at once in the original shop and no more come: the kitchen at its busiest.",
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup);
+      world.orders.untilNext = Number.MAX_SAFE_INTEGER;
+
+      for (const id of ["classic", "durum", "veggie", "classic"]) addOrder(world.orders, recipe(id));
+
+      return world;
+    },
+  },
   "last-seconds": {
     description: "Ten seconds left in the shift, to see the end-of-round screen.",
     build: (seed, lineup?) => {

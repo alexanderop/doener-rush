@@ -7,8 +7,8 @@ import { run } from "../step.ts";
 import { SCENARIOS } from "../testing/scenarios.ts";
 import type { World } from "../world.ts";
 import { stationAt } from "../world.ts";
-import { cuesBetween, hear, loopLevels } from "./cues.ts";
-import type { Cue } from "./cues.ts";
+import { FIRST_TAKE, cuesBetween, hear, intensity, loopLevels, nextTake } from "./cues.ts";
+import type { Cue, TakeChoice } from "./cues.ts";
 
 /** The sounds the kitchen makes over `ticks` ticks of these intents. */
 function listen(world: World, ticks: number, intents: readonly PlayerInput[] = []): Cue[] {
@@ -98,5 +98,56 @@ describe("the sounds of the kitchen", () => {
   it("stays quiet when nothing changes", () => {
     const world = SCENARIOS.shift.build(1);
     expect(cuesBetween(hear(world), hear(world))).toEqual([]);
+  });
+});
+
+describe("how hard the music plays", () => {
+  const level = (world: World) => intensity(hear(world));
+
+  it("keeps a quiet kitchen to the bed and grows with every waiting customer", () => {
+    expect(level(SCENARIOS.shift.build(1))).toBeLessThan(0.25);
+    expect(level(SCENARIOS["ready-classic"].build(1))).toBeGreaterThan(level(SCENARIOS.shift.build(1)));
+    expect(level(SCENARIOS.rush.build(1))).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it("plays harder while customers run out of patience and while the kitchen burns", () => {
+    const rush = SCENARIOS.rush.build(1);
+    const fresh = level(rush);
+    run(rush, seconds(45));
+    expect(level(rush)).toBeGreaterThan(fresh);
+    expect(level(SCENARIOS["kitchen-fire"].build(1))).toBeGreaterThan(level(SCENARIOS.shift.build(1)) + 0.15);
+  });
+
+  it("brings in every layer in the last thirty seconds", () => {
+    expect(level(SCENARIOS["last-seconds"].build(1))).toBeGreaterThanOrEqual(0.85);
+  });
+});
+
+describe("the DJ take the kitchen asks for", () => {
+  /** The take after following the kitchen for `secs` seconds from `choice`. */
+  function follow(world: World, choice: TakeChoice, secs: number): TakeChoice {
+    let next = choice;
+
+    for (let s = 0; s < secs; s++) {
+      run(world, seconds(1));
+      next = nextTake(next, hear(world));
+    }
+
+    return next;
+  }
+
+  it("lifts after the kitchen has been busy for ten seconds, not before", () => {
+    expect(follow(SCENARIOS.rush.build(1), FIRST_TAKE, 9).take).toBe("level");
+    expect(follow(SCENARIOS.rush.build(1), FIRST_TAKE, 11).take).toBe("lift");
+  });
+
+  it("drops back to the kitchen's song after ten calm seconds", () => {
+    const lifted: TakeChoice = { take: "lift", leaning: -1 };
+    expect(follow(SCENARIOS.shift.build(1), lifted, 11).take).toBe("level");
+    expect(follow(SCENARIOS.rush.build(1), lifted, 11).take).toBe("lift");
+  });
+
+  it("peaks in the last thirty seconds", () => {
+    expect(nextTake(FIRST_TAKE, hear(SCENARIOS["last-seconds"].build(1))).take).toBe("peak");
   });
 });
