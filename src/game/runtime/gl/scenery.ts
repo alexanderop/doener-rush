@@ -25,7 +25,7 @@ const BACKDROPS = { street, harbor } as const satisfies Record<string, (world: W
 export type Scenery = keyof typeof BACKDROPS;
 
 /** Levels that do not stand on the street. */
-const SCENERY: Partial<Record<LevelId, Scenery>> = {};
+const SCENERY: Partial<Record<LevelId, Scenery>> = { hafen: "harbor" };
 
 function isScenery(name: string): name is Scenery {
   return Object.hasOwn(BACKDROPS, name);
