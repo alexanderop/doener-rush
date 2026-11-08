@@ -3,8 +3,8 @@ import type { Sight } from "../../features/bots/public.ts";
 import { IDLE, facingTile, fly, throwHeld, tilesUnder, walk } from "../../features/cooks/public.ts";
 import type { Cook, Intent, Thrown } from "../../features/cooks/public.ts";
 import { beltsMove, interact, isBurning, moveBelts, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
-import { ordersSnapshot, serve, stepOrders } from "../../features/orders/public.ts";
-import type { OrdersSnapshot } from "../../features/orders/public.ts";
+import { ordersSnapshot, seatAt, serve, stepOrders } from "../../features/orders/public.ts";
+import type { OrdersSnapshot, Seat } from "../../features/orders/public.ts";
 import type { Item, Station } from "../../features/kitchen/public.ts";
 import { TICK_RATE, seconds } from "../core/grid.ts";
 import { isClosing, stepBridge } from "./bridge.ts";
@@ -63,7 +63,8 @@ export function step(world: World, intents: readonly PlayerInput[]): void {
     if (station === null) return;
 
     if (intent.interact) {
-      cook.held = station.type === "pass" ? handOver(world, cook.held) : interact(station, cook.held);
+      const seat = seatAt(station);
+      cook.held = seat === null ? interact(station, cook.held) : handOver(world, cook.held, seat);
     } else if (intent.work) {
       cook.held = work(station, cook.held);
     }
@@ -202,10 +203,11 @@ function sightOf(world: World, me: Cook): Sight {
   };
 }
 
-function handOver(world: World, held: Item | null): Item | null {
+/** A cook hands what it holds to whoever waits at `seat`; the plate comes back dirty a while later. */
+function handOver(world: World, held: Item | null, seat: Seat): Item | null {
   if (held === null) return null;
 
-  if (!serve(world.orders, held, world.tick)) return held;
+  if (!serve(world.orders, held, world.tick, seat)) return held;
   world.platesDue.push(world.tick + PLATE_RETURN);
 
   return null;

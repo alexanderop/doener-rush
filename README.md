@@ -35,7 +35,7 @@ Each player picks a chef look on the home page with the arrows beside the pictur
 
 ## Levels and the save
 
-The home page picks one of eight kitchens. Each one opens once the kitchen before it has at least one star; the first is always open.
+The home page picks one of nine kitchens. Each one opens once the kitchen before it has at least one star; the first is always open.
 
 | # | Level | Id | What is new |
 | --- | --- | --- | --- |
@@ -47,8 +47,9 @@ The home page picks one of eight kitchens. Each one opens once the kitchen befor
 | 6 | Backstube | `backstube` | The bakery: knead dough in the mixer, top it, bake it in two ovens. Franzbrötchen, Mohnbrötchen and Brezel |
 | 7 | Fließband | `fliessband` | A thick wall splits kitchen and counter. One belt carries the döner to the front, one carries dirty plates back; the way around is long |
 | 8 | Hafenimbiss | `hafen` | A canal splits the kitchen. Two bridges stay up 12 s and sink for 7 s: throw bread and veg across the water |
+| 9 | Mit Bedienung | `bedienung` | No pass: guests sit at six numbered tables in a dining room behind a wall with one door. Carry each plate to its guest's table, or hand it through the wall |
 
-The levels are data in `src/game/runtime/levels.ts`: the floor plan (its legend is the comment on `Level`; the bakery adds `M` flour and `Y` butter crates, `Q` mixer, `E` oven, and the toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt; the moving kitchens add belts `>` `<` `^` `v`, water `~` and bridges `#`), the menu customers order from, and a pace on top of the crew's (customer gaps, patience, star scores). `levels.test.ts` proves every plan is playable (four start tiles, every station its menu needs, all reachable) and that two bots score in a full shift on each.
+The levels are data in `src/game/runtime/levels.ts`: the floor plan (its legend is the comment on `Level`; the bakery adds `M` flour and `Y` butter crates, `Q` mixer, `E` oven, and the toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt; the moving kitchens add belts `>` `<` `^` `v`, water `~` and bridges `#`; the dining room adds tables `A`), the menu customers order from, and a pace on top of the crew's (customer gaps, patience, star scores). `levels.test.ts` proves every plan is playable (four start tiles, every station its menu needs, all reachable) and that two bots score in a full shift on each.
 
 In the URL: `/play?level=<id>`; without it a shift plays Der Imbiss, so old links keep working. `?scenario=` plays the kitchen the scenario names (Der Imbiss for most) and is never saved.
 
@@ -63,13 +64,22 @@ Two things in a kitchen move on their own, both from the floor plan and both cou
 
 Bots path over a bridge only while it is up and not about to sink (unless they already stand on it), never wait on one, and pick döner up from belts but never load them.
 
+## Guests at tables
+
+A kitchen whose plan has tables (`A`) serves at them instead of over a pass; the floor plan decides, there is no flag. Tables are numbered in reading order from 1. The orders keep a `Seating` (`{ kind: "pass" }` or `{ kind: "tables", tables }`) and every order a `Seat` (`{ kind: "pass" }` or `{ kind: "table", table }`), both in `orders/model.ts`.
+
+- An arriving guest takes the lowest free table and keeps it until served or out of patience. While every table is taken, the next guest waits at the door: no order, and they sit down the tick a table frees. A full pass still turns the customer away.
+- `seatAt(station)` in `orders/simulation.ts` is the one answer to where a dish can go out: the pass, a table, or nowhere. The step, the bots (`servedAt`) and the view all ask it. Putting a plate down at a table hands it to that table's guest; a wrong dish there is refused like at the pass, and the toast says which table it belongs to.
+- The combo still counts the guest who has waited longest. The plate comes back dirty to the return hatch as at the pass.
+- The ticket shows the table number on the same yellow sign that stands on the table. The guest sits in the chair with a patience bar over the head, cheers when served and fumes off when the patience runs out.
+
 ## How a döner gets made
 
 1. Bread from the crate onto the contact grill (4 s; burns at 14 s, catches fire at 20 s).
 2. Shave meat off the spit. Only the side facing the heat cooks; a side left too long burns, then the spit catches fire.
 3. Chop veg on a board, then stock the prep trays: each holds 3 portions of one vegetable. Holding a döner at a tray adds a portion.
 4. Sauce from the bottles.
-5. Put it on a clean plate from the rack and hand it over the pass. The plate comes back dirty to the return hatch 7 s later; wash it at the sink.
+5. Put it on a clean plate from the rack and hand it over the pass, or put it down at the guest's table in a kitchen with a dining room. The plate comes back dirty to the return hatch 7 s later; wash it at the sink.
 6. Fire spreads to the neighbouring stations every 6 s. Grab the extinguisher and hold work at the fire for 1.2 s.
 
 ## How a pastry gets made
@@ -132,10 +142,10 @@ Feature boundaries are enforced by the `factory-architecture` oxlint plugin; the
 | --- | --- | --- |
 | Examples | `src/**/*.test.ts` | Chop, toast, burn, spit cooking and shaving, sauce, serve rules, walking and collision, a scripted cook making a Döner Pur from scratch, bots running whole shifts and baking in the Backstube (`runtime/bots.test.ts`), every level playable (`runtime/levels.test.ts`), belts, bridges and throws over the canal (`runtime/moving.test.ts`, `runtime/bridge.test.ts`), the save (`persistence/progress.test.ts`) |
 | Properties | `src/game/runtime/step.test.ts` | Random two-player input never puts a cook inside a station, and replays the same round |
-| Browser | `pnpm e2e` | Real keyboard input and HUD: walking, dashing, a stubbed gamepad walking, serving at the pass, putting out a fire, the end-of-shift card, a star on level 1 opening level 2, a star in the Großküche opening the Backstube. Runs one worker: headless WebGL renders on the CPU |
+| Browser | `pnpm e2e` | Real keyboard input and HUD: walking, dashing, a stubbed gamepad walking, serving at the pass, a plate carried to its guest's table, putting out a fire, the end-of-shift card, a star on level 1 opening level 2, a star in the Großküche opening the Backstube. Runs one worker: headless WebGL renders on the CPU |
 | Lint rules | `tools/oxlint/**/*.test.ts` | The architecture and coding standard rules themselves |
 
 ### Driving the game as an agent
 
-1. `pnpm dev`, then open `http://localhost:3000/play?level=<id>&humans=0&bots=2` for a level, or `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `catch`, `backstube`, `belt`, `bridge`, `canal-throw`, `rush`, `last-seconds`). A named scenario skips the recipe card and the countdown; plain `/play` has them.
+1. `pnpm dev`, then open `http://localhost:3000/play?level=<id>&humans=0&bots=2` for a level, or `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `catch`, `backstube`, `belt`, `bridge`, `canal-throw`, `dining-room`, `rush`, `last-seconds`). A named scenario skips the recipe card and the countdown; plain `/play` has them.
 2. In the console or with `agent-browser eval`: `__game.step(ticks, [intent1, intent2])` runs ticks with intents `{ dx, dy, interact, work, dash, throw }`, `__game.snapshot()` returns what the HUD shows, `__game.world()` the live state, `__game.music()` what the music plays (after a key press unlocks audio).

@@ -50,6 +50,18 @@ Then("no ticket is waiting", async ({ page }) => {
   await expect(page.getByText("Keine Bestellungen")).toBeVisible();
 });
 
+Then("the tickets name the tables {int} and {int}", async ({ page }, a: number, b: number) => {
+  const rail = page.getByRole("list", { name: "Bestellungen" });
+  await expect(rail.getByRole("img", { name: `Tisch ${a}`, exact: true })).toBeVisible();
+  await expect(rail.getByRole("img", { name: `Tisch ${b}`, exact: true })).toBeVisible();
+});
+
+Then("only the ticket for table {int} is waiting", async ({ page }, table: number) => {
+  const rail = page.getByRole("list", { name: "Bestellungen" });
+  await expect(rail.getByRole("img", { name: /^Tisch \d+$/ })).toHaveCount(1);
+  await expect(rail.getByRole("img", { name: `Tisch ${table}`, exact: true })).toBeVisible();
+});
+
 Then("cook {int} has moved right", async ({ page }, id: number) => {
   const before = start.get(page);
   const after = await cookAt(page, id);

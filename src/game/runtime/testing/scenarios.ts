@@ -12,7 +12,7 @@ import { newWorld } from "../world.ts";
 
 /**
  * A named starting state for tests, e2e features and `?scenario=` in the browser. Only `shift` plays in the level it
- * is given; `backstube`, `belt`, `bridge` and `canal-throw` set up their own kitchen, the others the original shop,
+ * is given; `backstube`, `belt`, `bridge`, `canal-throw` and `dining-room` set up their own kitchen, the others the original shop,
  * whose tiles they name.
  */
 export interface Scenario {
@@ -215,6 +215,23 @@ export const SCENARIOS = {
       place(unloader, 9, 3, { dx: -1, dy: 0 });
 
       if (loader !== undefined) loader.held = { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: [] };
+
+      return world;
+    },
+  },
+  "dining-room": {
+    description: "Mit Bedienung: a guest at table 1 wants a Döner Pur, one at table 2 a Döner Classic; cook 1 stands at table 2 holding a finished Classic.",
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup, levelOf("bedienung"));
+      world.orders.untilNext = Number.MAX_SAFE_INTEGER;
+      addOrder(world.orders, recipe("pur"));
+      addOrder(world.orders, recipe("classic"));
+      const waiter = world.cooks[0];
+      place(waiter, 16, 3, { dx: 0, dy: -1 });
+
+      if (waiter !== undefined) {
+        waiter.held = { kind: "plate", plate: { state: "full", food: { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: ["meat", "lettuce", "onion", "garlic"] } } };
+      }
 
       return world;
     },

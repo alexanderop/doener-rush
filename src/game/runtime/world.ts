@@ -5,8 +5,8 @@ import { newCook } from "../../features/cooks/public.ts";
 import type { Cook, Landing, Thrown } from "../../features/cooks/public.ts";
 import { OUT, START_PLATES, newSpit } from "../../features/kitchen/public.ts";
 import type { CrateGoods, Sauce, Station, Topping } from "../../features/kitchen/public.ts";
-import { RECIPES, combinePace, newOrders, paceFor } from "../../features/orders/public.ts";
-import type { OrdersState } from "../../features/orders/public.ts";
+import { PASS, RECIPES, combinePace, newOrders, paceFor } from "../../features/orders/public.ts";
+import type { OrdersState, Seating } from "../../features/orders/public.ts";
 import { isUp, newBridge } from "./bridge.ts";
 import type { Bridges } from "./bridge.ts";
 import { DEFAULT_LEVEL } from "./levels.ts";
@@ -77,9 +77,12 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
   const water = new Set<number>();
   const bridgeTiles = new Set<number>();
   const starts: Tile[] = [];
+  const tables: number[] = [];
   plan.forEach((row, y) => {
     [...row].forEach((ch, x) => {
-      const station = stationFor(ch, x, y);
+      const station = stationFor(ch, x, y, tables.length + 1);
+
+      if (station?.type === "table") tables.push(station.table);
 
       if (station !== null) stations.set(y * width + x, station);
 
@@ -108,14 +111,18 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
   });
 
   const control = [0, 1].map((b) => lineup.drivers.findIndex((d) => d.kind === "keys" && d.binding === b));
+  // a kitchen with tables serves its guests there; one without serves everyone over the pass
+  const seating: Seating = tables.length > 0 ? { kind: "tables", tables } : PASS;
+  const pace = combinePace(paceFor(crewOf(lineup)), level.pace);
 
   return {
     seed, tick: 0, rng: seed, width, height, stations, water, bridges, cooks, thrown: [], landings: [], drivers: lineup.drivers, control, parked: new Set(), bots,
-    orders: newOrders(combinePace(paceFor(crewOf(lineup)), level.pace), RECIPES.filter((r) => level.menu.includes(r.id))), platesDue: [], endTick, rules: NORMAL_RULES, tutorial: null,
+    orders: newOrders(pace, RECIPES.filter((r) => level.menu.includes(r.id)), seating), platesDue: [], endTick, rules: NORMAL_RULES, tutorial: null,
   };
 }
 
-function stationFor(ch: string, x: number, y: number): Station | null {
+/** The station a plan character stands for; `table` is the number the next table gets. */
+function stationFor(ch: string, x: number, y: number, table: number): Station | null {
   const at = { x, y, fire: OUT };
   const goods = CRATES.get(ch);
   const dir = BELTS.get(ch);
@@ -136,6 +143,7 @@ function stationFor(ch: string, x: number, y: number): Station | null {
     case "Q": return { ...at, type: "mixer", item: null };
     case "S": return { ...at, type: "spit", item: null, spit: newSpit() };
     case "P": return { ...at, type: "pass", item: null };
+    case "A": return { ...at, type: "table", table, item: null };
     case "X": return { ...at, type: "bin", item: null };
     case "t": return { ...at, type: "tray", item: null, veg: null, portions: 0 };
     case "D": return { ...at, type: "rack", item: null, plates: START_PLATES };

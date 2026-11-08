@@ -4,7 +4,7 @@ import { seconds } from "../core/grid.ts";
 import type { BridgeSchedule } from "./bridge.ts";
 
 /** The kitchens of the campaign, in the order they unlock. */
-export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "grosskueche" | "backstube" | "fliessband" | "hafen";
+export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "grosskueche" | "backstube" | "fliessband" | "hafen" | "bedienung";
 
 /**
  * One kitchen of the campaign: its floor plan, what customers may order there, and how busy it is on top of the
@@ -16,7 +16,8 @@ export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "gr
  * sauces `g` garlic, `h` herb, `s` spicy · `t` prep tray · `D` plate rack · `U` dirty-plate return ·
  * `N` sink · `F` counter with the fire extinguisher · `1`–`4` where the cooks start (floor) ·
  * bakery: crates `M` flour, `Y` butter · `Q` mixer · `E` oven · toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt ·
- * conveyor belts `>` `<` `^` `v`, running the way they point · `~` water · `#` a bridge over the water, up and down by `bridge`.
+ * conveyor belts `>` `<` `^` `v`, running the way they point · `~` water · `#` a bridge over the water, up and down by `bridge` ·
+ * `A` a table in the dining room, numbered in reading order. A kitchen with tables seats its guests there and has no pass.
  */
 export interface Level {
   readonly id: LevelId;
@@ -171,6 +172,24 @@ export const LEVELS: readonly Level[] = [
     menu: ["classic", "durum", "veggie", "pur"],
     pace: { arrival: 1.15, patience: 1.2, stars: 0.8 },
     bridge: { up: seconds(12), down: seconds(7) },
+  },
+  {
+    id: "bedienung",
+    name: "Mit Bedienung",
+    note: "Die Gäste sitzen im Gastraum. Bringt jeden Teller an den richtigen Tisch.",
+    plan: [
+      "=S=R=B=W=R=========",
+      "K.1.......=.......=",
+      "K.........=..A..A.=",
+      "L..=ttt=..=.......=",
+      "T............A..A.=",
+      "O.........=.......=",
+      "X..===....=..A..A.=",
+      "F.3.....2.=...4...=",
+      "=D=N=ghs=U=========",
+    ],
+    menu: ["classic", "durum", "veggie", "pur"],
+    pace: { arrival: 1, patience: 1.15, stars: 0.95 },
   },
 ];
 

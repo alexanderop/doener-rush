@@ -121,8 +121,8 @@ export function addTo(target: Item, extra: Item): boolean {
 
 /**
  * The cook presses interact at a station while holding `held`. Changes the station and returns
- * what the cook holds afterwards. A burning station refuses everything. The pass is handled by
- * the runtime, which knows the orders.
+ * what the cook holds afterwards. A burning station refuses everything. The pass and the tables
+ * are handled by the runtime, which knows the orders.
  */
 export function interact(station: Station, held: Item | null): Item | null {
   if (isBurning(station.fire)) return held;
@@ -133,6 +133,7 @@ export function interact(station: Station, held: Item | null): Item | null {
     case "bin":
       return bin(held);
     case "pass":
+    case "table":
     case "spit":
       return held;
     case "sauce": {

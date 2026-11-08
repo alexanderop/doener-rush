@@ -7,7 +7,7 @@ import { lineupOf } from "./lineup.ts";
 import { run, snapshot } from "./step.ts";
 import { newWorld } from "./world.ts";
 
-const LEGEND = new Set("=SRKPXBWLTOghstDUNF1234.MYQEzml><^v~#");
+const LEGEND = new Set("=SRKPXBWLTOghstDUNF1234.MYQEzml><^v~#A");
 
 /** Tiles that need no floor next to them: counters, belts and water. */
 const PASSIVE = new Set("=><^v~");
@@ -29,8 +29,8 @@ const SOURCE = {
   lye: "l",
 } as const satisfies Record<Base | Filling, string>;
 
-/** Stations every kitchen needs whatever the menu: pass, plates, washing up, bin and extinguisher. */
-const ALWAYS = ["P", "D", "U", "N", "X", "F"];
+/** Stations every kitchen needs whatever the menu: plates, washing up, bin and extinguisher. */
+const ALWAYS = ["D", "U", "N", "X", "F"];
 
 /** Where a cook can stand, counting a bridge as up. */
 const isFloor = (ch: string | undefined) => ch === "." || ch === "#" || (ch !== undefined && ch >= "1" && ch <= "4");
@@ -63,6 +63,8 @@ function problems(level: Level): string[] {
   if (recipes.length !== level.menu.length || recipes.length === 0) found.push("menu names unknown recipes or none");
 
   if (tiles.some((t) => t.ch === "#") !== (level.bridge !== undefined)) found.push("bridges and a bridge schedule come together");
+
+  if (tiles.some((t) => t.ch === "P") === tiles.some((t) => t.ch === "A")) found.push("serves either over a pass or at tables");
   const needed = new Set([...ALWAYS, ...recipes.flatMap((r) => [r.base, ...r.fillings].flatMap((part) => [...SOURCE[part]]))]);
 
   for (const ch of needed) {

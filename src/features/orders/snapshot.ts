@@ -10,6 +10,8 @@ export interface TicketView {
   readonly icon: string;
   readonly base: Base;
   readonly fillings: readonly Filling[];
+  /** The table the guest sits at, or null for a customer at the pass. */
+  readonly table: number | null;
   /** Patience left, 1 when the customer just arrived. */
   readonly patience: number;
 }
@@ -44,6 +46,7 @@ export function ordersSnapshot(state: OrdersState): OrdersSnapshot {
       icon: o.recipe.icon,
       base: o.recipe.base,
       fillings: o.recipe.fillings,
+      table: o.seat.kind === "table" ? o.seat.table : null,
       patience: o.ticksLeft / o.patience,
     })),
     score: state.score,

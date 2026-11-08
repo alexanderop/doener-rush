@@ -72,6 +72,8 @@ export type Station = Burnable & (
   | { readonly type: "mixer"; item: Item | null }
   | { readonly type: "spit"; item: null; readonly spit: Spit }
   | { readonly type: "pass"; item: null }
+  /** A table in the dining room that seats one guest; `table` is the number on it, counted in floor-plan order from 1. */
+  | { readonly type: "table"; readonly table: number; item: null }
   | { readonly type: "bin"; item: null }
   | { readonly type: "tray"; item: null; veg: Veg | null; portions: number }
   | { readonly type: "rack"; item: null; plates: number }

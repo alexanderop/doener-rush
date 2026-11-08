@@ -1,7 +1,7 @@
 import { Arbitrary, Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { CHOPPED, CHOP_TICKS, DOUSE_TICKS, EMPTY, HEAT, RAW, SHAVE_TICKS, WHOLE, toastAt } from "../../features/kitchen/public.ts";
-import { ROUND_TICKS } from "../../features/orders/public.ts";
+import { PASS, ROUND_TICKS } from "../../features/orders/public.ts";
 import { find, hold, press, toss, walkTo, wait } from "./testing/drive.ts";
 import { SCENARIOS } from "./testing/scenarios.ts";
 import { isOver, run, snapshot, step } from "./step.ts";
@@ -41,7 +41,7 @@ describe("given a shift with one customer who wants a Döner Pur", () => {
     world.orders.untilNext = Number.MAX_SAFE_INTEGER;
     world.orders.queue.length = 0;
     const pur = { id: "pur", name: "Döner Pur", icon: "🥙", base: "bread", fillings: ["meat", "garlic"], points: 20, patience: ROUND_TICKS } as const;
-    world.orders.queue.push({ id: 99, recipe: pur, patience: ROUND_TICKS, ticksLeft: ROUND_TICKS });
+    world.orders.queue.push({ id: 99, recipe: pur, seat: PASS, patience: ROUND_TICKS, ticksLeft: ROUND_TICKS });
     makeDoenerPur(world);
     expect(world.cooks[0]?.held).toBeNull();
     expect(world.orders.served).toBe(1);
@@ -54,6 +54,25 @@ describe("given the ready-classic scenario", () => {
     const world = SCENARIOS["ready-classic"].build(1);
     press(world, 1);
     expect(snapshot(world).orders.served).toBe(1);
+  });
+});
+
+describe("given the dining-room scenario", () => {
+  it("serves the guest at table 2 when cook 1 puts the plate down there, and the plate comes back dirty", () => {
+    const world = SCENARIOS["dining-room"].build(1);
+    press(world, 1);
+    expect(world.cooks[0]?.held).toBeNull();
+    expect(snapshot(world).orders.tickets.map((t) => t.table)).toEqual([1]);
+    wait(world, 7 * 60);
+    expect(find(world, (s) => s.type === "return")).toMatchObject({ plates: 1 });
+  });
+
+  it("keeps the plate when cook 1 tries the wrong table", () => {
+    const world = SCENARIOS["dining-room"].build(1);
+    walkTo(world, 1, find(world, (s) => s.type === "table" && s.table === 1));
+    press(world, 1);
+    expect(world.cooks[0]?.held).toMatchObject({ kind: "plate" });
+    expect(snapshot(world).orders.events.at(-1)).toMatchObject({ type: "wrong", reason: "Das gehört an Tisch 2." });
   });
 });
 

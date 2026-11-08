@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { DIRTY, HEAT, toastAt } from "../kitchen/public.ts";
 import type { Item } from "../kitchen/public.ts";
-import { MAX_COMBO, MAX_TIP, MISSED_PENALTY, RECIPES, paceFor } from "./prototypes.ts";
+import { MAX_COMBO, MAX_TIP, MISSED_PENALTY, NORMAL_PACE, RECIPES, paceFor } from "./prototypes.ts";
 import { ordersSnapshot } from "./snapshot.ts";
-import { addOrder, defect, newOrders, serve, stepOrders } from "./simulation.ts";
+import { PASS, addOrder, defect, newOrders, serve, stepOrders } from "./simulation.ts";
 
 const classic = RECIPES.find((r) => r.id === "classic")!;
 
@@ -23,7 +23,7 @@ describe("given a customer who wants a Döner Classic", () => {
     addOrder(state, classic);
     expect(serve(state, classicDoener(0), 0)).toBe(false);
     expect(defect(classicDoener(0))).toBe("Brot nicht getoastet.");
-    expect(state.events.at(-1)?.event).toEqual({ type: "wrong", reason: "Brot nicht getoastet." });
+    expect(state.events.at(-1)?.event).toEqual({ type: "wrong", seat: PASS, reason: "Brot nicht getoastet." });
   });
 
   it("refuses a döner handed over without a plate, and a dirty plate", () => {
@@ -215,5 +215,85 @@ describe("given a solo shift", () => {
     const [normalOne = 0, , normalThree = 0] = ordersSnapshot(newOrders()).targets;
     expect(one).toBeLessThan(normalOne);
     expect(three).toBeLessThan(normalThree);
+  });
+});
+
+describe("given a dining room with two tables", () => {
+  const pur = RECIPES.find((r) => r.id === "pur")!;
+  const purDoener: Item = { kind: "plate", plate: { state: "full", food: { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: ["meat", "garlic"] } } };
+  const tableOne = { kind: "table", table: 1 } as const;
+  const tableTwo = { kind: "table", table: 2 } as const;
+  const dining = () => newOrders(NORMAL_PACE, [classic], { kind: "tables", tables: [1, 2] });
+
+  it("seats each arriving guest at the lowest free table and puts the number on the ticket", () => {
+    const state = dining();
+    stepOrders(state, 0, 1);
+    state.untilNext = 1;
+    stepOrders(state, 1, 1);
+    expect(state.queue.map((o) => o.seat)).toEqual([tableOne, tableTwo]);
+    expect(ordersSnapshot(state).tickets.map((t) => t.table)).toEqual([1, 2]);
+  });
+
+  it("keeps the next guest waiting at the door while every table is taken, and seats them the tick one frees", () => {
+    const state = dining();
+    addOrder(state, classic);
+    addOrder(state, pur);
+    state.untilNext = 1;
+
+    for (let tick = 0; tick < 30; tick++) stepOrders(state, tick, 1);
+    expect(state.queue).toHaveLength(2);
+    expect(state.nextId).toBe(3);
+
+    expect(serve(state, classicDoener(), 30, tableOne)).toBe(true);
+    stepOrders(state, 30, 1);
+    expect(state.queue.map((o) => [o.recipe.id, o.seat])).toEqual([["pur", tableTwo], ["classic", tableOne]]);
+  });
+
+  it("frees the table of a guest who gives up waiting", () => {
+    const state = dining();
+    state.untilNext = Number.MAX_SAFE_INTEGER;
+    addOrder(state, classic);
+    addOrder(state, pur);
+    state.queue[0]!.ticksLeft = 1;
+    stepOrders(state, 0, 1);
+    expect(state.missed).toBe(1);
+    expect(addOrder(state, classic).seat).toEqual(tableOne);
+  });
+
+  it("serves a dish at its guest's table and pays for it", () => {
+    const state = dining();
+    addOrder(state, pur);
+    addOrder(state, classic);
+    expect(serve(state, classicDoener(), 0, tableTwo)).toBe(true);
+    expect(state.score).toBe(classic.points + MAX_TIP);
+    expect(state.events.at(-1)?.event).toMatchObject({ type: "served", seat: tableTwo });
+    expect(state.queue.map((o) => o.seat)).toEqual([tableOne]);
+  });
+
+  it("refuses a dish at the wrong table and says where it belongs", () => {
+    const state = dining();
+    addOrder(state, pur);
+    addOrder(state, classic);
+    expect(serve(state, classicDoener(), 0, tableOne)).toBe(false);
+    expect(state.events.at(-1)?.event).toEqual({ type: "wrong", seat: tableOne, reason: "Das gehört an Tisch 2." });
+    expect(state.queue).toHaveLength(2);
+  });
+
+  it("refuses a dish at a table nobody sits at, and over the pass", () => {
+    const state = dining();
+    addOrder(state, classic);
+    expect(serve(state, classicDoener(), 0, tableTwo)).toBe(false);
+    expect(state.events.at(-1)?.event).toMatchObject({ reason: "An dem Tisch sitzt niemand." });
+    expect(serve(state, classicDoener(), 0, PASS)).toBe(false);
+  });
+
+  it("raises the combo for serving the guest who has waited longest", () => {
+    const state = dining();
+    addOrder(state, pur);
+    addOrder(state, classic);
+    serve(state, purDoener, 0, tableOne);
+    expect(ordersSnapshot(state).combo).toBe(2);
+    serve(state, classicDoener(), 0, tableTwo);
+    expect(state.events.at(-1)?.event).toMatchObject({ tip: MAX_TIP * 2, combo: 2 });
   });
 });

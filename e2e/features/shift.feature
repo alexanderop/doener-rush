@@ -7,6 +7,13 @@ Feature: A shift in the döner shop
     Then the score is more than 30
     And no ticket is waiting
 
+  Scenario: A plate goes to the table of the guest who ordered it
+    Given the scenario "dining-room"
+    Then the tickets name the tables 1 and 2
+    When player 1 presses "e"
+    Then the score is more than 30
+    And only the ticket for table 1 is waiting
+
   Scenario: Walking with the keyboard moves the cook
     Given the scenario "shift"
     When player 1 holds "d" for 500 ms

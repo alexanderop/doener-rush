@@ -17,10 +17,21 @@ export interface Recipe {
   readonly patience: number;
 }
 
-/** A customer waiting at the counter for one recipe. */
+/** Where a customer waits for the food: at the pass, or seated at a numbered table in the dining room. */
+export type Seat = { readonly kind: "pass" } | { readonly kind: "table"; readonly table: number };
+
+/**
+ * How a shop seats its customers, decided by its floor plan: everyone at the pass, or one guest per table. A full
+ * pass turns the next customer away; a full dining room keeps them at the door until a table frees.
+ */
+export type Seating = { readonly kind: "pass" } | { readonly kind: "tables"; readonly tables: readonly number[] };
+
+/** A customer waiting for one recipe. */
 export interface Order {
   readonly id: number;
   readonly recipe: Recipe;
+  /** Where the dish has to go. */
+  readonly seat: Seat;
   /** Ticks this customer waits in all: the recipe's patience at the shift's pace. */
   readonly patience: number;
   ticksLeft: number;
@@ -28,9 +39,9 @@ export interface Order {
 
 /** Something that happened to the orders this tick, for HUD feedback. */
 export type OrderEvent =
-  | { readonly type: "served"; readonly orderId: number; readonly points: number; readonly tip: number; readonly combo: number }
+  | { readonly type: "served"; readonly orderId: number; readonly seat: Seat; readonly points: number; readonly tip: number; readonly combo: number }
   | { readonly type: "expired"; readonly orderId: number; readonly penalty: number }
-  | { readonly type: "wrong"; readonly reason: string };
+  | { readonly type: "wrong"; readonly seat: Seat; readonly reason: string };
 
 /** All order state of one round. */
 export interface OrdersState {
@@ -38,6 +49,7 @@ export interface OrdersState {
   pace: Pace;
   /** What customers may order this shift; never empty. */
   readonly menu: readonly Recipe[];
+  readonly seating: Seating;
   readonly queue: Order[];
   nextId: number;
   /** Ticks until the next customer arrives. */

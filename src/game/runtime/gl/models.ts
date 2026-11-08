@@ -8,7 +8,7 @@ import type { Base, Bowl, CrateGoods, Dry, Filling, Item, Sauce, Station, Toppin
 import { BURNT, COOKED, HEAT, ICONS, foodOn, heatTicks, isChopped } from "../../../features/kitchen/public.ts";
 import type { Accessory, Headwear, Look } from "../looks.ts";
 import {
-  ball, blob, box, cyl, emojiBadge, geo, hash, label, mapped, mat, meatMap, rbox, ring, solid, steel, woodMap,
+  ball, blob, box, canvasTexture, cyl, emojiBadge, geo, hash, label, mapped, mat, meatMap, rbox, ring, solid, steel, woodMap,
 } from "./parts.ts";
 
 /** Height of a counter top. */
@@ -1176,6 +1176,109 @@ function beltModel(s: Extract<Station, { type: "belt" }>): THREE.Group {
   return g;
 }
 
+/** Where a guest sits at a table, from the tile's centre: on the chair behind it, lifted onto the seat. */
+const GUEST_SEAT = { z: -0.3, lift: 0.17 } as const;
+
+/** How high the top of a dining table is. */
+const TABLE_TOP = 0.64;
+
+/** A red and white checked plastic tablecloth. */
+function checkerMap(): THREE.Texture {
+  return canvasTexture("checker", 64, 64, (g) => {
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        g.fillStyle = (x + y) % 2 === 0 ? "#d8322a" : "#fbf4ea";
+        g.fillRect(x * 16, y * 16, 16, 16);
+      }
+    }
+  });
+}
+
+/** The table's number on a round yellow sign, big enough to read from the camera. */
+function tableNumber(n: number): THREE.Texture {
+  return canvasTexture(`table-no|${n}`, 128, 128, (g) => {
+    g.fillStyle = "#ffd23f";
+    g.beginPath();
+    g.arc(64, 64, 58, 0, Math.PI * 2);
+    g.fill();
+    g.lineWidth = 10;
+    g.strokeStyle = "#2a1a10";
+    g.stroke();
+    g.fillStyle = "#2a1a10";
+    g.font = "900 84px system-ui, sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText(String(n), 64, 70);
+  });
+}
+
+/**
+ * A table in the dining room: a checked cloth on one steel leg, a tulip in a glass, chili flakes and a napkin box, the
+ * table's number on a stand, and a white plastic chair behind it where the guest sits.
+ */
+function tableModel(s: Extract<Station, { type: "table" }>): THREE.Group {
+  const g = new THREE.Group();
+  const leg = steel("#9aa1a9");
+  const foot = cyl(0.16, 0.19, 0.03, leg, 18);
+  foot.position.set(0, 0.02, 0.08);
+  g.add(foot);
+  const post = cyl(0.045, 0.045, TABLE_TOP, leg, 10);
+  post.position.set(0, TABLE_TOP / 2, 0.08);
+  g.add(post);
+  const top = rbox(0.86, 0.05, 0.64, 0.02, mat("#7a4a2c"), TABLE_TOP);
+  top.position.z = 0.08;
+  g.add(top);
+  const cloth = rbox(0.9, 0.025, 0.68, 0.01, mapped("#ffffff", checkerMap(), 0.6), TABLE_TOP + 0.035);
+  cloth.position.z = 0.08;
+  g.add(cloth);
+
+  const glass = cyl(0.04, 0.035, 0.12, mat("#bfe3ea", "#000000", 0.15), 10);
+  glass.position.set(-0.3, TABLE_TOP + 0.11, -0.05);
+  g.add(glass);
+  const stem = cyl(0.008, 0.008, 0.14, mat("#3f8a3a"), 5);
+  stem.position.set(-0.3, TABLE_TOP + 0.22, -0.05);
+  g.add(stem);
+  const tulip = ball(0.045, mat("#e8392b", "#000000", 0.5), 8);
+  tulip.scale.set(1, 1.3, 1);
+  tulip.position.set(-0.3, TABLE_TOP + 0.3, -0.05);
+  g.add(tulip);
+  const chili = cyl(0.03, 0.03, 0.08, mat("#f4ead8"), 8);
+  chili.position.set(-0.18, TABLE_TOP + 0.09, -0.12);
+  g.add(chili);
+  const flakes = cyl(0.026, 0.026, 0.04, mat("#c0301c"), 8);
+  flakes.position.set(-0.18, TABLE_TOP + 0.075, -0.12);
+  g.add(flakes);
+  const napkins = box(0.12, 0.08, 0.06, mat("#f7f1e6"), TABLE_TOP + 0.09);
+  napkins.position.set(0.12, TABLE_TOP + 0.09, -0.14);
+  g.add(napkins);
+
+  const stand = box(0.03, 0.14, 0.03, steel(), TABLE_TOP + 0.1);
+  stand.position.set(0.3, TABLE_TOP + 0.1, 0.2);
+  g.add(stand);
+  const sign = label(tableNumber(s.table), 0.3);
+  sign.position.set(0.3, TABLE_TOP + 0.3, 0.22);
+  sign.rotation.x = -0.45;
+  g.add(sign);
+
+  // the monobloc chair the guest sits on
+  const plastic = mat("#f1efe8", "#000000", 0.45);
+  const seat = rbox(0.44, 0.05, 0.36, 0.02, plastic, 0.42);
+  seat.position.z = GUEST_SEAT.z;
+  g.add(seat);
+  const back = rbox(0.44, 0.38, 0.05, 0.03, plastic, 0.64);
+  back.position.z = GUEST_SEAT.z - 0.18;
+  back.rotation.x = -0.12;
+  g.add(back);
+
+  for (const [x, z] of [[-0.18, -0.15], [0.18, -0.15], [-0.18, -0.45], [0.18, -0.45]] as const) {
+    const chairLeg = cyl(0.025, 0.03, 0.42, plastic, 6);
+    chairLeg.position.set(x, 0.21, z);
+    g.add(chairLeg);
+  }
+
+  return g;
+}
+
 /** How far above the counter top an item sits, for stations with something under it. */
 const SLOT_LIFT = new Map<Station["type"], number>([["toaster", 0.15], ["board", 0.065], ["pass", 0.04], ["mixer", 0.06], ["belt", 0.04]]);
 
@@ -1192,6 +1295,7 @@ export function stationModel(s: Station): THREE.Group {
     case "sauce": g = sauceModel(s, s.sauce); break;
     case "spit": g = spitModel(s); break;
     case "pass": g = passModel(s); break;
+    case "table": g = tableModel(s); break;
     case "bin": g = binModel(); break;
     case "tray": g = trayModel(s); break;
     case "rack": g = rackModel(s); break;

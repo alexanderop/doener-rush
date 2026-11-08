@@ -3,6 +3,7 @@ import type { Tile } from "../../../game/core/grid.ts";
 import type { Cook } from "../../cooks/public.ts";
 import { DRY, FAMILY, HEAT, TRAY_PORTIONS, accepts, foodOn, heatTicks, isBaked, isBurning, isBurntBase, isChopped } from "../../kitchen/public.ts";
 import type { Filling, Item, Station, Veg } from "../../kitchen/public.ts";
+import { servedAt } from "../../orders/public.ts";
 import type { Order, Recipe } from "../../orders/public.ts";
 import type { BotMind, Plan, Sight, Step } from "../model.ts";
 import { stepsFrom } from "./path.ts";
@@ -208,16 +209,17 @@ function anyFits(ctx: Ctx, doener: Doener): boolean {
   return ctx.sight.orders.some((o) => fits(doener, o.recipe));
 }
 
-/** Holding a döner: toast it, fill it in a fixed order, plate it, hand it over. */
+/** Holding a döner: toast it, fill it in a fixed order, plate it, carry it to where its customer waits. */
 const build: Rule = (ctx) => {
   const held = ctx.me.held;
   const doener = doenerIn(held);
 
   if (held === null || doener === null) return null;
   const order = orderFor(ctx, doener);
-  const recipe = order?.recipe ?? ctx.sight.orders.find((o) => fits(doener, o.recipe))?.recipe;
+  const target = order ?? ctx.sight.orders.find((o) => fits(doener, o.recipe));
 
-  if (recipe === undefined) return null;
+  if (target === undefined) return null;
+  const recipe = target.recipe;
   const task = order === null ? null : `order:${order.id}`;
   const claim = order?.id ?? null;
   const next = missing(doener, recipe)[0];
@@ -233,9 +235,9 @@ const build: Rule = (ctx) => {
 
   if (next === undefined) {
     if (held.kind === "plate") {
-      const pass = nearest(ctx, (s) => s.type === "pass");
+      const counter = nearest(ctx, (s) => servedAt(target, s));
 
-      return pass === null ? null : plan(ctx, task, press(pass), claim);
+      return counter === null ? null : plan(ctx, task, press(counter), claim);
     }
 
     return park(ctx, task, claim);

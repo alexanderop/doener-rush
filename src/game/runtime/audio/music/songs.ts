@@ -341,6 +341,36 @@ const BACKINGS: Readonly<Record<LevelId, Backing>> = {
     beat: "k . . h s . k . . h s . k . h .",
     fill: "k . . h s . k . . k s s s s s s",
   },
+  // the dining room: a walking bass, chords on the off-beats like a café trio, the counter-melody between the tables
+  bedienung: {
+    tone: { leadDuty: 0.5, arpDuty: 0.25, wave: WAVES.sine, bassCutoff: 550, padCutoff: 1600 },
+    bass: {
+      E: "E2 - - - G#2 - - - B2 - - - C3 - B2 -",
+      F: "F2 - - - A2 - - - C3 - - - B2 - A2 -",
+      Am: "A1 - - - C2 - - - E2 - - - F2 - E2 -",
+      Dm: "D2 - - - F2 - - - A2 - - - G#2 - A2 -",
+    },
+    pad: {
+      E: ". . . . E3:47 - . . . . . . E3:47 - . E3:47",
+      F: ". . . . F3:47 - . . . . . . F3:47 - . F3:47",
+      Am: ". . . . A3:37 - . . . . . . A3:37 - . A3:37",
+      Dm: ". . . . D3:37 - . . . . . . D3:37 - . D3:37",
+    },
+    arp: {
+      E: "E5:47 . . . . . . . E5:47 . . . . . E5:47 .",
+      F: "F5:47 . . . . . . . F5:47 . . . . . F5:47 .",
+      Am: "A4:37 . . . . . . . A4:37 . . . . . A4:37 .",
+      Dm: "D5:37 . . . . . . . D5:37 . . . . . D5:37 .",
+    },
+    counter: {
+      E: ". . . . . . . . B4 - G#4 - E4 - - -",
+      F: ". . . . . . . . C5 - A4 - F4 - - -",
+      Am: ". . . . . . . . E5 - C5 - A4 - - -",
+      Dm: ". . . . . . . . F4 - A4 - D5 - - -",
+    },
+    beat: "k . h . s . h h k . h . s . h o",
+    fill: "k . h . s . h h k . s . s s o s",
+  },
 };
 
 /** The leads, each with its theme: the takes are not versions of the main theme's melody. */
