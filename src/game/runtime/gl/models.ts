@@ -1123,6 +1123,7 @@ function sinkModel(s: Station): THREE.Group {
   g.add(basin);
   const water = rbox(0.5, 0.01, 0.44, 0.02, mat("#9fd3f0", "#0a2030", 0.1), TOP + 0.005);
   water.position.x = -0.1;
+  water.name = "water";
   g.add(water);
   const tap = cyl(0.025, 0.025, 0.3, steel(), 8);
   tap.position.set(-0.1, TOP + 0.15, -0.36);

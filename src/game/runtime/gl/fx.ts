@@ -6,7 +6,7 @@
 import * as THREE from "three";
 
 // the kinds of burst the scene can ask for
-type Burst = "steam" | "smoke" | "dust" | "bits" | "sparks" | "confetti" | "pop" | "flame" | "foam";
+type Burst = "steam" | "smoke" | "dust" | "bits" | "sparks" | "confetti" | "pop" | "flame" | "foam" | "drip" | "splash";
 
 type Pool = "puff" | "bit" | "spark";
 
@@ -32,6 +32,8 @@ const SPECS = new Map<Burst, Spec>([
   ["pop", { pool: "puff", colors: ["#ffffff"], life: 0.35, size: 0.06, grow: 2.6, spread: 1.6, up: 0.4, gravity: 0, drag: 6 }],
   ["bits", { pool: "bit", colors: ["#6fc23f"], life: 0.7, size: 0.045, grow: 0.3, spread: 1.4, up: 2.2, gravity: -7, drag: 0.6 }],
   ["sparks", { pool: "spark", colors: ["#ffd166", "#ff9a3c", "#fff1c1"], life: 0.45, size: 0.03, grow: 0.2, spread: 2, up: 1.8, gravity: -5, drag: 1 }],
+  ["drip", { pool: "bit", colors: ["#e8a33a", "#d38b2a", "#f2c14e"], life: 0.35, size: 0.045, grow: 0.7, spread: 0.08, up: -0.3, gravity: -6, drag: 0.2 }],
+  ["splash", { pool: "bit", colors: ["#7cc4ee", "#a8dcf7", "#ffffff"], life: 0.55, size: 0.045, grow: 0.4, spread: 1.1, up: 2, gravity: -7, drag: 0.8 }],
   ["confetti", { pool: "bit", colors: ["#e94f37", "#f6ae2d", "#3f88c5", "#44bba4", "#ef7fb0", "#ffd166"], life: 1.5, size: 0.08, grow: 0.6, spread: 2.2, up: 3.6, gravity: -6, drag: 0.8 }],
 ]);
 

@@ -36,7 +36,7 @@ const TRANSIT_SECONDS = 0.12;
 const TRANSIT_ARC = 0.22;
 
 /** Parts the scene moves; everything else in the kitchen and street is baked. */
-const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "bird", "whisk"]);
+const ANIMATED: ReadonlySet<string> = new Set(["slot", "stock", "knife", "lid", "cone", "lamp", "glow", "heat", "bird", "whisk", "water"]);
 
 /** Veg colours for the bits that fly off the board. */
 const BIT_COLOR = new Map<string, string>([["lettuce", "#6fc23f"], ["tomato", "#e8392b"], ["onion", "#c886b5"]]);
@@ -51,10 +51,14 @@ interface StationParts {
   readonly glow: THREE.MeshStandardMaterial | null;
   readonly sides: readonly (THREE.MeshStandardMaterial | null)[];
   readonly heat: THREE.PointLight | null;
+  readonly water: THREE.Object3D;
+  /** Where the sink's water rests when nobody scrubs. */
+  readonly waterRest: number;
 }
 
 function partsOf(group: THREE.Group): StationParts {
   const heat = group.getObjectByName("heat");
+  const water = named(group, "water");
 
   return {
     knife: named(group, "knife"),
@@ -65,6 +69,8 @@ function partsOf(group: THREE.Group): StationParts {
     glow: standardOf(group, "glow"),
     sides: [0, 1, 2, 3].map((side) => standardOf(group, `side${side}`)),
     heat: heat instanceof THREE.PointLight ? heat : null,
+    water,
+    waterRest: water.position.y,
   };
 }
 
@@ -91,6 +97,8 @@ interface StationView {
   done: boolean;
   shave: number;
   emitAcc: number;
+  /** Phase of the heater's done lamp, which blinks faster toward the burn. */
+  blink: number;
   /** Items on their way here from a hand; the slot stays hidden until the last one lands. */
   incoming: number;
 }
@@ -295,7 +303,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     scene.add(bar.group, bubble, tick, warning, danger);
     stations.push({
       station, group, parts: partsOf(group), slot: named(group, "slot"), stock: named(group, "stock"), stockKey: "", bar, bubble, tick, warning, danger, centre,
-      key: "", pop: 9, tickAge: 9, done: false, shave: 0, emitAcc: 0, incoming: 0,
+      key: "", pop: 9, tickAge: 9, done: false, shave: 0, emitAcc: 0, blink: 0, incoming: 0,
     });
   }
 
@@ -846,7 +854,7 @@ function every(view: StationView, rate: number, dt: number): number {
   return n;
 }
 
-/** Rebuilds the plates and tray portions a station keeps when their count changes; the sink's scrub bar. */
+/** Rebuilds the plates and tray portions a station keeps when their count changes. */
 function syncStock(view: StationView, frame: Frame): void {
   const { station, centre } = view;
   let key = "";
@@ -855,20 +863,7 @@ function syncStock(view: StationView, frame: Frame): void {
   else if (station.type === "rack" || station.type === "return") key = String(station.plates);
   else if (station.type === "sink") key = `${station.dirty}:${station.clean}`;
 
-  if (key === view.stockKey) {
-    if (station.type === "sink" && station.scrub > 0) {
-      showBar(view.bar, station.scrub / WASH_TICKS, "#5fb8f0");
-
-      if (frame.worked) {
-        const n = every(view, 10, frame.dt);
-
-        if (n > 0) frame.fx.emit("foam", spot.set(centre.x - 0.1, TOP + 0.1, centre.z), n);
-      }
-    }
-
-    return;
-  }
-
+  if (key === view.stockKey) return;
   view.stockKey = key;
   view.stock.clear();
 
@@ -893,6 +888,223 @@ function syncStock(view: StationView, frame: Frame): void {
 
   frame.fx.emit("pop", spot.set(centre.x, TOP + 0.15, centre.z), 4);
 }
+
+/** How one kind of station moves while it works; true when it should warn that something is about to burn. */
+type Working = (view: StationView, frame: Frame) => boolean;
+
+/** The knife chops up and down, the veg flattens under each cut and bits fly off. */
+function workBoard(view: StationView, frame: Frame): boolean {
+  const { station, bar, centre, parts } = view;
+  const item = station.item;
+  const { knife } = parts;
+
+  if (station.type !== "board" || item?.kind !== "veg" || isChopped(item)) {
+    knife.position.set(0.14, TOP + 0.08, -0.2);
+    knife.rotation.z = 0;
+
+    return false;
+  }
+
+  if (item.chop > 0) showBar(bar, item.chop / CHOP_TICKS, "#5fd068");
+
+  if (!frame.worked) {
+    knife.position.set(0.14, TOP + 0.08, -0.2);
+    knife.rotation.z = 0;
+
+    return false;
+  }
+
+  const swing = Math.sin(frame.t * 22);
+  // the blade comes down at the near edge of the veg, where the camera sees it
+  knife.position.set(0.16, TOP + 0.12 + Math.abs(swing) * 0.3, 0.12);
+  knife.rotation.z = swing * 0.35;
+  const cut = (1 - Math.abs(swing)) ** 3;
+  view.slot.scale.y *= 1 - cut * 0.22;
+  view.slot.scale.x *= 1 + cut * 0.1;
+  view.slot.scale.z *= 1 + cut * 0.1;
+  const n = every(view, 14, frame.dt);
+
+  if (n > 0) frame.fx.emit("bits", spot.set(centre.x, TOP + 0.15, centre.z), n, BIT_COLOR.get(item.veg));
+
+  return false;
+}
+
+/** The whisk spins and wanders, the bowl rattles under it and flour dusts up. */
+function workMixer(view: StationView, frame: Frame): boolean {
+  const { station, bar, centre, parts } = view;
+  const { whisk, lamp } = parts;
+  const bowl = station.item?.kind === "bowl" ? station.item : null;
+  const kneading = bowl !== null && bowl.knead > 0 && station.fire === 0;
+  lamp?.emissive.set(kneading ? "#3cff4a" : "#000000");
+  view.slot.rotation.z = kneading ? Math.sin(frame.t * 31) * 0.05 : 0;
+
+  if (!kneading) return false;
+  showBar(bar, bowl.knead / MIX_TICKS, "#5fd068");
+  whisk.rotation.y += frame.dt * 18;
+  whisk.position.x = Math.sin(frame.t * 9) * 0.03;
+  const n = every(view, 6, frame.dt);
+
+  if (n > 0) frame.fx.emit("dust", spot.set(centre.x + Math.sin(frame.t * 11) * 0.12, TOP + 0.3, centre.z + 0.05), n);
+
+  return false;
+}
+
+/**
+ * The grill sizzles under its lid and the oven window glows warmer as the bake goes on. Once done, the
+ * lamp blinks, faster the closer the burn comes; burnt, it turns red and smokes.
+ */
+function workHeater(view: StationView, frame: Frame): boolean {
+  const { station, bar, centre, parts } = view;
+
+  if (station.type !== "toaster") return false;
+  const { t, dt, fx } = frame;
+  const item = station.item;
+  const toast = item?.kind === "base" ? item.toast : 0;
+  const { done, burnt } = HEAT[item?.kind === "base" ? item.base : "bread"];
+  const { lid, lamp } = parts;
+  const { open, shut, vent } = HEATER_LOOK[station.look];
+  const oven = station.look === "oven";
+  lid.rotation.x += ((item === null ? open : shut) - lid.rotation.x) * Math.min(1, dt * 12);
+
+  if (toast > 0 && toast < done) {
+    const p = toast / done;
+    showBar(bar, p, "#5fd068");
+    lamp?.emissive.set("#ff9a1a");
+
+    if (lamp !== null) lamp.emissiveIntensity = oven ? 0.4 + p * 0.9 + Math.sin(t * 3) * 0.15 : 1;
+
+    if (!oven) lid.rotation.x += Math.sin(t * 41) * 0.012;
+    const n = every(view, 7, dt);
+
+    if (n > 0) fx.emit("steam", spot.set(centre.x + Math.sin(t * 9) * 0.3, vent, centre.z + 0.1), n);
+
+    return false;
+  }
+
+  if (toast >= done && toast < burnt) {
+    const over = (toast - done) / (burnt - done);
+    showBar(bar, over, "#e94f37");
+    view.blink = (view.blink + dt * (2 + over * 9)) % 1;
+    lamp?.emissive.set(view.blink < 0.5 ? "#3cff4a" : "#1a6020");
+
+    if (lamp !== null) lamp.emissiveIntensity = oven ? 1.3 : 1;
+
+    if (!oven) lid.rotation.x += Math.sin(t * 47) * 0.02 * over;
+    const n = every(view, 4 + over * 10, dt);
+
+    if (n > 0) fx.emit(over > 0.6 ? "smoke" : "steam", spot.set(centre.x + Math.sin(t * 7) * 0.3, vent, centre.z + 0.1), n);
+
+    return true;
+  }
+
+  if (toast >= burnt) {
+    lamp?.emissive.set("#ff1a1a");
+    const n = every(view, 5, dt);
+
+    if (n > 0) fx.emit("smoke", spot.set(centre.x, vent, centre.z), n);
+
+    return false;
+  }
+
+  lamp?.emissive.set("#000000");
+
+  return false;
+}
+
+/** The cone turns, its burners flicker and fat drips sizzling into the tray; shaving throws meat and sparks. */
+function workSpit(view: StationView, frame: Frame): boolean {
+  const { station, bar, centre, parts } = view;
+
+  if (station.type !== "spit") return false;
+  const { t, dt, fx } = frame;
+  const { spit } = station;
+  // the side facing the heat turns toward the heater at the back (-z)
+  const { cone, sides, glow, heat } = parts;
+  cone.rotation.y = Math.PI - spit.angle * (Math.PI / 2);
+  sides.forEach((m, side) => m?.color.set(meatColor(spit.sides[side] ?? 0)));
+  const flicker = 0.85 + Math.sin(t * 7) * 0.12 + Math.sin(t * 23) * 0.05;
+
+  if (glow !== null) glow.emissiveIntensity = flicker;
+
+  if (heat !== null) heat.intensity = 2.2 * flicker;
+  view.bubble.position.set(centre.x, TOP + 1.55, centre.z + 0.1);
+  spitBubble(view.bubble, spit.sides, BUBBLE * 1.3);
+  const warn = Math.max(...spit.sides) >= BURNT - 0.2;
+
+  if (spit.shave > 0) showBar(bar, spit.shave / SHAVE_TICKS, "#ffd166");
+
+  // a finished portion: the shave counter falls back after being nearly full
+  if (spit.shave === 0 && view.shave >= SHAVE_TICKS - 3) view.tickAge = 0;
+  view.shave = spit.shave;
+
+  if (frame.worked) {
+    const n = every(view, 18, dt);
+
+    if (n > 0) {
+      spot.set(centre.x, TOP + 0.5 + Math.sin(t * 13) * 0.25, centre.z + 0.4);
+      fx.emit("bits", spot, n, "#a95f2c");
+      fx.emit("sparks", spot, 1);
+    }
+
+    return warn;
+  }
+
+  if (spit.sides.some((s) => s >= BURNT)) {
+    const n = every(view, 4, dt);
+
+    if (n > 0) fx.emit("smoke", spot.set(centre.x, TOP + 1.2, centre.z), n);
+
+    return warn;
+  }
+
+  const n = every(view, spit.sides.some((s) => s >= COOKED) ? 5 : 2, dt);
+
+  if (n > 0) {
+    // drips run off the camera side of the cone, so they read in front of it
+    spot.set(centre.x + Math.sin(t * 2.3) * 0.2, TOP + 0.3, centre.z + 0.42);
+    fx.emit("drip", spot, n);
+    spot.y = TOP + 0.06;
+    fx.emit("sparks", spot, 1, "#ffb347");
+  }
+
+  return warn;
+}
+
+/** Water sloshes in the basin while a cook scrubs, with foam and splashes. */
+function workSink(view: StationView, frame: Frame): boolean {
+  const { station, bar, centre, parts } = view;
+  const { water, waterRest } = parts;
+
+  if (station.type !== "sink") return false;
+  const { t, dt } = frame;
+  const scrubbing = station.scrub > 0 && frame.worked;
+  const slosh = scrubbing ? 1 : 0;
+  water.rotation.z += (Math.sin(t * 9) * 0.07 * slosh - water.rotation.z) * Math.min(1, dt * 10);
+  water.rotation.x += (Math.cos(t * 7) * 0.06 * slosh - water.rotation.x) * Math.min(1, dt * 10);
+  water.position.y = waterRest + Math.sin(t * 14) * 0.012 * slosh;
+
+  if (station.scrub > 0) showBar(bar, station.scrub / WASH_TICKS, "#5fb8f0");
+
+  if (!scrubbing) return false;
+  const n = every(view, 14, dt);
+
+  if (n > 0) {
+    spot.set(centre.x - 0.1, TOP + 0.1, centre.z);
+    frame.fx.emit("foam", spot, Math.ceil(n / 2));
+    frame.fx.emit("splash", spot, n);
+  }
+
+  return false;
+}
+
+/** Each station type that moves while it works, and how. */
+const WORKING = new Map<Station["type"], Working>([
+  ["board", workBoard],
+  ["mixer", workMixer],
+  ["toaster", workHeater],
+  ["spit", workSpit],
+  ["sink", workSink],
+]);
 
 function syncStation(view: StationView, frame: Frame): void {
   const { station, bar, centre } = view;
@@ -924,115 +1136,7 @@ function syncStation(view: StationView, frame: Frame): void {
   view.done = done;
   bar.group.visible = false;
   bar.group.quaternion.copy(frame.camera.quaternion);
-  let warn = false;
-
-  if (station.type === "board") {
-    const { knife } = view.parts;
-    const item = station.item;
-
-    if (item?.kind === "veg" && item.chop > 0 && !isChopped(item)) showBar(bar, item.chop / CHOP_TICKS, "#5fd068");
-
-    if (frame.worked && item?.kind === "veg" && !isChopped(item)) {
-      knife.position.set(0.02, TOP + 0.1 + Math.abs(Math.sin(t * 22)) * 0.14, 0.02);
-      knife.rotation.z = Math.sin(t * 22) * 0.25;
-      const n = every(view, 14, dt);
-
-      if (n > 0) fx.emit("bits", spot.set(centre.x, TOP + 0.15, centre.z), n, BIT_COLOR.get(item.veg));
-    } else {
-      knife.position.set(0.14, TOP + 0.08, -0.2);
-      knife.rotation.z = 0;
-    }
-  }
-
-  if (station.type === "mixer") {
-    const { whisk, lamp } = view.parts;
-    const bowl = station.item?.kind === "bowl" ? station.item : null;
-    const kneading = bowl !== null && bowl.knead > 0 && station.fire === 0;
-    lamp?.emissive.set(kneading ? "#3cff4a" : "#000000");
-
-    if (kneading) {
-      showBar(bar, bowl.knead / MIX_TICKS, "#5fd068");
-      whisk.rotation.y += dt * 18;
-      whisk.position.x = Math.sin(t * 9) * 0.03;
-      const n = every(view, 6, dt);
-
-      if (n > 0) fx.emit("dust", spot.set(centre.x + Math.sin(t * 11) * 0.12, TOP + 0.3, centre.z + 0.05), n);
-    }
-  }
-
-  if (station.type === "toaster") {
-    const item = station.item;
-    const toast = item?.kind === "base" ? item.toast : 0;
-    const { done, burnt } = HEAT[item?.kind === "base" ? item.base : "bread"];
-    const { lid, lamp } = view.parts;
-    const { open, shut, vent } = HEATER_LOOK[station.look];
-    lid.rotation.x += ((item === null ? open : shut) - lid.rotation.x) * Math.min(1, dt * 12);
-
-    if (toast > 0 && toast < done) {
-      showBar(bar, toast / done, "#5fd068");
-      lamp?.emissive.set("#ff9a1a");
-      const n = every(view, 7, dt);
-
-      if (n > 0) fx.emit("steam", spot.set(centre.x + (Math.sin(t * 9) * 0.3), vent, centre.z + 0.1), n);
-    } else if (toast >= done && toast < burnt) {
-      const over = (toast - done) / (burnt - done);
-      showBar(bar, over, "#e94f37");
-      lamp?.emissive.set(Math.sin(t * 10) > 0 ? "#3cff4a" : "#1a6020");
-      warn = true;
-      const n = every(view, 4 + over * 10, dt);
-
-      if (n > 0) fx.emit(over > 0.6 ? "smoke" : "steam", spot.set(centre.x + (Math.sin(t * 7) * 0.3), vent, centre.z + 0.1), n);
-    } else if (toast >= burnt) {
-      lamp?.emissive.set("#ff1a1a");
-      const n = every(view, 5, dt);
-
-      if (n > 0) fx.emit("smoke", spot.set(centre.x, vent, centre.z), n);
-    } else {
-      lamp?.emissive.set("#000000");
-    }
-  }
-
-  if (station.type === "spit") {
-    const { spit } = station;
-    // the side facing the heat turns toward the heater at the back (-z)
-    const { cone, sides, glow, heat } = view.parts;
-    cone.rotation.y = Math.PI - spit.angle * (Math.PI / 2);
-    sides.forEach((m, side) => m?.color.set(meatColor(spit.sides[side] ?? 0)));
-    const flicker = 0.85 + Math.sin(t * 7) * 0.12 + Math.sin(t * 23) * 0.05;
-
-    if (glow !== null) glow.emissiveIntensity = flicker;
-
-    if (heat !== null) heat.intensity = 2.2 * flicker;
-    view.bubble.position.set(centre.x, TOP + 1.55, centre.z + 0.1);
-    spitBubble(view.bubble, spit.sides, BUBBLE * 1.3);
-    const hottest = Math.max(...spit.sides);
-    warn = hottest >= BURNT - 0.2;
-
-    if (spit.shave > 0) showBar(bar, spit.shave / SHAVE_TICKS, "#ffd166");
-
-    if (frame.worked) {
-      const n = every(view, 18, dt);
-
-      if (n > 0) {
-        spot.set(centre.x, TOP + 0.5 + Math.sin(t * 13) * 0.25, centre.z + 0.4);
-        fx.emit("bits", spot, n, "#a95f2c");
-        fx.emit("sparks", spot, 1);
-      }
-    } else if (spit.sides.some((s) => s >= BURNT)) {
-      const n = every(view, 4, dt);
-
-      if (n > 0) fx.emit("smoke", spot.set(centre.x, TOP + 1.2, centre.z), n);
-    } else if (spit.sides.some((s) => s >= COOKED)) {
-      // the odd drip of fat sizzling into the tray
-      const n = every(view, 1.5, dt);
-
-      if (n > 0) fx.emit("sparks", spot.set(centre.x + Math.sin(t) * 0.25, TOP + 0.12, centre.z + 0.2), n, "#ffb347");
-    }
-
-    // a finished portion: the shave counter falls back after being nearly full
-    if (spit.shave === 0 && view.shave >= SHAVE_TICKS - 3) view.tickAge = 0;
-    view.shave = spit.shave;
-  }
+  let warn = WORKING.get(station.type)?.(view, frame) ?? false;
 
   if (station.fire > 0) {
     warn = true;
