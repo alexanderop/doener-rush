@@ -5,7 +5,7 @@
  */
 import * as THREE from "three";
 import type { Base, Bowl, CrateGoods, Dry, Filling, Item, Sauce, Station, Topping } from "../../../features/kitchen/public.ts";
-import { BURNT, COOKED, HEAT, ICONS, isChopped } from "../../../features/kitchen/public.ts";
+import { BURNT, COOKED, HEAT, ICONS, foodOn, heatTicks, isChopped } from "../../../features/kitchen/public.ts";
 import type { Accessory, Headwear, Look } from "../looks.ts";
 import {
   ball, blob, box, cyl, emojiBadge, geo, hash, label, mapped, mat, meatMap, rbox, ring, solid, steel, woodMap,
@@ -592,11 +592,11 @@ export function itemModel(item: Item): THREE.Group {
     case "meat":
       return meatPortion(item.burnt);
     case "base":
-      return doener(item.base, item.toast, item.fillings);
+      return doener(item.base, heatTicks(item.toast), item.fillings);
     case "bowl":
       return bowlModel(item);
     case "plate":
-      return platedModel(item.dirty, item.food);
+      return platedModel(item.plate.state === "dirty", foodOn(item.plate));
     case "extinguisher":
       return extinguisherModel();
   }
@@ -609,9 +609,9 @@ export function itemKey(item: Item | null): string {
   switch (item.kind) {
     case "veg": return `veg:${item.veg}:${isChopped(item)}`;
     case "meat": return `meat:${item.burnt}`;
-    case "base": return `base:${item.base}:${Math.min(item.toast, HEAT[item.base].burnt) >> 4}:${item.fillings.join(",")}`;
+    case "base": return `base:${item.base}:${Math.min(heatTicks(item.toast), HEAT[item.base].burnt) >> 4}:${item.fillings.join(",")}`;
     case "bowl": return `bowl:${item.contents.join(",")}:${item.knead > 0}`;
-    case "plate": return `plate:${item.dirty}:${itemKey(item.food)}`;
+    case "plate": return `plate:${item.plate.state}:${itemKey(foodOn(item.plate))}`;
     case "extinguisher": return "extinguisher";
   }
 }

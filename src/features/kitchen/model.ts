@@ -1,3 +1,9 @@
+import type { Cut } from "./machines/cut.ts";
+import type { Fire } from "./machines/fire.ts";
+import type { Plate } from "./machines/plate.ts";
+import type { Side } from "./machines/side.ts";
+import type { Toast } from "./machines/toast.ts";
+
 /** Vegetables that come raw from a crate and must be chopped on a board. */
 export type Veg = "lettuce" | "tomato" | "onion";
 
@@ -26,32 +32,31 @@ export interface Bowl {
   knead: number;
 }
 
-/** A dish under construction: its base, how long it was on the heat, and what is in or on it. */
+/** A dish under construction: its base, where it is on the heat, and what is in or on it. */
 export interface Doener {
   readonly kind: "base";
   readonly base: Base;
-  toast: number;
+  toast: Toast;
   readonly fillings: Filling[];
 }
 
 /** Something a cook can carry or a station can hold. */
 export type Item =
-  | { readonly kind: "veg"; readonly veg: Veg; chop: number }
+  | { readonly kind: "veg"; readonly veg: Veg; cut: Cut }
   | { readonly kind: "meat"; readonly burnt: boolean }
   | Doener
   | Bowl
-  | { readonly kind: "plate"; dirty: boolean; food: Doener | null }
+  | { readonly kind: "plate"; plate: Plate }
   | { readonly kind: "extinguisher" };
 
 /** What a crate hands out. */
 export type CrateGoods = Veg | Bread | Dry;
 
-/** Fire on a station: how long it has burned (0 = not burning) and how long it has been sprayed. */
+/** Where a station stands, and its fire. */
 interface Burnable {
   readonly x: number;
   readonly y: number;
-  fire: number;
-  douse: number;
+  fire: Fire;
 }
 
 /** A tile of the kitchen that is not floor. Each kind reacts to interact and work differently. */
@@ -76,7 +81,7 @@ export interface Spit {
   /** Turns of the spit; the integer part mod 4 is the side facing the heat. */
   angle: number;
   /** Cook level per side: under COOKED is raw, from BURNT on it is burnt. */
-  readonly sides: [number, number, number, number];
+  readonly sides: [Side, Side, Side, Side];
   /** Ticks of shaving so far toward the next portion. */
   shave: number;
 }

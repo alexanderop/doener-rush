@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { THROW_TICKS, facingTile } from "../../../features/cooks/public.ts";
 import type { Landing, Thrown } from "../../../features/cooks/public.ts";
 import type { Station } from "../../../features/kitchen/public.ts";
-import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, HEAT, MIX_TICKS, SHAVE_TICKS, WASH_TICKS, isChopped } from "../../../features/kitchen/public.ts";
+import { BURNT, CHOPPED, CHOP_TICKS, DIRTY, HEAT, MIX_TICKS, RAW, SHAVE_TICKS, WASH_TICKS, cutTicks, dousing, isBurning, isChopped } from "../../../features/kitchen/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
 import { LOOKS } from "../looks.ts";
@@ -669,7 +669,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     view.dust -= dt;
     at.set(cook.x - Math.sin(view.yaw) * 0.25, 0.06, cook.y - Math.cos(view.yaw) * 0.25);
 
-    if (cook.dash > 0) fx.emit("dust", at, 3);
+    if (cook.dash.state === "dashing") fx.emit("dust", at, 3);
 
     if (cook.working && cook.held?.kind === "extinguisher") {
       for (let k = 1; k <= 3; k++) {
@@ -692,9 +692,9 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     const chop = cook.working ? Math.abs(Math.sin(t * 22)) * 0.05 : 0;
     const squish = view.squash < 0.6 ? -Math.exp(-view.squash * 9) * Math.cos(view.squash * 24) * 0.2 : 0;
     // a dash leans the cook forward along the run; work leans it over the station, nodding with each stroke
-    const lean = cook.dash > 0 ? 0.25 : cook.working ? 0.18 + chop : 0;
+    const lean = cook.dash.state === "dashing" ? 0.25 : cook.working ? 0.18 + chop : 0;
     view.lean += (lean - view.lean) * Math.min(1, dt * 20);
-    view.still = walking || cook.working || cook.dash > 0 ? 0 : view.still + dt;
+    view.still = walking || cook.working || cook.dash.state === "dashing" ? 0 : view.still + dt;
 
     if (view.still > IDLE_SECONDS && view.gesture === null) {
       view.gesture = { kind: view.fidgets % 2 === 0 ? "look" : "stretch", age: 0 };
@@ -808,7 +808,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
         const b = w.cooks[j];
 
         if (j === i || b === undefined) continue;
-        const moving = view.walking || cooks[j]?.walking === true || a.dash > 0 || b.dash > 0;
+        const moving = view.walking || cooks[j]?.walking === true || a.dash.state === "dashing" || b.dash.state === "dashing";
 
         if (moving && Math.hypot(a.x - b.x, a.y - b.y) < BUMP_DISTANCE) touching = true;
       }
@@ -934,7 +934,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     let burning: StationView | undefined;
 
     for (const view of stations) {
-      if (view.station.fire > 0) {
+      if (isBurning(view.station.fire)) {
         burning = view;
         break;
       }
@@ -1000,7 +1000,7 @@ function finished(station: Station): boolean {
 
   if (station.type === "board") return item?.kind === "veg" && isChopped(item);
 
-  if (station.type === "toaster") return item?.kind === "base" && item.toast >= HEAT[item.base].done;
+  if (station.type === "toaster") return item?.kind === "base" && (item.toast.state === "done" || item.toast.state === "burnt");
 
   return station.type === "mixer" && item?.kind === "base";
 }
@@ -1047,7 +1047,7 @@ function syncStock(view: StationView, frame: Frame): void {
   if (station.type === "tray") {
     view.stock.add(trayStock(station.veg, station.portions));
     view.bubble.position.set(centre.x, TOP + 0.5, centre.z);
-    setBubble(view.bubble, station.veg === null ? null : { kind: "veg", veg: station.veg, chop: CHOP_TICKS }, BUBBLE);
+    setBubble(view.bubble, station.veg === null ? null : { kind: "veg", veg: station.veg, cut: CHOPPED }, BUBBLE);
   } else if (station.type === "rack" || station.type === "return") {
     const stack = plateStack(station.plates, station.type === "return");
     stack.position.y = TOP + 0.02;
@@ -1060,7 +1060,7 @@ function syncStock(view: StationView, frame: Frame): void {
     clean.scale.setScalar(0.8);
     view.stock.add(dirty, clean);
     view.bubble.position.set(centre.x, TOP + 0.5, centre.z);
-    setBubble(view.bubble, station.dirty > 0 ? { kind: "plate", dirty: true, food: null } : null, BUBBLE);
+    setBubble(view.bubble, station.dirty > 0 ? { kind: "plate", plate: DIRTY } : null, BUBBLE);
   }
 
   frame.fx.emit("pop", spot.set(centre.x, TOP + 0.15, centre.z), 4);
@@ -1082,7 +1082,7 @@ function workBoard(view: StationView, frame: Frame): boolean {
     return false;
   }
 
-  if (item.chop > 0) showBar(bar, item.chop / CHOP_TICKS, "#5fd068");
+  if (item.cut.state !== "whole") showBar(bar, cutTicks(item.cut) / CHOP_TICKS, "#5fd068");
 
   if (!frame.worked) {
     knife.position.set(0.14, TOP + 0.08, -0.2);
@@ -1111,7 +1111,7 @@ function workMixer(view: StationView, frame: Frame): boolean {
   const { station, bar, centre, parts } = view;
   const { whisk, lamp } = parts;
   const bowl = station.item?.kind === "bowl" ? station.item : null;
-  const kneading = bowl !== null && bowl.knead > 0 && station.fire === 0;
+  const kneading = bowl !== null && bowl.knead > 0 && !isBurning(station.fire);
   lamp?.emissive.set(kneading ? "#3cff4a" : "#000000");
   view.slot.rotation.z = kneading ? Math.sin(frame.t * 31) * 0.05 : 0;
 
@@ -1136,15 +1136,15 @@ function workHeater(view: StationView, frame: Frame): boolean {
   if (station.type !== "toaster") return false;
   const { t, dt, fx } = frame;
   const item = station.item;
-  const toast = item?.kind === "base" ? item.toast : 0;
+  const toast = item?.kind === "base" ? item.toast : RAW;
   const { done, burnt } = HEAT[item?.kind === "base" ? item.base : "bread"];
   const { lid, lamp } = parts;
   const { open, shut, vent } = HEATER_LOOK[station.look];
   const oven = station.look === "oven";
   lid.rotation.x += ((item === null ? open : shut) - lid.rotation.x) * Math.min(1, dt * 12);
 
-  if (toast > 0 && toast < done) {
-    const p = toast / done;
+  if (toast.state === "toasting") {
+    const p = toast.ticks / done;
     showBar(bar, p, "#5fd068");
     lamp?.emissive.set("#ff9a1a");
 
@@ -1158,8 +1158,8 @@ function workHeater(view: StationView, frame: Frame): boolean {
     return false;
   }
 
-  if (toast >= done && toast < burnt) {
-    const over = (toast - done) / (burnt - done);
+  if (toast.state === "done") {
+    const over = (toast.ticks - done) / (burnt - done);
     showBar(bar, over, "#e94f37");
     view.blink = (view.blink + dt * (2 + over * 9)) % 1;
     lamp?.emissive.set(view.blink < 0.5 ? "#3cff4a" : "#1a6020");
@@ -1174,7 +1174,7 @@ function workHeater(view: StationView, frame: Frame): boolean {
     return true;
   }
 
-  if (toast >= burnt) {
+  if (toast.state === "burnt") {
     lamp?.emissive.set("#ff1a1a");
     const n = every(view, 5, dt);
 
@@ -1198,15 +1198,16 @@ function workSpit(view: StationView, frame: Frame): boolean {
   // the side facing the heat turns toward the heater at the back (-z)
   const { cone, sides, glow, heat } = parts;
   cone.rotation.y = Math.PI - spit.angle * (Math.PI / 2);
-  sides.forEach((m, side) => m?.color.set(meatColor(spit.sides[side] ?? 0)));
+  sides.forEach((m, side) => m?.color.set(meatColor(spit.sides[side]?.level ?? 0)));
   const flicker = 0.85 + Math.sin(t * 7) * 0.12 + Math.sin(t * 23) * 0.05;
 
   if (glow !== null) glow.emissiveIntensity = flicker;
 
   if (heat !== null) heat.intensity = 2.2 * flicker;
   view.bubble.position.set(centre.x, TOP + 1.55, centre.z + 0.1);
-  spitBubble(view.bubble, spit.sides, BUBBLE * 1.3);
-  const warn = Math.max(...spit.sides) >= BURNT - 0.2;
+  const levels = spit.sides.map((s) => s.level);
+  spitBubble(view.bubble, levels, BUBBLE * 1.3);
+  const warn = Math.max(...levels) >= BURNT - 0.2;
 
   if (spit.shave > 0) showBar(bar, spit.shave / SHAVE_TICKS, "#ffd166");
 
@@ -1226,7 +1227,7 @@ function workSpit(view: StationView, frame: Frame): boolean {
     return warn;
   }
 
-  if (spit.sides.some((s) => s >= BURNT)) {
+  if (spit.sides.some((s) => s.state === "burnt")) {
     const n = every(view, 4, dt);
 
     if (n > 0) fx.emit("smoke", spot.set(centre.x, TOP + 1.2, centre.z), n);
@@ -1234,7 +1235,7 @@ function workSpit(view: StationView, frame: Frame): boolean {
     return warn;
   }
 
-  const n = every(view, spit.sides.some((s) => s >= COOKED) ? 5 : 2, dt);
+  const n = every(view, spit.sides.some((s) => s.state !== "raw") ? 5 : 2, dt);
 
   if (n > 0) {
     // drips run off the camera side of the cone, so they read in front of it
@@ -1315,7 +1316,7 @@ function syncStation(view: StationView, frame: Frame): void {
   bar.group.quaternion.copy(frame.camera.quaternion);
   let warn = WORKING.get(station.type)?.(view, frame) ?? false;
 
-  if (station.fire > 0) {
+  if (isBurning(station.fire)) {
     warn = true;
     const n = every(view, 30, dt);
 
@@ -1326,7 +1327,7 @@ function syncStation(view: StationView, frame: Frame): void {
       if (Math.sin(t * 5) > 0.6) fx.emit("smoke", spot.set(centre.x, TOP + 0.9, centre.z), 1);
     }
 
-    if (station.douse > 0) showBar(bar, station.douse / DOUSE_TICKS, "#5fb8f0");
+    if (dousing(station.fire) > 0) showBar(bar, dousing(station.fire), "#5fb8f0");
   }
 
   view.tickAge += dt;

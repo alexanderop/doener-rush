@@ -122,7 +122,7 @@ describe("given the tutorial", () => {
     press(world, 1);
 
     expect(lesson(world)).toBe("extinguisher");
-    expect(toaster.fire).toBeGreaterThan(0);
+    expect(toaster.fire.state).toBe("burning");
     walkTo(world, 1, find(world, (s) => s.item?.kind === "extinguisher"));
     press(world, 1);
     expect(lesson(world)).toBe("douse");
@@ -139,7 +139,7 @@ describe("given the tutorial", () => {
     walkTo(world, 1, find(world, (s) => s.type === "toaster"));
     press(world, 1);
     wait(world, 60 * 120);
-    expect([...world.stations.values()].some((s) => s.fire > 0)).toBe(false);
+    expect([...world.stations.values()].some((s) => s.fire.state === "burning")).toBe(false);
     expect(world.orders.queue).toHaveLength(1);
     expect(world.orders.missed).toBe(0);
   });

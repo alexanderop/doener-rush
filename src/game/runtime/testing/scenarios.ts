@@ -1,4 +1,4 @@
-import { CHOP_TICKS, HEAT, MIX_TICKS } from "../../../features/kitchen/public.ts";
+import { CHOPPED, HEAT, MIX_TICKS, RAW, WHOLE, sideAt, toastAt } from "../../../features/kitchen/public.ts";
 import { ROUND_TICKS, RECIPES, addOrder } from "../../../features/orders/public.ts";
 import type { Recipe } from "../../../features/orders/public.ts";
 import { levelOf } from "../levels.ts";
@@ -42,7 +42,7 @@ export const SCENARIOS = {
         cook.x = 10.5;
         cook.y = 1.5;
         cook.face = { dx: 0, dy: -1 };
-        cook.held = { kind: "plate", dirty: false, food: { kind: "base", base: "bread", toast: HEAT.bread.done, fillings: ["meat", "lettuce", "onion", "garlic"] } };
+        cook.held = { kind: "plate", plate: { state: "full", food: { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: ["meat", "lettuce", "onion", "garlic"] } } };
       }
 
       return world;
@@ -54,7 +54,7 @@ export const SCENARIOS = {
       const world = newWorld(seed, ROUND_TICKS, lineup);
 
       for (const station of world.stations.values()) {
-        if (station.type === "spit") station.spit.sides.splice(0, 4, 1.55, 1.5, 1.1, 0.4);
+        if (station.type === "spit") station.spit.sides.splice(0, 4, ...[1.55, 1.5, 1.1, 0.4].map(sideAt));
       }
 
       return world;
@@ -67,8 +67,8 @@ export const SCENARIOS = {
 
       for (const station of world.stations.values()) {
         if (station.type === "spit") {
-          station.fire = 200;
-          station.spit.sides.splice(0, 4, 2.4, 1.9, 1.2, 0.5);
+          station.fire = { state: "burning", ticks: 200, sprayed: 0 };
+          station.spit.sides.splice(0, 4, ...[2.4, 1.9, 1.2, 0.5].map(sideAt));
         }
 
         if (station.type === "counter" && station.item?.kind === "extinguisher") station.item = null;
@@ -123,10 +123,10 @@ export const SCENARIOS = {
         }
 
         if (station.type === "counter" && station.y === 5 && station.x >= 5 && station.x <= 7) {
-          station.item = { kind: "veg", veg: "onion", chop: CHOP_TICKS };
+          station.item = { kind: "veg", veg: "onion", cut: CHOPPED };
         }
 
-        if (station.type === "toaster") station.item = { kind: "base", base: "bread", toast: 120, fillings: [] };
+        if (station.type === "toaster") station.item = { kind: "base", base: "bread", toast: toastAt("bread", 120), fillings: [] };
       }
 
       return world;
@@ -142,7 +142,7 @@ export const SCENARIOS = {
         thrower.x = 2.5;
         thrower.y = 7.5;
         thrower.face = { dx: 1, dy: 0 };
-        thrower.held = { kind: "veg", veg: "lettuce", chop: 0 };
+        thrower.held = { kind: "veg", veg: "lettuce", cut: WHOLE };
       }
 
       if (catcher !== undefined) {
@@ -165,7 +165,7 @@ export const SCENARIOS = {
       const pastries = [{ toast: HEAT.dough.done / 2, topping: "lye" }, { toast: HEAT.dough.done + 60, topping: "poppy" }] as const;
       ovens.forEach((oven, i) => {
         const { toast, topping } = pastries[i % 2] ?? pastries[0];
-        oven.item = { kind: "base", base: "dough", toast, fillings: [topping] };
+        oven.item = { kind: "base", base: "dough", toast: toastAt("dough", toast), fillings: [topping] };
       });
 
       for (const station of world.stations.values()) {
@@ -173,9 +173,9 @@ export const SCENARIOS = {
 
         if (station.type !== "counter" || station.y !== 3) continue;
 
-        if (station.x === 5) station.item = { kind: "plate", dirty: false, food: { kind: "base", base: "dough", toast: HEAT.dough.done, fillings: ["cinnamon"] } };
+        if (station.x === 5) station.item = { kind: "plate", plate: { state: "full", food: { kind: "base", base: "dough", toast: toastAt("dough", HEAT.dough.done), fillings: ["cinnamon"] } } };
 
-        if (station.x === 6) station.item = { kind: "base", base: "dough", toast: 0, fillings: [] };
+        if (station.x === 6) station.item = { kind: "base", base: "dough", toast: RAW, fillings: [] };
 
         if (station.x === 7) station.item = { kind: "bowl", contents: ["flour"], knead: 0 };
       }

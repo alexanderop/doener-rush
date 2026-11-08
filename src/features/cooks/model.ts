@@ -1,5 +1,6 @@
 import type { Dir } from "../../game/core/grid.ts";
 import type { Item } from "../kitchen/public.ts";
+import type { Dash } from "./machines/dash.ts";
 
 /** One player's cook in the kitchen. Position is the centre, in tiles. */
 export interface Cook {
@@ -10,10 +11,8 @@ export interface Cook {
   held: Item | null;
   /** The cook held work this tick (for the knife and shave animation). */
   working: boolean;
-  /** Ticks of dash left; the cook shoots forward while it runs. */
-  dash: number;
-  /** Ticks until the cook may dash again. */
-  dashCooldown: number;
+  /** Where the cook is in the dash cycle; the cook shoots forward while dashing. */
+  dash: Dash;
 }
 
 /** What a player asks of their cook for one tick. */

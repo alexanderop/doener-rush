@@ -1,4 +1,4 @@
-import { keepFromBurning } from "../../features/kitchen/public.ts";
+import { OUT, keepFromBurning } from "../../features/kitchen/public.ts";
 import { ROUND_TICKS, combinePace } from "../../features/orders/public.ts";
 import { seconds } from "../core/grid.ts";
 import type { World } from "./world.ts";
@@ -61,6 +61,6 @@ export function enforceRules(world: World): void {
   for (const station of world.stations.values()) {
     if (!burning) keepFromBurning(station);
 
-    if (!fire) station.fire = 0;
+    if (!fire) station.fire = OUT;
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seconds } from "../core/grid.ts";
-import { DOUSE_TICKS, HEAT } from "../../features/kitchen/public.ts";
+import { DOUSE_TICKS, HEAT, toastAt } from "../../features/kitchen/public.ts";
 import { RECIPES, ROUND_TICKS, addOrder } from "../../features/orders/public.ts";
 import type { Recipe } from "../../features/orders/public.ts";
 import { find, hold, press, walkTo, wait } from "./testing/drive.ts";
@@ -29,7 +29,7 @@ function onlyCustomers(world: World, ...ids: string[]): World {
 }
 
 function burning(world: World): number {
-  return [...world.stations.values()].filter((s) => s.fire > 0).length;
+  return [...world.stations.values()].filter((s) => s.fire.state === "burning").length;
 }
 
 /** Every clean plate in the shop: on the rack, washed in the sink, or in a cook's hands. */
@@ -41,10 +41,10 @@ function cleanPlates(world: World): number {
 
     if (s.type === "sink") n += s.clean;
 
-    if (s.item?.kind === "plate" && !s.item.dirty) n += 1;
+    if (s.item?.kind === "plate" && s.item.plate.state !== "dirty") n += 1;
   }
 
-  return n + world.cooks.filter((c) => c.held?.kind === "plate" && !c.held.dirty).length;
+  return n + world.cooks.filter((c) => c.held?.kind === "plate" && c.held.plate.state !== "dirty").length;
 }
 
 describe("given a shift run by two bots and nobody on the keyboard", () => {
@@ -168,8 +168,8 @@ describe("given a fire nobody can reach", () => {
 
     if (first !== undefined) first.held = null;
     wait(world, seconds(30));
-    expect(find(world, (s) => s.x === 1 && s.y === 0).fire).toBeGreaterThan(0);
-    expect(find(world, (s) => s.x === 0 && s.y === 0).fire).toBe(0);
+    expect(find(world, (s) => s.x === 1 && s.y === 0).fire.state).toBe("burning");
+    expect(find(world, (s) => s.x === 0 && s.y === 0).fire.state).toBe("out");
   });
 });
 
@@ -177,9 +177,9 @@ describe("given bread forgotten in the toaster until it catches fire", () => {
   it("stays out once sprayed, with the charred bread still inside", () => {
     const world = SCENARIOS.shift.build(1);
     const toaster = find(world, (s) => s.type === "toaster");
-    toaster.item = { kind: "base", base: "bread", toast: HEAT.bread.done, fillings: [] };
+    toaster.item = { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: [] };
     wait(world, seconds(17));
-    expect(toaster.fire).toBeGreaterThan(0);
+    expect(toaster.fire.state).toBe("burning");
     const [cook] = world.cooks;
 
     if (cook !== undefined) {
@@ -191,7 +191,7 @@ describe("given bread forgotten in the toaster until it catches fire", () => {
 
     hold(world, 1, DOUSE_TICKS + 1);
     wait(world, seconds(3));
-    expect(toaster.fire).toBe(0);
+    expect(toaster.fire.state).toBe("out");
     expect(toaster.item).toMatchObject({ kind: "base" });
   });
 });

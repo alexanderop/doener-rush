@@ -3,7 +3,7 @@ import { newMind } from "../../features/bots/public.ts";
 import type { BotMind } from "../../features/bots/public.ts";
 import { newCook } from "../../features/cooks/public.ts";
 import type { Cook, Landing, Thrown } from "../../features/cooks/public.ts";
-import { START_PLATES, newSpit } from "../../features/kitchen/public.ts";
+import { OUT, START_PLATES, newSpit } from "../../features/kitchen/public.ts";
 import type { CrateGoods, Sauce, Station, Topping } from "../../features/kitchen/public.ts";
 import { RECIPES, combinePace, newOrders, paceFor } from "../../features/orders/public.ts";
 import type { OrdersState } from "../../features/orders/public.ts";
@@ -99,7 +99,7 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
 }
 
 function stationFor(ch: string, x: number, y: number): Station | null {
-  const at = { x, y, fire: 0, douse: 0 };
+  const at = { x, y, fire: OUT };
   const goods = CRATES.get(ch);
 
   if (goods !== undefined) return { ...at, type: "crate", goods, item: null };

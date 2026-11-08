@@ -2,7 +2,7 @@ import { think } from "../../features/bots/public.ts";
 import type { Sight } from "../../features/bots/public.ts";
 import { IDLE, facingTile, fly, throwHeld, walk } from "../../features/cooks/public.ts";
 import type { Intent, Thrown } from "../../features/cooks/public.ts";
-import { CHOP_TICKS, interact, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
+import { interact, isBurning, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
 import { ordersSnapshot, serve, stepOrders } from "../../features/orders/public.ts";
 import type { OrdersSnapshot } from "../../features/orders/public.ts";
 import type { Item, Station } from "../../features/kitchen/public.ts";
@@ -134,9 +134,9 @@ function parkedIntent(world: World, i: number): Intent {
 
 /** True while holding work at this station still does something a parked cook may finish alone. The spit is left out: it would pile on meat. */
 function hasWorkLeft(station: Station, held: Item | null): boolean {
-  if (held?.kind === "extinguisher") return station.fire > 0;
+  if (held?.kind === "extinguisher") return isBurning(station.fire);
 
-  if (station.type === "board") return held === null && station.item?.kind === "veg" && station.item.chop < CHOP_TICKS;
+  if (station.type === "board") return held === null && station.item?.kind === "veg" && station.item.cut.state !== "chopped";
 
   if (station.type === "sink") return held === null && station.dirty > 0;
 

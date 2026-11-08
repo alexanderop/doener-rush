@@ -8,7 +8,7 @@ export const featureDependencies: ReadonlyMap<string, readonly string[]> = new M
 
 /** Pure modules use these names; browser code belongs in ui/, draw.ts or state.ts. */
 export const simulationModules = new Set([
-  "public", "model", "prototypes", "simulation", "selectors", "snapshot", "commands",
+  "public", "model", "prototypes", "simulation", "machines", "selectors", "snapshot", "commands",
 ]);
 
 /** Every dependency must exist and the declared graph must remain acyclic. */

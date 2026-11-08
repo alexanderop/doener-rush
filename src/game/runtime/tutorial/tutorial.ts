@@ -1,4 +1,4 @@
-import { keepFromBurning } from "../../../features/kitchen/public.ts";
+import { OUT, keepFromBurning } from "../../../features/kitchen/public.ts";
 import type { Station } from "../../../features/kitchen/public.ts";
 import { RECIPES, addOrder } from "../../../features/orders/public.ts";
 import { lineupOf } from "../lineup.ts";
@@ -73,7 +73,7 @@ function calm(world: World): void {
     keepFromBurning(station);
 
     // only the grill the tutorial lit may burn: fire does not spread here
-    if (station.fire > 0 && station.type !== "toaster") station.fire = 0;
+    if (station.type !== "toaster") station.fire = OUT;
   }
 }
 

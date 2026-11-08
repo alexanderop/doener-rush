@@ -1,6 +1,6 @@
 import { Arbitrary, Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { BURNT, CHOP_TICKS, DOUSE_TICKS, HEAT, SHAVE_TICKS } from "../../features/kitchen/public.ts";
+import { CHOPPED, CHOP_TICKS, DOUSE_TICKS, EMPTY, HEAT, RAW, SHAVE_TICKS, WHOLE, toastAt } from "../../features/kitchen/public.ts";
 import { ROUND_TICKS } from "../../features/orders/public.ts";
 import { find, hold, press, toss, walkTo, wait } from "./testing/drive.ts";
 import { SCENARIOS } from "./testing/scenarios.ts";
@@ -67,7 +67,7 @@ describe("given a cook who forgets the bread", () => {
     press(world, 1);
     wait(world, HEAT.bread.burnt);
     expect(toaster.item).toMatchObject({ kind: "base" });
-    expect(toaster.item?.kind === "base" && toaster.item.toast >= HEAT.bread.burnt).toBe(true);
+    expect(toaster.item?.kind === "base" && toaster.item.toast.state === "burnt").toBe(true);
   });
 });
 
@@ -133,7 +133,7 @@ describe("given cook 1 holding a whole lettuce and cook 2 empty-handed four tile
     const world = SCENARIOS.catch.build(1);
     toss(world, 1);
     expect(world.cooks[0]?.held).toBeNull();
-    expect(world.cooks[1]?.held).toEqual({ kind: "veg", veg: "lettuce", chop: 0 });
+    expect(world.cooks[1]?.held).toEqual({ kind: "veg", veg: "lettuce", cut: WHOLE });
     expect(world.landings.map((l) => l.landing.how)).toEqual(["caught"]);
   });
 
@@ -142,7 +142,7 @@ describe("given cook 1 holding a whole lettuce and cook 2 empty-handed four tile
     run(world, 1, [{ ...IDLE, dy: 1 }]);
     toss(world, 1);
     expect(world.cooks[0]?.held).toBeNull();
-    expect(find(world, (s) => s.x === 2 && s.y === 8).item).toEqual({ kind: "veg", veg: "lettuce", chop: 0 });
+    expect(find(world, (s) => s.x === 2 && s.y === 8).item).toEqual({ kind: "veg", veg: "lettuce", cut: WHOLE });
     expect(world.landings.map((l) => l.landing.how)).toEqual(["landed"]);
   });
 
@@ -165,7 +165,7 @@ describe("given cook 1 holding a whole lettuce and cook 2 empty-handed four tile
 
   it("keeps a plate in hand: only raw ingredients fly", () => {
     const world = SCENARIOS.catch.build(1);
-    const plate = { kind: "plate", dirty: false, food: null } as const;
+    const plate = { kind: "plate", plate: EMPTY } as const;
     const thrower = world.cooks[0];
 
     if (thrower !== undefined) thrower.held = { ...plate };
@@ -178,13 +178,13 @@ describe("given cook 1 holding a whole lettuce and cook 2 empty-handed four tile
     const world = SCENARIOS.catch.build(1);
     const thrower = world.cooks[0];
 
-    if (thrower !== undefined) thrower.held = { kind: "base", base: "bread", toast: HEAT.bread.done, fillings: [] };
+    if (thrower !== undefined) thrower.held = { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: [] };
     toss(world, 1);
     expect(world.cooks[1]?.held).toBeNull();
 
-    if (thrower !== undefined) thrower.held = { kind: "base", base: "bread", toast: 0, fillings: [] };
+    if (thrower !== undefined) thrower.held = { kind: "base", base: "bread", toast: RAW, fillings: [] };
     toss(world, 1);
-    expect(world.cooks[1]?.held).toMatchObject({ kind: "base", toast: 0 });
+    expect(world.cooks[1]?.held).toMatchObject({ kind: "base", toast: RAW });
   });
 });
 
@@ -203,14 +203,14 @@ describe("given a kitchen fire", () => {
     const world = SCENARIOS["kitchen-fire"].build(1);
     world.cooks[0]!.held = null;
     wait(world, 60 * 7);
-    const burning = [...world.stations.values()].filter((s) => s.fire > 0);
+    const burning = [...world.stations.values()].filter((s) => s.fire.state === "burning");
     expect(burning.length).toBeGreaterThan(1);
   });
 
   it("is put out by cook 1 spraying the extinguisher", () => {
     const world = SCENARIOS["kitchen-fire"].build(1);
     hold(world, 1, DOUSE_TICKS + 1);
-    expect(find(world, (s) => s.type === "spit").fire).toBe(0);
+    expect(find(world, (s) => s.type === "spit").fire.state).toBe("out");
   });
 
   it("starts the shift with an extinguisher on a counter", () => {
@@ -285,7 +285,7 @@ describe("given a solo player who drives two cooks", () => {
     hold(world, 1, 5);
     step(world, [{ ...swapPress, work: true }]);
     run(world, CHOP_TICKS);
-    expect(board.item?.kind === "veg" && board.item.chop).toBe(CHOP_TICKS);
+    expect(board.item?.kind === "veg" && board.item.cut).toEqual(CHOPPED);
     expect(world.parked.size).toBe(0);
   });
 
@@ -302,15 +302,15 @@ describe("given house rules picked on the home page", () => {
     setRules(world, { ...NORMAL_RULES, burning: false });
     run(world, 60 * 60);
     const spit = find(world, (s) => s.type === "spit");
-    expect(spit.fire).toBe(0);
-    expect(spit.type === "spit" && spit.spit.sides.every((side) => side < BURNT)).toBe(true);
+    expect(spit.fire.state).toBe("out");
+    expect(spit.type === "spit" && spit.spit.sides.every((side) => side.state !== "burnt")).toBe(true);
   });
 
   it("puts out every fire at once with fire off", () => {
     const world = SCENARIOS["kitchen-fire"].build(1);
     setRules(world, { ...NORMAL_RULES, fire: false });
     step(world, []);
-    expect([...world.stations.values()].every((s) => s.fire === 0)).toBe(true);
+    expect([...world.stations.values()].every((s) => s.fire.state === "out")).toBe(true);
   });
 
   it("sends served plates back clean to the rack with dishes off", () => {

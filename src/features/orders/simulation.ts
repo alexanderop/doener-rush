@@ -66,10 +66,10 @@ export function defect(item: Item): string | null {
 
   if (item.kind !== "plate") return "Das ist kein Döner.";
 
-  if (item.dirty) return "Schmutziger Teller!";
-  const food = item.food;
+  if (item.plate.state === "dirty") return "Schmutziger Teller!";
 
-  if (food === null) return "Der Teller ist leer.";
+  if (item.plate.state === "empty") return "Der Teller ist leer.";
+  const { food } = item.plate;
 
   if (isBurntBase(food)) return food.base === "dough" ? "Verbranntes Gebäck!" : "Verbranntes Brot!";
 
@@ -80,8 +80,8 @@ export function defect(item: Item): string | null {
 
 /** True when `item` is exactly what `recipe` asks for, on a plate. */
 function matches(item: Item, recipe: Recipe): boolean {
-  if (item.kind !== "plate" || item.food === null || defect(item) !== null) return false;
-  const { base, fillings } = item.food;
+  if (item.kind !== "plate" || item.plate.state !== "full" || defect(item) !== null) return false;
+  const { base, fillings } = item.plate.food;
 
   return base === recipe.base && fillings.length === recipe.fillings.length && recipe.fillings.every((f) => fillings.includes(f));
 }

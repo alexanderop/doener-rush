@@ -1,21 +1,27 @@
+import { CHOPPED, WHOLE, chop } from "./machines/cut.ts";
+import { DIRTY, EMPTY, fill, foodOn, scrape } from "./machines/plate.ts";
+import { holdSideBelowBurnt, roast, scrapeIfBurnt, shaveOff, sideAt } from "./machines/side.ts";
+import { burn, ignite as igniteFire, isBurning, spray, spreadsNow } from "./machines/fire.ts";
+import { RAW, char, heatTicks, heatUp, holdBelowBurnt } from "./machines/toast.ts";
+import type { Side } from "./machines/side.ts";
 import type { CrateGoods, Doener, Filling, Item, Spit, Station } from "./model.ts";
 import {
-  AFTER_SHAVE, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FAMILY, FIRE_SPREAD, HEAT, MIX_TICKS, SHAVE_TICKS, SPIT_HEAT,
+  FAMILY, HEAT, MIX_TICKS, SHAVE_TICKS,
   SPIT_IGNITE, SPIT_TURN, THROWABLE, TRAY_PORTIONS, WASH_TICKS, isBread, isDry, isFull,
 } from "./prototypes.ts";
 
 /** A fresh spit, part-cooked all round so the first portion comes quickly. */
 export function newSpit(): Spit {
-  return { angle: 0, sides: [0.9, 0.9, 0.9, 0.9], shave: 0 };
+  return { angle: 0, sides: [sideAt(0.9), sideAt(0.9), sideAt(0.9), sideAt(0.9)], shave: 0 };
 }
 
 /** A fresh item from a crate: bread, a whole vegetable, or a bowl with the dry goods in it. */
 function takeFromCrate(goods: CrateGoods): Item {
-  if (isBread(goods)) return { kind: "base", base: goods, toast: 0, fillings: [] };
+  if (isBread(goods)) return { kind: "base", base: goods, toast: RAW, fillings: [] };
 
   if (isDry(goods)) return { kind: "bowl", contents: [goods], knead: 0 };
 
-  return { kind: "veg", veg: goods, chop: 0 };
+  return { kind: "veg", veg: goods, cut: WHOLE };
 }
 
 /** Empty hands take from a crate; a bowl at a dry-goods crate gets that good poured in, once. */
@@ -29,19 +35,17 @@ function crate(goods: CrateGoods, held: Item | null): Item | null {
 
 /** True when a vegetable has been chopped through. */
 export function isChopped(item: Item): boolean {
-  return item.kind === "veg" && item.chop >= CHOP_TICKS;
+  return item.kind === "veg" && item.cut.state === "chopped";
 }
 
 /** True when a base stayed on the heat too long. */
 export function isBurntBase(item: Item): boolean {
-  return item.kind === "base" && item.toast >= HEAT[item.base].burnt;
+  return item.kind === "base" && item.toast.state === "burnt";
 }
 
 /** True when a dish had all the heat it needs to be sold: toasted bread; a wrap needs none. */
 export function isBaked(dish: Doener): boolean {
-  const heat = HEAT[dish.base];
-
-  return !heat.required || dish.toast >= heat.done;
+  return !HEAT[dish.base].required || dish.toast.state === "done" || dish.toast.state === "burnt";
 }
 
 /**
@@ -51,14 +55,14 @@ export function isBaked(dish: Doener): boolean {
 export function accepts(dish: Doener, filling: Filling): boolean {
   if (isBurntBase(dish) || dish.fillings.includes(filling) || FAMILY[dish.base] !== FAMILY[filling]) return false;
 
-  return FAMILY[dish.base] !== "pastry" || (dish.toast === 0 && dish.fillings.length === 0);
+  return FAMILY[dish.base] !== "pastry" || (dish.toast.state === "raw" && dish.fillings.length === 0);
 }
 
 /** True when a cook may throw the item: a vegetable, whole or chopped, or bread straight from the crate. */
 export function isThrowable(item: Item): boolean {
   if (!THROWABLE[item.kind]) return false;
 
-  return item.kind !== "base" || (item.toast === 0 && item.fillings.length === 0);
+  return item.kind !== "base" || (item.toast.state === "raw" && item.fillings.length === 0);
 }
 
 /**
@@ -78,7 +82,7 @@ export function land(station: Station, item: Item): boolean {
 function doenerIn(item: Item | null): Doener | null {
   if (item?.kind === "base") return item;
 
-  if (item?.kind === "plate") return item.food;
+  if (item?.kind === "plate") return foodOn(item.plate);
 
   return null;
 }
@@ -90,16 +94,16 @@ function doenerIn(item: Item | null): Doener | null {
  */
 export function addTo(target: Item, extra: Item): boolean {
   if (target.kind === "plate") {
-    if (target.dirty) return false;
+    const { plate } = target;
 
-    if (target.food === null) {
-      if (extra.kind !== "base") return false;
-      target.food = extra;
+    if (plate.state === "dirty") return false;
 
-      return true;
-    }
+    if (plate.state === "full") return addTo(plate.food, extra);
 
-    return addTo(target.food, extra);
+    if (extra.kind !== "base") return false;
+    target.plate = fill(plate, extra);
+
+    return true;
   }
 
   if (target.kind !== "base") return false;
@@ -121,7 +125,7 @@ export function addTo(target: Item, extra: Item): boolean {
  * the runtime, which knows the orders.
  */
 export function interact(station: Station, held: Item | null): Item | null {
-  if (station.fire > 0) return held;
+  if (isBurning(station.fire)) return held;
 
   switch (station.type) {
     case "crate":
@@ -146,10 +150,10 @@ export function interact(station: Station, held: Item | null): Item | null {
       if (held === null && station.plates > 0) {
         station.plates -= 1;
 
-        return { kind: "plate", dirty: false, food: null };
+        return { kind: "plate", plate: EMPTY };
       }
 
-      if (held?.kind === "plate" && !held.dirty && held.food === null) {
+      if (held?.kind === "plate" && held.plate.state === "empty") {
         station.plates += 1;
 
         return null;
@@ -160,9 +164,9 @@ export function interact(station: Station, held: Item | null): Item | null {
       if (held !== null || station.plates === 0) return held;
       station.plates -= 1;
 
-      return { kind: "plate", dirty: true, food: null };
+      return { kind: "plate", plate: DIRTY };
     case "sink":
-      if (held?.kind === "plate" && held.dirty) {
+      if (held?.kind === "plate" && held.plate.state === "dirty") {
         station.dirty += 1;
 
         return null;
@@ -171,7 +175,7 @@ export function interact(station: Station, held: Item | null): Item | null {
       if (held === null && station.clean > 0) {
         station.clean -= 1;
 
-        return { kind: "plate", dirty: false, food: null };
+        return { kind: "plate", plate: EMPTY };
       }
 
       return held;
@@ -192,7 +196,7 @@ export function interact(station: Station, held: Item | null): Item | null {
 /** The bin eats food: a plate comes back empty, the extinguisher is never thrown away. */
 function bin(held: Item | null): Item | null {
   if (held?.kind === "plate") {
-    held.food = null;
+    held.plate = scrape(held.plate);
 
     return held;
   }
@@ -211,7 +215,7 @@ function tray(station: Extract<Station, { type: "tray" }>, held: Item | null): I
   }
 
   if (station.veg === null || station.portions === 0) return held;
-  const portion: Item = { kind: "veg", veg: station.veg, chop: CHOP_TICKS };
+  const portion: Item = { kind: "veg", veg: station.veg, cut: CHOPPED };
 
   if (held === null) {
     takePortion(station);
@@ -266,10 +270,10 @@ export function work(station: Station, held: Item | null): Item | null {
     return held;
   }
 
-  if (station.fire > 0) return held;
+  if (isBurning(station.fire)) return held;
 
   if (station.type === "board" && station.item?.kind === "veg" && held === null) {
-    station.item.chop = Math.min(station.item.chop + 1, CHOP_TICKS);
+    station.item.cut = chop(station.item.cut);
 
     return held;
   }
@@ -292,17 +296,15 @@ export function work(station: Station, held: Item | null): Item | null {
 }
 
 function douse(station: Station): void {
-  if (station.fire === 0) return;
-  station.douse += 1;
+  if (!isBurning(station.fire)) return;
+  station.fire = spray(station.fire);
 
-  if (station.douse < DOUSE_TICKS) return;
-  station.fire = 0;
-  station.douse = 0;
+  if (isBurning(station.fire)) return;
 
   // the charred outside is scraped off; what is left underneath is raw
   if (station.type === "spit") {
-    station.spit.sides.forEach((level, i) => {
-      if (level >= BURNT) station.spit.sides[i] = AFTER_SHAVE;
+    station.spit.sides.forEach((side, i) => {
+      station.spit.sides[i] = scrapeIfBurnt(side);
     });
   }
 }
@@ -311,7 +313,7 @@ function shave(spit: Spit, held: Item | null): Item | null {
   if (held !== null && doenerIn(held) === null) return held;
   const side = bestSide(spit);
 
-  if ((spit.sides[side] ?? 0) < COOKED) {
+  if (sideOf(spit, side).state === "raw") {
     spit.shave = 0;
 
     return held;
@@ -321,8 +323,8 @@ function shave(spit: Spit, held: Item | null): Item | null {
 
   if (spit.shave < SHAVE_TICKS) return held;
   spit.shave = 0;
-  const meat: Item = { kind: "meat", burnt: (spit.sides[side] ?? 0) >= BURNT };
-  spit.sides[side] = AFTER_SHAVE;
+  const meat: Item = { kind: "meat", burnt: sideOf(spit, side).state === "burnt" };
+  spit.sides[side] = shaveOff();
 
   if (held === null) return meat;
   addTo(held, meat);
@@ -334,9 +336,13 @@ function shave(spit: Spit, held: Item | null): Item | null {
 function bestSide(spit: Spit): number {
   let best = 0;
 
-  for (let i = 1; i < 4; i++) if ((spit.sides[i] ?? 0) > (spit.sides[best] ?? 0)) best = i;
+  for (let i = 1; i < 4; i++) if (sideOf(spit, i).level > sideOf(spit, best).level) best = i;
 
   return best;
+}
+
+function sideOf(spit: Spit, i: number): Side {
+  return spit.sides[i % 4] ?? spit.sides[0];
 }
 
 /** The side of the spit that faces the heat now. */
@@ -354,44 +360,42 @@ export function stepStation(station: Station): void {
     const { spit } = station;
     spit.angle = (spit.angle + SPIT_TURN) % 4;
     const side = heatedSide(spit);
-    spit.sides[side] = (spit.sides[side] ?? 0) + SPIT_HEAT;
+    spit.sides[side] = roast(sideOf(spit, side));
 
-    if ((spit.sides[side] ?? 0) >= SPIT_IGNITE) ignite(station);
+    if (sideOf(spit, side).level >= SPIT_IGNITE) ignite(station);
   } else if (station.type === "toaster" && station.item?.kind === "base") {
-    station.item.toast += 1;
+    station.item.toast = heatUp(station.item.base, station.item.toast);
 
     // only the moment it crosses the line: a doused toaster stays out, with the charred bread still in it
-    if (station.item.toast === HEAT[station.item.base].ignite) ignite(station);
-  } else if (station.type === "mixer" && station.fire === 0 && station.item?.kind === "bowl" && isFull(station.item)) {
+    if (heatTicks(station.item.toast) === HEAT[station.item.base].ignite) ignite(station);
+  } else if (station.type === "mixer" && !isBurning(station.fire) && station.item?.kind === "bowl" && isFull(station.item)) {
     station.item.knead += 1;
 
-    if (station.item.knead >= MIX_TICKS) station.item = { kind: "base", base: "dough", toast: 0, fillings: [] };
+    if (station.item.knead >= MIX_TICKS) station.item = { kind: "base", base: "dough", toast: RAW, fillings: [] };
   }
 
-  if (station.fire > 0) {
-    station.fire += 1;
+  if (isBurning(station.fire)) {
+    station.fire = burn(station.fire);
     const food = doenerIn(station.item);
 
-    if (food !== null) food.toast = Math.max(food.toast, HEAT[food.base].burnt);
+    if (food !== null) food.toast = char(food.base, food.toast);
   }
 }
 
 /** Holds food on a station just short of burnt: the easy rule and the tutorial's calm kitchen. */
 export function keepFromBurning(station: Station): void {
   if (station.type === "toaster" && station.item?.kind === "base") {
-    station.item.toast = Math.min(station.item.toast, HEAT[station.item.base].burnt - 1);
+    station.item.toast = holdBelowBurnt(station.item.base, station.item.toast);
   }
 
-  if (station.type === "spit") station.spit.sides.forEach((level, i) => {
-    station.spit.sides[i] = Math.min(level, BURNT - 0.01);
+  if (station.type === "spit") station.spit.sides.forEach((side, i) => {
+    station.spit.sides[i] = holdSideBelowBurnt(side);
   });
 }
 
 /** Sets a station on fire, unless it is the sink or already burning. */
 function ignite(station: Station): void {
-  if (station.type === "sink" || station.fire > 0) return;
-  station.fire = 1;
-  station.douse = 0;
+  if (station.type !== "sink") station.fire = igniteFire(station.fire);
 }
 
 /**
@@ -401,7 +405,7 @@ function ignite(station: Station): void {
 export function spreadFire(stations: Iterable<Station>, at: (x: number, y: number) => Station | null): void {
   const spreading: Station[] = [];
 
-  for (const s of stations) if (s.fire > 1 && (s.fire - 1) % FIRE_SPREAD === 0) spreading.push(s);
+  for (const s of stations) if (spreadsNow(s.fire)) spreading.push(s);
 
   for (const s of spreading) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {

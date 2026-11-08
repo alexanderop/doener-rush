@@ -40,10 +40,10 @@ function bubbleContent(item: Item): BubbleContent {
     }
 
     case "plate": {
-      if (item.dirty) return { icons: ["🍽️", "🧽"], rim: RIM.burnt };
+      if (item.plate.state === "dirty") return { icons: ["🍽️", "🧽"], rim: RIM.burnt };
 
-      if (item.food === null) return { icons: ["🍽️"], rim: RIM.plain };
-      const inner = bubbleContent(item.food);
+      if (item.plate.state === "empty") return { icons: ["🍽️"], rim: RIM.plain };
+      const inner = bubbleContent(item.plate.food);
 
       return { icons: ["🍽️", ...inner.icons], rim: inner.rim };
     }

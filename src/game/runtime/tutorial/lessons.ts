@@ -1,5 +1,5 @@
 import type { Cook } from "../../../features/cooks/public.ts";
-import { isBaked, isChopped } from "../../../features/kitchen/public.ts";
+import { OUT, ignite, isBaked, isBurning, isChopped } from "../../../features/kitchen/public.ts";
 import type { Filling, Item, Station } from "../../../features/kitchen/public.ts";
 import type { World } from "../world.ts";
 
@@ -64,7 +64,7 @@ function doenerOf(world: World): { readonly doener: Doener; readonly plated: boo
   for (const item of [me(world).held, ...[...world.stations.values()].map((s) => s.item)]) {
     if (item?.kind === "base") return { doener: item, plated: false };
 
-    if (item?.kind === "plate" && item.food !== null) return { doener: item.food, plated: true };
+    if (item?.kind === "plate" && item.plate.state === "full") return { doener: item.plate.food, plated: true };
   }
 
   return null;
@@ -104,7 +104,7 @@ function sink(world: World): Extract<Station, { type: "sink" }> | null {
 }
 
 function burning(world: World): Station[] {
-  return stations(world, (s) => s.fire > 0);
+  return stations(world, (s) => isBurning(s.fire));
 }
 
 const HANDS_FULL = "Erst die Hände frei machen: leg ab, was du trägst ({E} an einer freien Theke).";
@@ -136,8 +136,7 @@ const LOST_DOENER: Back = { when: (world) => doenerOf(world) === null, to: "brea
 function light(world: World): void {
   for (const station of world.stations.values()) {
     if (station.type === "toaster") {
-      station.fire = 1;
-      station.douse = 0;
+      station.fire = ignite(OUT);
     }
   }
 }
@@ -159,7 +158,7 @@ export const LESSONS: readonly Lesson[] = [
     text: "Lauf los und drück dabei die {Leertaste}.",
     why: "Ein Sprint schießt dich ein paar Felder nach vorn. Danach braucht er einen Moment, bis er wieder geht.",
     targets: () => [],
-    done: (world) => me(world).dashCooldown > 0,
+    done: (world) => me(world).dash.state !== "ready",
     trouble: NONE,
   },
   {
@@ -225,7 +224,7 @@ export const LESSONS: readonly Lesson[] = [
     done: (world) => {
       const found = doenerOf(world);
 
-      return found !== null && (found.plated || found.doener.toast > 0);
+      return found !== null && (found.plated || found.doener.toast.state !== "raw");
     },
     trouble: wrongDoener,
     back: LOST_DOENER,
@@ -239,7 +238,7 @@ export const LESSONS: readonly Lesson[] = [
     done: (world) => {
       const held = me(world).held;
 
-      return (held?.kind === "plate" && !held.dirty) || doenerOf(world)?.plated === true;
+      return (held?.kind === "plate" && held.plate.state !== "dirty") || doenerOf(world)?.plated === true;
     },
     trouble: (world) => {
       const held = me(world).held;
@@ -325,7 +324,7 @@ export const LESSONS: readonly Lesson[] = [
       const held = me(world).held;
       const basin = sink(world);
 
-      return (held?.kind === "plate" && held.dirty) || (basin !== null && basin.dirty + basin.clean > 0);
+      return (held?.kind === "plate" && held.plate.state === "dirty") || (basin !== null && basin.dirty + basin.clean > 0);
     },
     trouble: needsFreeHands,
   },

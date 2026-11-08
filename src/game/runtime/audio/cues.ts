@@ -4,7 +4,7 @@
  * `loopLevels` gives the volume of the running loops, `intensity` how much the music gives and
  * `nextTake` which DJ take it plays. Pure, so Vitest can run it.
  */
-import { BURNT, CHOP_TICKS, HEAT } from "../../../features/kitchen/public.ts";
+import { BURNT, CHOP_TICKS, HEAT, cutTicks, foodOn, isBurning } from "../../../features/kitchen/public.ts";
 import type { Cook, Landing } from "../../../features/cooks/public.ts";
 import { MAX_ORDERS } from "../../../features/orders/public.ts";
 import type { OrderEvent } from "../../../features/orders/public.ts";
@@ -90,27 +90,27 @@ export function hear(world: World): Heard {
   const watched = world.rules.burning && world.tutorial === null;
 
   for (const station of world.stations.values()) {
-    if (station.fire > 0) burning += 1;
+    if (isBurning(station.fire)) burning += 1;
 
-    if (station.type === "board" && station.item?.kind === "veg") strokes += Math.floor(station.item.chop / STROKE_TICKS);
+    if (station.type === "board" && station.item?.kind === "veg") strokes += Math.floor(cutTicks(station.item.cut) / STROKE_TICKS);
 
     if (station.type === "sink") scrubs += Math.floor(station.scrub / SCRUB_TICKS);
 
-    if (station.type === "toaster" && station.item?.kind === "base" && station.fire === 0) {
+    if (station.type === "toaster" && station.item?.kind === "base" && !isBurning(station.fire)) {
       const { toast } = station.item;
       const { done, burnt } = HEAT[station.item.base];
 
-      if (toast < burnt) cooking += 1;
+      if (toast.state !== "burnt") cooking += 1;
 
       // past halfway from done to burnt it is about to burn: the warning beeps
-      if (toast >= (done + burnt) / 2 && toast < burnt) warning ||= watched;
+      if (toast.state === "done" && toast.ticks >= (done + burnt) / 2) warning ||= watched;
     }
 
-    if (station.type === "spit" && station.fire === 0) {
+    if (station.type === "spit" && !isBurning(station.fire)) {
       cooking += 1;
       strokes += Math.floor(station.spit.shave / STROKE_TICKS);
 
-      if (Math.max(...station.spit.sides) >= SPIT_WARN) warning ||= watched;
+      if (Math.max(...station.spit.sides.map((side) => side.level)) >= SPIT_WARN) warning ||= watched;
     }
   }
 
@@ -119,7 +119,7 @@ export function hear(world: World): Heard {
     secondsLeft: Math.max(0, Math.ceil((world.endTick - world.tick) / TICK_RATE)),
     over: world.tick >= world.endTick,
     held: world.cooks.map((cook) => heldKey(cook.held)),
-    dashing: world.cooks.map((cook) => cook.dash > 0),
+    dashing: world.cooks.map((cook) => cook.dash.state === "dashing"),
     flying: world.thrown.length,
     landings: world.landings.map(({ tick, landing }) => ({ tick, how: landing.how })),
     strokes,
@@ -140,7 +140,7 @@ function heldKey(item: Cook["held"]): string {
   switch (item.kind) {
     case "base": return `base:${item.fillings.length}`;
     case "bowl": return `bowl:${item.contents.length}`;
-    case "plate": return `plate:${item.dirty}:${item.food?.fillings.length ?? -1}`;
+    case "plate": return `plate:${item.plate.state}:${foodOn(item.plate)?.fillings.length ?? -1}`;
     default: return item.kind;
   }
 }

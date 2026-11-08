@@ -1,7 +1,7 @@
 import { seconds } from "../../../game/core/grid.ts";
 import type { Tile } from "../../../game/core/grid.ts";
 import type { Cook } from "../../cooks/public.ts";
-import { BURNT, DRY, FAMILY, HEAT, TRAY_PORTIONS, accepts, isBaked, isBurntBase, isChopped } from "../../kitchen/public.ts";
+import { DRY, FAMILY, HEAT, TRAY_PORTIONS, accepts, foodOn, heatTicks, isBaked, isBurning, isBurntBase, isChopped } from "../../kitchen/public.ts";
 import type { Filling, Item, Station, Veg } from "../../kitchen/public.ts";
 import type { Order, Recipe } from "../../orders/public.ts";
 import type { BotMind, Plan, Sight, Step } from "../model.ts";
@@ -81,7 +81,7 @@ function nearest(ctx: Ctx, match: (s: Station) => boolean): Station | null {
   for (const s of ctx.sight.stations) {
     const d = ctx.reach.get(s);
 
-    if (d !== undefined && d < bestDist && s.fire === 0 && match(s)) {
+    if (d !== undefined && d < bestDist && !isBurning(s.fire) && match(s)) {
       best = s;
       bestDist = d;
     }
@@ -106,7 +106,7 @@ function press(s: Station): Step {
 function doenerIn(item: Item | null): Doener | null {
   if (item?.kind === "base") return item;
 
-  if (item?.kind === "plate") return item.food;
+  if (item?.kind === "plate") return foodOn(item.plate);
 
   return null;
 }
@@ -162,7 +162,7 @@ function plateSource(ctx: Ctx): Station | null {
 
 /** A station burns: one bot drops what it holds, takes the extinguisher and sprays. */
 const fight: Rule = (ctx) => {
-  const burning = ctx.sight.stations.filter((s) => s.fire > 0 && ctx.reach.has(s));
+  const burning = ctx.sight.stations.filter((s) => isBurning(s.fire) && ctx.reach.has(s));
 
   if (burning.length === 0 || claimedByOther(ctx, "fire")) return null;
   const held = ctx.me.held;
@@ -286,7 +286,7 @@ function waiting(ctx: Ctx, recipe: Recipe, ready = true): Station | null {
     const doener = doenerIn(s.item);
     const dist = ctx.reach.get(s);
 
-    if (doener === null || dist === undefined || s.fire > 0 || !fits(doener, recipe)) continue;
+    if (doener === null || dist === undefined || isBurning(s.fire) || !fits(doener, recipe)) continue;
 
     // toast comes out when it is done, vegetables or not, before it burns
     if (ready && s.type !== "toaster" && !vegReady(ctx, missing(doener, recipe))) continue;
@@ -305,7 +305,7 @@ function waiting(ctx: Ctx, recipe: Recipe, ready = true): Station | null {
 const plateUp: Rule = (ctx) => {
   const held = ctx.me.held;
 
-  if (held?.kind !== "plate" || held.dirty || held.food !== null) return null;
+  if (held?.kind !== "plate" || held.plate.state !== "empty") return null;
   const task = ctx.order === null ? null : `order:${ctx.order.id}`;
   const recipes = ctx.order === null ? ctx.sight.orders.map((o) => o.recipe) : [ctx.order.recipe];
 
@@ -329,7 +329,7 @@ const plateUp: Rule = (ctx) => {
 const scrape: Rule = (ctx) => {
   const held = ctx.me.held;
 
-  if (held?.kind !== "plate" || !held.dirty) return null;
+  if (held?.kind !== "plate" || held.plate.state !== "dirty") return null;
   const sink = nearest(ctx, (s) => s.type === "sink");
 
   return sink === null ? null : plan(ctx, "dishes", press(sink), ctx.order?.id ?? null);
@@ -373,7 +373,7 @@ function trayFor(ctx: Ctx, veg: Veg): Station | null {
  * döner it carries, or takes a fresh base first, and never walks burnt meat to the bin.
  */
 const tend: Rule = (ctx) => {
-  const spit = nearest(ctx, (s) => s.type === "spit" && s.spit.sides.some((level) => level >= BURNT));
+  const spit = nearest(ctx, (s) => s.type === "spit" && s.spit.sides.some((side) => side.state === "burnt"));
   const held = ctx.me.held;
 
   if (spit === null || claimedByOther(ctx, "spit")) return null;
@@ -396,10 +396,10 @@ const rescue: Rule = (ctx) => {
   if (ctx.me.held !== null) return null;
 
   for (const s of ctx.sight.stations) {
-    const food = s.type === "toaster" && s.fire === 0 && ctx.reach.has(s) ? doenerIn(s.item) : null;
+    const food = s.type === "toaster" && !isBurning(s.fire) && ctx.reach.has(s) ? doenerIn(s.item) : null;
     const task = `heat:${s.x},${s.y}`;
 
-    if (food !== null && food.toast >= HEAT[food.base].burnt - SAVE_TOAST && !claimedByOther(ctx, task)) return plan(ctx, task, press(s));
+    if (food !== null && heatTicks(food.toast) >= HEAT[food.base].burnt - SAVE_TOAST && !claimedByOther(ctx, task)) return plan(ctx, task, press(s));
   }
 
   return null;
@@ -410,7 +410,7 @@ const chop: Rule = (ctx) => {
   if (ctx.me.held !== null) return null;
 
   for (const s of ctx.sight.stations) {
-    if (s.type !== "board" || s.item?.kind !== "veg" || !ctx.reach.has(s) || s.fire > 0) continue;
+    if (s.type !== "board" || s.item?.kind !== "veg" || !ctx.reach.has(s) || isBurning(s.fire)) continue;
     const task = `board:${s.x},${s.y}`;
 
     if (claimedByOther(ctx, task)) continue;
@@ -476,7 +476,7 @@ function start(ctx: Ctx, order: Order, task: string): Plan | null {
  * like.
  */
 function heaterFree(ctx: Ctx): boolean {
-  const free = ctx.sight.stations.filter((s) => s.type === "toaster" && s.item === null && s.fire === 0 && ctx.reach.has(s)).length;
+  const free = ctx.sight.stations.filter((s) => s.type === "toaster" && s.item === null && !isBurning(s.fire) && ctx.reach.has(s)).length;
   const coming = ctx.sight.cooks.filter((c) => ctx.sight.bots.has(c.id) && c.held?.kind === "base" && !isBaked(c.held)).length;
 
   return free > coming;

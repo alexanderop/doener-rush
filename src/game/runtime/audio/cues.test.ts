@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { IDLE } from "../../../features/cooks/public.ts";
-import { HEAT } from "../../../features/kitchen/public.ts";
+import { HEAT, WHOLE, toastAt } from "../../../features/kitchen/public.ts";
 import { seconds } from "../../core/grid.ts";
 import type { PlayerInput } from "../lineup.ts";
 import { run } from "../step.ts";
@@ -45,7 +45,7 @@ describe("the sounds of the kitchen", () => {
     const cook = world.cooks[0];
 
     if (board?.type !== "board" || cook === undefined) throw new Error("the shop has a board at (0, 2)");
-    board.item = { kind: "veg", veg: "onion", chop: 0 };
+    board.item = { kind: "veg", veg: "onion", cut: WHOLE };
     Object.assign(cook, { x: 1.5, y: 2.5, face: { dx: -1, dy: 0 } });
     expect(listen(world, 30, [press({ work: true })])).toContain("chop");
   });
@@ -66,7 +66,7 @@ describe("the sounds of the kitchen", () => {
       const world = SCENARIOS.backstube.build(1);
 
       for (const station of world.stations.values()) {
-        if (station.type === "toaster") station.item = { kind: "base", base: "dough", toast, fillings: ["lye"] };
+        if (station.type === "toaster") station.item = { kind: "base", base: "dough", toast: toastAt("dough", toast), fillings: ["lye"] };
       }
 
       return world;

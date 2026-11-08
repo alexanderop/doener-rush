@@ -1,14 +1,15 @@
 import type { Tile } from "../../game/core/grid.ts";
 import { isThrowable, land } from "../kitchen/public.ts";
 import type { Station } from "../kitchen/public.ts";
+import { READY, stepDash } from "./machines/dash.ts";
 import type { Cook, Intent, Landing, Thrown } from "./model.ts";
 import {
-  CATCH_REACH, DASH_COOLDOWN, DASH_SPEED, DASH_TICKS, PERSONAL_SPACE, RADIUS, THROW_SPEED, THROW_TICKS, WALK,
+  CATCH_REACH, DASH_SPEED, PERSONAL_SPACE, RADIUS, THROW_SPEED, THROW_TICKS, WALK,
 } from "./prototypes.ts";
 
 /** A new cook standing in the middle of a tile, facing down. */
 export function newCook(id: number, tile: Tile): Cook {
-  return { id, x: tile.x + 0.5, y: tile.y + 0.5, face: { dx: 0, dy: 1 }, held: null, working: false, dash: 0, dashCooldown: 0 };
+  return { id, x: tile.x + 0.5, y: tile.y + 0.5, face: { dx: 0, dy: 1 }, held: null, working: false, dash: READY };
 }
 
 /**
@@ -16,15 +17,9 @@ export function newCook(id: number, tile: Tile): Cook {
  * along a counter instead of sticking to it, and stops short of solid tiles and other cooks.
  */
 export function walk(cook: Cook, intent: Intent, solid: (x: number, y: number) => boolean, others: readonly Cook[]): void {
-  if (cook.dashCooldown > 0) cook.dashCooldown -= 1;
+  cook.dash = stepDash(cook.dash, intent.dash);
 
-  if (intent.dash && cook.dashCooldown === 0) {
-    cook.dash = DASH_TICKS;
-    cook.dashCooldown = DASH_COOLDOWN;
-  }
-
-  if (cook.dash > 0) {
-    cook.dash -= 1;
+  if (cook.dash.state === "dashing") {
     dashStep(cook, intent, solid, others);
 
     return;

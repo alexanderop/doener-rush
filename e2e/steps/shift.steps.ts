@@ -81,7 +81,7 @@ Then("cook {int} holds nothing", async ({ page }, id: number) => {
 });
 
 Then("the spit is not burning", async ({ page }) => {
-  await expect.poll(() => page.evaluate(() => [...(window.__game?.world().stations.values() ?? [])].find((s) => s.type === "spit")?.fire)).toBe(0);
+  await expect.poll(() => page.evaluate(() => [...(window.__game?.world().stations.values() ?? [])].find((s) => s.type === "spit")?.fire.state)).toBe("out");
 });
 
 Given("a shift with {int} players and {int} bots", async ({ page }, humans: number, bots: number) => {
