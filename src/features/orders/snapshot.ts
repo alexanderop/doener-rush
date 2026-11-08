@@ -1,4 +1,4 @@
-import type { Filling } from "../kitchen/public.ts";
+import type { Base, Filling } from "../kitchen/public.ts";
 import type { OrderEvent, OrdersState } from "./model.ts";
 import { STARS } from "./prototypes.ts";
 import type { Pace } from "./prototypes.ts";
@@ -8,6 +8,7 @@ export interface TicketView {
   readonly id: number;
   readonly name: string;
   readonly icon: string;
+  readonly base: Base;
   readonly fillings: readonly Filling[];
   /** Patience left, 1 when the customer just arrived. */
   readonly patience: number;
@@ -17,6 +18,8 @@ export interface TicketView {
 export interface OrdersSnapshot {
   readonly tickets: readonly TicketView[];
   readonly score: number;
+  /** What the next speed tip is multiplied by. */
+  readonly combo: number;
   readonly served: number;
   readonly missed: number;
   readonly stars: number;
@@ -39,10 +42,12 @@ export function ordersSnapshot(state: OrdersState): OrdersSnapshot {
       id: o.id,
       name: o.recipe.name,
       icon: o.recipe.icon,
+      base: o.recipe.base,
       fillings: o.recipe.fillings,
       patience: o.ticksLeft / o.patience,
     })),
     score: state.score,
+    combo: state.combo,
     served: state.served,
     missed: state.missed,
     stars: targets.filter((needed) => state.score >= needed).length,

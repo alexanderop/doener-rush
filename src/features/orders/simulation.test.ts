@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DIRTY, HEAT, toastAt } from "../kitchen/public.ts";
 import type { Item } from "../kitchen/public.ts";
-import { MISSED_PENALTY, RECIPES, paceFor } from "./prototypes.ts";
+import { MAX_COMBO, MAX_TIP, MISSED_PENALTY, RECIPES, paceFor } from "./prototypes.ts";
 import { ordersSnapshot } from "./snapshot.ts";
 import { addOrder, defect, newOrders, serve, stepOrders } from "./simulation.ts";
 
@@ -77,6 +77,78 @@ describe("given a customer who wants a Franzbrötchen", () => {
     addOrder(state, franz);
     expect(serve(state, pastry(HEAT.dough.done, "poppy"), 0)).toBe(false);
     expect(state.queue).toHaveLength(1);
+  });
+});
+
+describe("given a queue of customers and the tip combo", () => {
+  const pur = RECIPES.find((r) => r.id === "pur")!;
+  const purDoener: Item = { kind: "plate", plate: { state: "full", food: { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: ["meat", "garlic"] } } };
+  const lastServe = (state: ReturnType<typeof newOrders>) => state.events.filter((e) => e.event.type === "served").at(-1)?.event;
+
+  it("starts a shift at x1", () => {
+    expect(ordersSnapshot(newOrders()).combo).toBe(1);
+  });
+
+  it("rises by one for each customer served in the order they came, and doubles the next tip", () => {
+    const state = newOrders();
+    addOrder(state, classic);
+    addOrder(state, classic);
+    serve(state, classicDoener(), 0);
+    expect(lastServe(state)).toMatchObject({ tip: MAX_TIP, combo: 1 });
+    expect(ordersSnapshot(state).combo).toBe(2);
+
+    serve(state, classicDoener(), 0);
+    expect(lastServe(state)).toMatchObject({ tip: MAX_TIP * 2, combo: 2 });
+    expect(state.score).toBe(2 * classic.points + MAX_TIP + MAX_TIP * 2);
+    expect(ordersSnapshot(state).combo).toBe(3);
+  });
+
+  it("stops rising at the cap", () => {
+    const state = newOrders();
+
+    for (let i = 0; i < MAX_COMBO + 2; i++) {
+      addOrder(state, classic);
+      serve(state, classicDoener(), 0);
+    }
+
+    expect(ordersSnapshot(state).combo).toBe(MAX_COMBO);
+    expect(lastServe(state)).toMatchObject({ tip: MAX_TIP * MAX_COMBO, combo: MAX_COMBO });
+  });
+
+  it("falls back to x1 when a later customer is served before the one waiting longest", () => {
+    const state = newOrders();
+    addOrder(state, pur);
+    serve(state, purDoener, 0);
+    addOrder(state, classic);
+    addOrder(state, pur);
+    serve(state, purDoener, 0);
+    expect(lastServe(state)).toMatchObject({ tip: MAX_TIP * 2, combo: 2 });
+    expect(ordersSnapshot(state).combo).toBe(1);
+
+    serve(state, classicDoener(), 0);
+    expect(lastServe(state)).toMatchObject({ tip: MAX_TIP, combo: 1 });
+  });
+
+  it("falls back to x1 when a customer leaves unserved", () => {
+    const state = newOrders();
+    state.untilNext = Number.MAX_SAFE_INTEGER;
+    addOrder(state, pur);
+    serve(state, purDoener, 0);
+    addOrder(state, classic);
+    expect(ordersSnapshot(state).combo).toBe(2);
+
+    for (let tick = 0; tick < classic.patience; tick++) stepOrders(state, tick, 1);
+    expect(state.missed).toBe(1);
+    expect(ordersSnapshot(state).combo).toBe(1);
+  });
+
+  it("leaves the combo alone when a wrong dish is refused", () => {
+    const state = newOrders();
+    addOrder(state, pur);
+    serve(state, purDoener, 0);
+    addOrder(state, classic);
+    expect(serve(state, purDoener, 0)).toBe(false);
+    expect(ordersSnapshot(state).combo).toBe(2);
   });
 });
 

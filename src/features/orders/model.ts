@@ -28,7 +28,7 @@ export interface Order {
 
 /** Something that happened to the orders this tick, for HUD feedback. */
 export type OrderEvent =
-  | { readonly type: "served"; readonly orderId: number; readonly points: number; readonly tip: number }
+  | { readonly type: "served"; readonly orderId: number; readonly points: number; readonly tip: number; readonly combo: number }
   | { readonly type: "expired"; readonly orderId: number; readonly penalty: number }
   | { readonly type: "wrong"; readonly reason: string };
 
@@ -43,6 +43,8 @@ export interface OrdersState {
   /** Ticks until the next customer arrives. */
   untilNext: number;
   score: number;
+  /** What the next speed tip is multiplied by: 1, rising while customers are served in the order they came. */
+  combo: number;
   served: number;
   missed: number;
   /** Events of the last few seconds, newest last. */

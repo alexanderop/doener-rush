@@ -1,4 +1,5 @@
 import { seconds } from "../../game/core/grid.ts";
+import type { Base, Filling } from "../kitchen/public.ts";
 import type { Recipe } from "./model.ts";
 
 /** The menu. */
@@ -26,6 +27,9 @@ export const MISSED_PENALTY = 10;
 
 /** Most tip points for a döner served the moment it was ordered. */
 export const MAX_TIP = 10;
+
+/** The tip combo stops rising here. */
+export const MAX_COMBO = 4;
 
 /** Ticks a HUD event stays in the list. */
 export const EVENT_TICKS = seconds(3);
@@ -67,3 +71,33 @@ const PACES: readonly Pace[] = [
 export function paceFor(crew: number): Pace {
   return PACES[Math.max(0, Math.min(PACES.length - 1, Math.round(crew) - 1))] ?? NORMAL_PACE;
 }
+
+/** The kitchen work an ingredient needs before it goes on the dish. */
+type Step = "toast" | "bake" | "shave" | "chop" | "squeeze" | "sprinkle";
+
+/** The step each base and filling needs, as the tickets show it. */
+export const STEP: Readonly<Record<Base | Filling, Step>> = {
+  bread: "toast",
+  wrap: "toast",
+  dough: "bake",
+  meat: "shave",
+  lettuce: "chop",
+  tomato: "chop",
+  onion: "chop",
+  garlic: "squeeze",
+  herb: "squeeze",
+  spicy: "squeeze",
+  cinnamon: "sprinkle",
+  poppy: "sprinkle",
+  lye: "sprinkle",
+};
+
+/** How a step looks on a ticket: its emoji and what it says to a screen reader. */
+export const STEP_LOOK: Readonly<Record<Step, { readonly icon: string; readonly label: string }>> = {
+  toast: { icon: "♨️", label: "auf den Grill" },
+  bake: { icon: "⏲️", label: "in den Ofen" },
+  shave: { icon: "🔥", label: "vom Spieß" },
+  chop: { icon: "🔪", label: "schneiden" },
+  squeeze: { icon: "🧴", label: "aus der Flasche" },
+  sprinkle: { icon: "✨", label: "bestreuen" },
+};

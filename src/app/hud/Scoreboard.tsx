@@ -32,7 +32,44 @@ function StarMeter({ score, targets }: { readonly score: number; readonly target
   );
 }
 
-function Coin({ score, targets }: { readonly score: number; readonly targets: readonly number[] }) {
+type ComboChange = "none" | "rise" | "drop";
+
+/** The pill's colours from x1 to x4: plain paper, then hotter with every step. */
+const COMBO_COLOR: readonly string[] = [
+  "bg-[#fffaf0] text-[#7a6656]",
+  "bg-[#ffd84a] text-[#2a1a10]",
+  "bg-[#ff9f2e] text-[#2a1a10]",
+  "bg-[#ff4b3e] text-white",
+];
+
+const COMBO_MOTION: Readonly<Record<ComboChange, string>> = {
+  none: "",
+  rise: "animate-[coin-pop_520ms_cubic-bezier(0.3,1.4,0.5,1)]",
+  drop: "animate-[combo-drop_600ms_ease-out]",
+};
+
+/** Which way the combo moved last, and a key that changes with every move so its animation replays. */
+function useComboChange(combo: number): { readonly change: ComboChange; readonly key: number } {
+  const [seen, setSeen] = useState<{ readonly combo: number; readonly change: ComboChange; readonly key: number }>({ combo, change: "none", key: 0 });
+
+  if (seen.combo !== combo) setSeen({ combo, change: combo > seen.combo ? "rise" : "drop", key: seen.key + 1 });
+
+  return seen;
+}
+
+/** The tip multiplier under the coin: it bumps when a customer is served in turn and shakes back to x1 when the run breaks. */
+function TipCombo({ combo }: { readonly combo: number }) {
+  const { change, key } = useComboChange(combo);
+  const color = COMBO_COLOR[Math.min(COMBO_COLOR.length, Math.max(1, combo)) - 1];
+
+  return (
+    <div key={key} className={`-mt-2 rounded-full border-[3px] border-[#2a1a10] px-3 py-0.5 text-sm font-black uppercase tracking-wide shadow-[0_3px_0_#2a1a10] ${color} ${COMBO_MOTION[change]}`} data-testid="tip-combo">
+      Trinkgeld x{combo}
+    </div>
+  );
+}
+
+function Coin({ score, targets, combo }: { readonly score: number; readonly targets: readonly number[]; readonly combo: number }) {
   return (
     <div className="pointer-events-none absolute bottom-5 left-5 flex flex-col items-center drop-shadow-[0_6px_0_rgb(42_26_16/0.9)]">
       {targets.length > 0 && <StarMeter score={score} targets={targets} />}
@@ -43,6 +80,7 @@ function Coin({ score, targets }: { readonly score: number; readonly targets: re
         <span className="sr-only">Punkte</span>
         <span className="hud-stroke relative text-[2.6rem] font-black tabular-nums leading-none text-white [-webkit-text-stroke-width:7px]" data-testid="score">{score}</span>
       </div>
+      <TipCombo combo={combo} />
     </div>
   );
 }
@@ -124,12 +162,13 @@ export function Scoreboard({ clock = true }: { readonly clock?: boolean }) {
   const seconds = Option.match(snap, { onNone: () => 0, onSome: (s) => s.secondsLeft });
   const score = Option.match(snap, { onNone: () => 0, onSome: (s) => s.orders.score });
   const targets = Option.match(snap, { onNone: () => [], onSome: (s) => s.orders.targets });
+  const combo = Option.match(snap, { onNone: () => 1, onSome: (s) => s.orders.combo });
   const events = Option.match(snap, { onNone: () => [], onSome: (s) => s.orders.events });
 
   return (
     <>
       <CoinShower events={events} />
-      <Coin score={score} targets={clock ? targets : []} />
+      <Coin score={score} targets={clock ? targets : []} combo={combo} />
       {clock && <Stopwatch seconds={seconds} />}
     </>
   );

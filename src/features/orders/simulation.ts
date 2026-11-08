@@ -3,7 +3,7 @@ import { isBaked, isBurntBase } from "../kitchen/public.ts";
 import type { Item } from "../kitchen/public.ts";
 import type { Order, OrderEvent, OrdersState, Recipe } from "./model.ts";
 import {
-  ARRIVAL_MAX, ARRIVAL_MIN, EVENT_TICKS, MAX_ORDERS, MAX_TIP, MISSED_PENALTY, NORMAL_PACE, RECIPES,
+  ARRIVAL_MAX, ARRIVAL_MIN, EVENT_TICKS, MAX_COMBO, MAX_ORDERS, MAX_TIP, MISSED_PENALTY, NORMAL_PACE, RECIPES,
 } from "./prototypes.ts";
 import type { Pace } from "./prototypes.ts";
 
@@ -11,7 +11,7 @@ import type { Pace } from "./prototypes.ts";
 export function newOrders(pace: Pace = NORMAL_PACE, menu: readonly Recipe[] = RECIPES): OrdersState {
   if (menu.length === 0) throw new Error("A shift needs at least one recipe on the menu.");
 
-  return { pace, menu, queue: [], nextId: 1, untilNext: 0, score: 0, served: 0, missed: 0, events: [] };
+  return { pace, menu, queue: [], nextId: 1, untilNext: 0, score: 0, combo: 1, served: 0, missed: 0, events: [] };
 }
 
 /** Adds a customer for `recipe` now, as the arrival timer would. */
@@ -37,6 +37,7 @@ export function stepOrders(state: OrdersState, tick: number, rng: number): numbe
     state.queue.splice(state.queue.indexOf(order), 1);
     state.score -= MISSED_PENALTY;
     state.missed += 1;
+    state.combo = 1;
     record(state, tick, { type: "expired", orderId: order.id, penalty: MISSED_PENALTY });
   }
 
@@ -88,7 +89,8 @@ function matches(item: Item, recipe: Recipe): boolean {
 
 /**
  * Hands `item` over the pass: the longest-waiting matching customer takes it and pays points
- * plus a tip for speed. Returns true when someone took it; the cook keeps it otherwise.
+ * plus a tip for speed times the combo. Serving the customer at the head of the queue raises
+ * the combo; serving anyone else resets it. Returns true when someone took it; the cook keeps it otherwise.
  */
 export function serve(state: OrdersState, item: Item, tick: number): boolean {
   const order = state.queue.find((o) => matches(item, o.recipe));
@@ -99,11 +101,14 @@ export function serve(state: OrdersState, item: Item, tick: number): boolean {
     return false;
   }
 
+  const inTurn = state.queue[0] === order;
   state.queue.splice(state.queue.indexOf(order), 1);
-  const tip = Math.round((MAX_TIP * order.ticksLeft) / order.patience);
+  const { combo } = state;
+  const tip = Math.round((MAX_TIP * order.ticksLeft) / order.patience) * combo;
   state.score += order.recipe.points + tip;
   state.served += 1;
-  record(state, tick, { type: "served", orderId: order.id, points: order.recipe.points, tip });
+  state.combo = inTurn ? Math.min(MAX_COMBO, combo + 1) : 1;
+  record(state, tick, { type: "served", orderId: order.id, points: order.recipe.points, tip, combo });
 
   return true;
 }

@@ -1,4 +1,6 @@
 import { ICONS, LABEL } from "../../kitchen/public.ts";
+import type { Base, Filling } from "../../kitchen/public.ts";
+import { STEP, STEP_LOOK } from "../prototypes.ts";
 import type { TicketView } from "../snapshot.ts";
 
 /** How a ticket left the rail: handed over at the pass, or the customer gave up. */
@@ -54,6 +56,17 @@ function railOf(tickets: readonly TicketView[], leaving: readonly LeavingTicket[
   return rail;
 }
 
+/** The small sign under an ingredient for the work it needs: knife, spit, grill, oven, bottle or sprinkle. */
+function StepMark({ of, className }: { readonly of: Base | Filling; readonly className: string }) {
+  const look = STEP_LOOK[STEP[of]];
+
+  return (
+    <span title={look.label} className={`grid place-items-center rounded-full border-[1.5px] border-[#2a1a10]/70 bg-[#fff3c4] leading-none ${className}`}>
+      {look.icon}
+    </span>
+  );
+}
+
 function Ticket({ ticket, still }: { readonly ticket: TicketView; readonly still: boolean }) {
   const mood = moodOf(ticket.patience);
   const card = still ? "bg-[#fffaf0]" : CARD[mood];
@@ -64,12 +77,18 @@ function Ticket({ ticket, still }: { readonly ticket: TicketView; readonly still
         <div className="h-full transition-[width,background-color] duration-200" style={{ width: `${Math.max(0, ticket.patience) * 100}%`, background: BAR[mood] }} />
       </div>
       <div className="flex flex-col items-center px-1.5 pb-0.5 pt-0.5">
-        <span className="text-[2.6rem] leading-none drop-shadow-[0_2px_0_rgb(0_0_0/0.2)]" role="img" aria-label={ticket.name}>{ticket.icon}</span>
+        <span className="relative">
+          <span className="text-[2.6rem] leading-none drop-shadow-[0_2px_0_rgb(0_0_0/0.2)]" role="img" aria-label={`${ticket.name}, ${LABEL[ticket.base]} ${STEP_LOOK[STEP[ticket.base]].label}`}>{ticket.icon}</span>
+          <StepMark of={ticket.base} className="absolute -bottom-0.5 -right-3 size-5 text-[0.7rem] shadow-[0_2px_0_rgb(0_0_0/0.25)]" />
+        </span>
         <span className="truncate text-[0.68rem] font-extrabold uppercase leading-tight tracking-wide">{ticket.name}</span>
       </div>
-      <ul className="flex justify-center gap-1 border-t-2 border-[#2a1a10]/20 bg-[#cfe1ec] px-1 py-1.5">
+      <ul className="flex justify-center gap-1 border-t-2 border-[#2a1a10]/20 bg-[#cfe1ec] px-1 pb-1 pt-1.5">
         {ticket.fillings.map((f) => (
-          <li key={f} title={LABEL[f]} aria-label={LABEL[f]} className="grid size-6 place-items-center rounded-full border-2 border-[#2a1a10]/70 bg-white text-sm leading-none shadow-[0_2px_0_rgb(0_0_0/0.25)]">{ICONS[f]}</li>
+          <li key={f} title={LABEL[f]} aria-label={`${LABEL[f]}, ${STEP_LOOK[STEP[f]].label}`} className="flex flex-col items-center">
+            <span className="grid size-6 place-items-center rounded-full border-2 border-[#2a1a10]/70 bg-white text-sm leading-none shadow-[0_2px_0_rgb(0_0_0/0.25)]">{ICONS[f]}</span>
+            <StepMark of={f} className="-mt-1 size-[1.15rem] text-[0.7rem]" />
+          </li>
         ))}
       </ul>
     </div>
