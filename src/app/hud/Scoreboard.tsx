@@ -1,5 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { Option } from "effect";
+import { useEffect, useRef, useState } from "react";
+import type { OrderEvent } from "#/features/orders/public.ts";
 import { snapshotAtom } from "#/game/runtime/atoms.ts";
 
 const HEX = "polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%)";
@@ -45,6 +47,54 @@ function Coin({ score, targets }: { readonly score: number; readonly targets: re
   );
 }
 
+/** Coins one serve sends from the pass to the score coin. */
+const COINS_PER_SERVE = 3;
+
+/** Long enough for the last coin of a burst to land. */
+const COIN_BURST_MS = 1100;
+
+/** One burst of coins per serve, each burst kept until its coins have landed. */
+function useCoinBursts(events: readonly OrderEvent[]): readonly number[] {
+  const seen = useRef(new WeakSet<OrderEvent>());
+  const next = useRef(0);
+  const [bursts, setBursts] = useState<readonly number[]>([]);
+
+  useEffect(() => {
+    const fresh = events.flatMap((event) => (event.type === "served" && !seen.current.has(event) ? [event] : []));
+
+    for (const event of events) seen.current.add(event);
+
+    if (fresh.length === 0) return;
+    const ids = fresh.map(() => (next.current += 1));
+    setBursts((list) => [...list, ...ids]);
+    // no cleanup: the effect re-runs on every snapshot, and the burst must still be cleared afterwards
+    setTimeout(() => setBursts((list) => list.filter((id) => !ids.includes(id))), COIN_BURST_MS);
+  }, [events]);
+
+  return bursts;
+}
+
+/** Coins that fly from the pass (where the scene says it is on screen) into the score coin, one burst per serve. */
+function CoinShower({ events }: { readonly events: readonly OrderEvent[] }) {
+  const bursts = useCoinBursts(events);
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      {bursts.flatMap((burst) =>
+        Array.from({ length: COINS_PER_SERVE }, (_, i) => (
+          <span
+            key={`${burst}-${i}`}
+            className="absolute bottom-[48px] left-[56px] grid size-10 animate-[coin-fly_720ms_cubic-bezier(0.45,0,0.7,0.5)_both] place-items-center rounded-full border-[3px] border-[#6e4308] bg-[radial-gradient(circle_at_35%_30%,#fff3a8,#f7c831_55%,#d9930f)] text-base font-black text-[#6e4308] shadow-[0_3px_0_#2a1a10]"
+            style={{ animationDelay: `${i * 90}ms` }}
+          >
+            €
+          </span>
+        )),
+      )}
+    </div>
+  );
+}
+
 function Stopwatch({ seconds }: { readonly seconds: number }) {
   const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
   const mood = seconds <= HURRY_SECONDS ? "hurry" : "calm";
@@ -74,9 +124,11 @@ export function Scoreboard({ clock = true }: { readonly clock?: boolean }) {
   const seconds = Option.match(snap, { onNone: () => 0, onSome: (s) => s.secondsLeft });
   const score = Option.match(snap, { onNone: () => 0, onSome: (s) => s.orders.score });
   const targets = Option.match(snap, { onNone: () => [], onSome: (s) => s.orders.targets });
+  const events = Option.match(snap, { onNone: () => [], onSome: (s) => s.orders.events });
 
   return (
     <>
+      <CoinShower events={events} />
       <Coin score={score} targets={clock ? targets : []} />
       {clock && <Stopwatch seconds={seconds} />}
     </>

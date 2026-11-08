@@ -153,9 +153,20 @@ interface Transit {
 interface CustomerView {
   readonly group: THREE.Group;
   readonly rig: THREE.Object3D;
+  readonly arms: readonly THREE.Object3D[];
   target: THREE.Vector3;
   leaving: "no" | "happy" | "angry";
   age: number;
+  /** Patience left, 1 when they just arrived; 1 while leaving. */
+  patience: number;
+  emitAcc: number;
+}
+
+/** How a waiting customer feels, by the patience left: calm, hands on hips, then stamping and fuming. */
+function moodOf(patience: number): "calm" | "cross" | "fuming" {
+  if (patience > 0.5) return "calm";
+
+  return patience > 0.25 ? "cross" : "fuming";
 }
 
 /** A running 3D view: draw a frame, follow the canvas size, free the GPU. */
@@ -436,6 +447,14 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     let distance = 6;
 
     while (distance < 60 && !fits(cx, cz, distance, points)) distance += 0.2;
+    const pass = passes[0];
+
+    // the HUD flies a served customer's coins from here to the score
+    if (pass !== undefined) {
+      at.copy(pass.centre).project(camera);
+      canvas.parentElement?.style.setProperty("--pass-x", `${((at.x + 1) / 2) * width}px`);
+      canvas.parentElement?.style.setProperty("--pass-y", `${((1 - at.y) / 2) * height}px`);
+    }
   }
 
   function slotOf(index: number): THREE.Vector3 {
@@ -460,14 +479,14 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
         group.add(contactShadow(0.3, 0.45));
         group.position.set(order.id % 2 === 0 ? -2.5 : w.width + 2.5, 0, -1.9);
         scene.add(group);
-        view = { group, rig: named(group, "rig"), target: slotOf(i), leaving: "no", age: 0 };
+        view = {
+          group, rig: named(group, "rig"), arms: [named(group, "armL"), named(group, "armR")], target: slotOf(i), leaving: "no", age: 0, patience: 1, emitAcc: 0,
+        };
         customers.set(order.id, view);
       }
 
       view.target = slotOf(i);
-      const patience = order.ticksLeft / Math.max(1, order.patience);
-      // impatient customers stamp and wobble
-      view.rig.rotation.z = patience < 0.25 ? Math.sin(t * 18 + order.id) * 0.08 : 0;
+      view.patience = order.ticksLeft / Math.max(1, order.patience);
     });
 
     for (const [id, view] of customers) {
@@ -498,9 +517,34 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
         view.group.rotation.y = 0;
       }
 
-      const jump = view.leaving === "happy" && view.age < 0.9 ? Math.abs(Math.sin(view.age * 10)) * 0.35 : 0;
+      const cheering = view.leaving === "happy" && view.age < 0.9;
+      const jump = cheering ? Math.abs(Math.sin(view.age * 10)) * 0.35 : 0;
+      const mood = view.leaving === "no" ? moodOf(view.patience) : "calm";
       const bob = moving ? Math.abs(Math.sin(t * 12 + id)) * 0.06 : Math.sin(t * 2 + id) * 0.01;
-      view.rig.position.y = bob + jump;
+      // a fuming customer stamps from foot to foot and steam puffs off their head
+      const stamp = mood === "fuming" && !moving ? Math.abs(Math.sin(t * 9 + id)) * 0.07 : 0;
+      view.rig.position.y = bob + jump + stamp;
+      view.rig.rotation.z = mood === "fuming" ? Math.sin(t * 9 + id) * 0.09 : 0;
+      view.arms.forEach((arm, side) => {
+        const out = side === 0 ? -1 : 1;
+
+        if (cheering) {
+          arm.position.set(out * 0.27, 0.86, 0);
+          arm.rotation.z = out * (0.3 + Math.sin(view.age * 20) * 0.15);
+        } else {
+          arm.position.set(out * 0.25, 0.55, 0);
+          arm.rotation.z = out * (mood === "calm" ? 0.2 : 0.75);
+        }
+      });
+
+      if (mood === "fuming") {
+        view.emitAcc += dt * (view.patience < 0.12 ? 6 : 3);
+        const n = Math.floor(view.emitAcc);
+        view.emitAcc -= n;
+
+        if (n > 0) fx.emit(view.patience < 0.12 ? "smoke" : "steam", at.set(pos.x, 1.45, pos.z), n);
+      }
+
       const s = 1 + (moving ? Math.sin(t * 24 + id) * 0.04 : 0);
       view.rig.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
 

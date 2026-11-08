@@ -227,6 +227,15 @@ body {
   100% { transform: scale(1); }
 }
 
+/* from the pass (--pass-x/y, set by the 3D view) up a little, then down into the score coin at the bottom left */
+@keyframes coin-fly {
+  0% { transform: translate(calc(var(--pass-x, 50vw) - 76px), calc(var(--pass-y, 20vh) - 100vh + 68px)) scale(0.4); opacity: 0; }
+  15% { transform: translate(calc(var(--pass-x, 50vw) - 76px), calc(var(--pass-y, 20vh) - 100vh + 20px)) scale(1.15); opacity: 1; }
+  55% { transform: translate(calc((var(--pass-x, 50vw) - 76px) * 0.45), calc((var(--pass-y, 20vh) - 100vh + 68px) * 0.8)) scale(1) rotate(-160deg); }
+  92% { transform: translate(0, 0) scale(0.7) rotate(-340deg); opacity: 1; }
+  100% { transform: translate(0, 0) scale(0.3) rotate(-360deg); opacity: 0; }
+}
+
 @keyframes clock-pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
