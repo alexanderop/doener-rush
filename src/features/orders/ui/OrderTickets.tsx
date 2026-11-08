@@ -31,6 +31,9 @@ const MOTION: Readonly<Record<TicketOutcome | "enter", string>> = {
   expired: "animate-[ticket-drop_800ms_ease-in_forwards]",
 };
 
+/** A wrong dish at the pass: every waiting ticket flashes red and shakes once. */
+const WRONG = "animate-[ticket-wrong_560ms_ease-out]";
+
 /** How much hurry a ticket shows: the bar turns yellow at half, red and shaking under a quarter. */
 function moodOf(patience: number): Mood {
   if (patience > 0.5) return "calm";
@@ -86,8 +89,11 @@ function PointsPop({ leaving }: { readonly leaving: LeavingTicket }) {
   );
 }
 
-/** The ticket rail: one card per waiting customer, its patience draining as a bar; served and lost tickets play out before they go. */
-export function OrderTickets({ tickets, leaving = [] }: { readonly tickets: readonly TicketView[]; readonly leaving?: readonly LeavingTicket[] }) {
+/**
+ * The ticket rail: one card per waiting customer, its patience draining as a bar; served and lost tickets play out before they go.
+ * `wrong` counts the wrong dishes handed over so far; each new one flashes the waiting tickets.
+ */
+export function OrderTickets({ tickets, leaving = [], wrong = 0 }: { readonly tickets: readonly TicketView[]; readonly leaving?: readonly LeavingTicket[]; readonly wrong?: number }) {
   return (
     <div className="flex items-start gap-3">
       {(tickets.length > 0 || leaving.length > 0) && (
@@ -95,7 +101,9 @@ export function OrderTickets({ tickets, leaving = [] }: { readonly tickets: read
           {railOf(tickets, leaving).map(({ ticket, leaving: gone }) => (
             <li key={ticket.id} className="relative w-[6.75rem] shrink-0" aria-hidden={gone !== undefined}>
               <div className={MOTION[gone?.outcome ?? "enter"]}>
-                <Ticket ticket={ticket} still={gone !== undefined} />
+                <div key={wrong} className={wrong > 0 && gone === undefined ? WRONG : ""}>
+                  <Ticket ticket={ticket} still={gone !== undefined} />
+                </div>
               </div>
               {gone && <PointsPop leaving={gone} />}
             </li>

@@ -44,11 +44,32 @@ function useLeavingTickets(tickets: readonly TicketView[], events: readonly Orde
   return leaving;
 }
 
+/** How many wrong dishes the snapshots have reported so far, counting each event once. */
+function useWrongCount(events: readonly OrderEvent[]): number {
+  const seen = useRef(new WeakSet<OrderEvent>());
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let fresh = 0;
+
+    for (const event of events) {
+      if (seen.current.has(event)) continue;
+      seen.current.add(event);
+
+      if (event.type === "wrong") fresh += 1;
+    }
+
+    if (fresh > 0) setCount((n) => n + fresh);
+  }, [events]);
+
+  return count;
+}
+
 /** The live ticket rail, fed from the HUD snapshot. */
 export function OrderRail() {
   const orders = useAtomValue(ordersAtom);
   const tickets = Option.match(orders, { onNone: () => [], onSome: (o) => o.tickets });
   const events = Option.match(orders, { onNone: () => [], onSome: (o) => o.events });
 
-  return <OrderTickets tickets={tickets} leaving={useLeavingTickets(tickets, events)} />;
+  return <OrderTickets tickets={tickets} leaving={useLeavingTickets(tickets, events)} wrong={useWrongCount(events)} />;
 }

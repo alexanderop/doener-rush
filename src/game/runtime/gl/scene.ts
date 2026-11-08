@@ -33,6 +33,12 @@ const BUBBLE = 0.36;
 /** How close two cooks' centres come before they count as bumping; the walk keeps them PERSONAL_SPACE (0.7) apart. */
 const BUMP_DISTANCE = 0.76;
 
+/** Seconds the view holds still when a dish is served, so the moment lands. */
+const HIT_STOP = 0.04;
+
+/** How far the camera jolts on a serve, in world units; it settles within a quarter second. */
+const SERVE_SHAKE = 0.16;
+
 /** Seconds an item takes between a cook's hand and a station. */
 const TRANSIT_SECONDS = 0.12;
 
@@ -307,6 +313,13 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   scene.add(still);
   const fx: Fx = createFx();
   scene.add(fx.object);
+  // one light lends its flicker to the fire; it stays in the scene at zero so lighting shaders never recompile
+  const fireLight = new THREE.PointLight("#ff7a2a", 0, 3.6, 1.6);
+  scene.add(fireLight);
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const cameraHome = new THREE.Vector3();
+  let freeze = 0;
+  let shake = 0;
   scene.add(vignette());
 
   const stations: StationView[] = [];
@@ -447,6 +460,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     let distance = 6;
 
     while (distance < 60 && !fits(cx, cz, distance, points)) distance += 0.2;
+    cameraHome.copy(camera.position);
     const pass = passes[0];
 
     // the HUD flies a served customer's coins from here to the score
@@ -622,6 +636,11 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       if (entry.event.type === "served") {
         fx.emit("confetti", at, 40);
         fx.emit("sparks", at, 24, "#ffd166");
+
+        if (!calm) {
+          freeze = HIT_STOP;
+          shake = SERVE_SHAKE;
+        }
       } else if (entry.event.type === "wrong") {
         fx.emit("smoke", at, 10);
       }
@@ -870,6 +889,15 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     slowFor = frames > 120 && frameAvg > 1 / 36 ? slowFor + raw : 0;
 
     if (slowFor > 1.2 && quality < 3) lowerQuality();
+
+    // hit-stop: the view holds its last pose; the world keeps ticking and the next frame catches up
+    if (freeze > 0) {
+      freeze -= raw;
+      renderer.render(scene, camera);
+
+      return;
+    }
+
     const worked = new Set<number>();
 
     for (const cook of w.cooks) {
@@ -895,8 +923,42 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     syncArrows(w, t);
     syncCustomers(w, dt, t);
     animateStreet(outside.birds, t);
+    syncFireLight(t);
+    shakeCamera(t, dt);
     fx.update(dt);
     renderer.render(scene, camera);
+  }
+
+  /** The fire light sits on the first burning station and flickers; slow machines go without it, like the spit's heat. */
+  function syncFireLight(t: number): void {
+    let burning: StationView | undefined;
+
+    for (const view of stations) {
+      if (view.station.fire > 0) {
+        burning = view;
+        break;
+      }
+    }
+
+    if (burning === undefined || quality >= 2) {
+      fireLight.intensity = 0;
+
+      return;
+    }
+
+    fireLight.position.set(burning.centre.x, TOP + 0.6, burning.centre.z + 0.2);
+    fireLight.intensity = 5 * (0.75 + Math.sin(t * 31) * 0.1 + Math.sin(t * 17.3) * 0.08 + Math.random() * 0.12);
+  }
+
+  function shakeCamera(t: number, dt: number): void {
+    if (shake < 0.002) {
+      camera.position.copy(cameraHome);
+
+      return;
+    }
+
+    camera.position.set(cameraHome.x + Math.sin(t * 71) * shake, cameraHome.y + Math.sin(t * 53 + 1) * shake * 0.6, cameraHome.z + Math.sin(t * 61 + 2) * shake * 0.5);
+    shake *= Math.exp(-dt * 16);
   }
 
   // warm up before the game loop starts: compile every shader, upload the textures and
