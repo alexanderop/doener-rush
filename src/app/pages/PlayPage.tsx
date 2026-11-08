@@ -88,7 +88,7 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
   const looks = useMemo(() => crewLooks(world.drivers, [look1 ?? DEFAULT_PICKS[0], look2 ?? DEFAULT_PICKS[1]]), [world, look1, look2]);
   const canvas = useRef<HTMLCanvasElement>(null);
   // a named scenario is a test or debugging setup: it starts at once
-  useGameCanvas(canvas, world, looks, search.scenario === undefined);
+  useGameCanvas(canvas, world, level.id, looks, search.scenario === undefined);
 
   return (
     <main className="relative h-screen overflow-hidden">

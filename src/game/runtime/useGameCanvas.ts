@@ -12,6 +12,7 @@ import { GAME_KEYS, keyDown, keyUp, newKeys, releaseAll, takeIntents } from "./i
 import { pollPads } from "./input/pads.ts";
 import { advanceStart, newStart, startView } from "./start.ts";
 import { isOver, snapshot, step } from "./step.ts";
+import type { LevelId } from "./levels.ts";
 import type { Look } from "./looks.ts";
 import type { World } from "./world.ts";
 
@@ -23,11 +24,11 @@ const SNAPSHOT_EVERY = 6;
 
 /**
  * Runs the game on a canvas: keyboard and gamepads in (pads polled once a frame), fixed 60 Hz
- * ticks (Game Loop pattern), one draw per display frame in 3D, and a snapshot for the HUD ten
- * times a second. With `countdown` the shift opens with the recipe card and "3, 2, 1, LOS!",
+ * ticks (Game Loop pattern), one draw per display frame in 3D, a snapshot for the HUD ten times
+ * a second, and the kitchen's soundtrack in `level`'s version of the theme. With `countdown` the shift opens with the recipe card and "3, 2, 1, LOS!",
  * and the world waits until then.
  */
-export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world: World, looks: readonly Look[], countdown: boolean): void {
+export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world: World, level: LevelId, looks: readonly Look[], countdown: boolean): void {
   const paused = useAtomValue(pausedAtom);
   const setSnapshot = useAtomSet(snapshotAtom);
   const setStart = useAtomSet(startAtom);
@@ -51,7 +52,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     let start = newStart(countdown);
     let shown = startView(start);
     let skip = false;
-    const sound = createSoundtrack(world);
+    const sound = createSoundtrack(world, level);
 
     const onDown = (e: KeyboardEvent) => {
       skip = true;
@@ -68,7 +69,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     window.addEventListener("keyup", onUp);
     window.addEventListener("blur", onBlur);
     window.addEventListener("pointerdown", sound.unlock);
-    const uninstall = installDevGame(() => world);
+    const uninstall = installDevGame(() => world, sound.music);
     setSnapshot(Option.some(snapshot(world)));
     setStart(shown);
 
@@ -126,5 +127,5 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
       uninstall();
       view.dispose();
     };
-  }, [canvas, world, looks, countdown, setSnapshot, setStart]);
+  }, [canvas, world, level, looks, countdown, setSnapshot, setStart]);
 }

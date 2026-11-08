@@ -5,7 +5,7 @@
  */
 
 /** A layer of a song that can trade decks on its own during a mix. */
-type Stem = "lead" | "arp" | "counter" | "bass" | "pad";
+export type Stem = "lead" | "arp" | "counter" | "bass" | "pad";
 
 /** What a row plays: the stems, and the bed's drums, which never enter or leave by intensity. */
 export type Part = Stem | "drums";
@@ -15,6 +15,9 @@ type Grid = "4/4" | "12/8";
 
 /** Steps in one bar of each grid. */
 const STEPS_PER_BAR: Readonly<Record<Grid, number>> = { "4/4": 16, "12/8": 12 };
+
+/** The tempo of every song, so any two share one bar clock. */
+export const BPM = 128;
 
 /** A row entry that keeps the part silent for the bar. */
 export const REST = "rest";

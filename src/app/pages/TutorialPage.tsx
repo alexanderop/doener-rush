@@ -13,7 +13,7 @@ function Lesson({ onAgain }: { readonly onAgain: () => void }) {
   const world = useMemo(newTutorialWorld, []);
   const looks = useMemo(() => crewLooks(world.drivers, loadPicks()), [world]);
   const canvas = useRef<HTMLCanvasElement>(null);
-  useGameCanvas(canvas, world, looks, false);
+  useGameCanvas(canvas, world, "erster-tag", looks, false);
 
   return (
     <main className="relative h-screen overflow-hidden">

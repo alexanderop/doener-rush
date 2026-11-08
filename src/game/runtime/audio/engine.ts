@@ -1,20 +1,24 @@
 /**
  * Plays the recipes in `recipes.ts` with the Web Audio API: no sound files, every sound is
- * oscillators and filtered noise under a short envelope. The AudioContext only exists after
- * `unlock`, which the page calls on the first key or click (browser autoplay rules).
+ * oscillators and filtered noise under a short envelope. The music comes from the chip worklet
+ * (`music/`). The AudioContext only exists after `unlock`, which the page calls on the first key
+ * or click (browser autoplay rules).
  */
 import { Option } from "effect";
 import type { Cue, Loop, LoopLevels } from "./cues.ts";
+import { NO_MUSIC, createPlayer } from "./music/player.ts";
+import type { MusicCue, MusicProbe, Player } from "./music/player.ts";
 import { CRACKLE, LOOPS, SOUNDS } from "./recipes.ts";
 import type { Voice } from "./recipes.ts";
 
-/** The game's sound effects: one-shots and loops, all quiet until unlocked. */
+/** The game's sound: one-shots, loops and the music, all quiet until unlocked. */
 export interface Engine {
   /** Starts (or resumes) audio. Call from a key or pointer event. */
   readonly unlock: () => void;
   readonly play: (cue: Cue) => void;
-  /** Once per display frame: loop volumes and the mute switch. */
-  readonly frame: (levels: LoopLevels, muted: boolean) => void;
+  /** Once per display frame: loop volumes, the music and the mute switch. */
+  readonly frame: (levels: LoopLevels, music: MusicCue, muted: boolean) => void;
+  readonly probe: () => MusicProbe;
   readonly dispose: () => void;
 }
 
@@ -29,6 +33,7 @@ interface Graph {
   readonly sfx: GainNode;
   readonly noise: AudioBuffer;
   readonly loops: Readonly<Record<Loop, GainNode>>;
+  readonly music: Player;
 }
 
 /** A new engine; silent until `unlock`. */
@@ -55,7 +60,7 @@ export function createEngine(): Engine {
 
       for (const v of SOUNDS[cue]) voice(graph.value, v, graph.value.ctx.currentTime, graph.value.sfx);
     },
-    frame: (wanted, mute) => {
+    frame: (wanted, music, mute) => {
       const flipped = mute !== muted;
       muted = mute;
 
@@ -75,7 +80,10 @@ export function createEngine(): Engine {
       if (levels.fire > 0 && Math.random() < levels.fire * 0.3) {
         for (const v of CRACKLE) voice(g, v, now + Math.random() * 0.03, g.sfx);
       }
+
+      g.music.cue(music, mute);
     },
+    probe: () => (Option.isSome(graph) ? graph.value.music.probe() : NO_MUSIC),
     dispose: () => {
       if (Option.isSome(graph)) void graph.value.ctx.close();
       graph = Option.none();
@@ -107,7 +115,9 @@ function build(ctx: AudioContext, muted: boolean): Graph {
     return gain;
   };
 
-  return { ctx, master, sfx, noise, loops: { sizzle: loop("sizzle"), fire: loop("fire"), spray: loop("spray") } };
+  const loops = { sizzle: loop("sizzle"), fire: loop("fire"), spray: loop("spray") };
+
+  return { ctx, master, sfx, noise, loops, music: createPlayer(ctx, master) };
 }
 
 function gainTo(ctx: AudioContext, value: number, to: AudioNode): GainNode {

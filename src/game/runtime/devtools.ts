@@ -1,3 +1,4 @@
+import type { MusicProbe } from "./audio/music/player.ts";
 import type { PlayerInput } from "./lineup.ts";
 import type { Snapshot } from "./step.ts";
 import { run, snapshot } from "./step.ts";
@@ -11,6 +12,8 @@ interface DevGame {
   readonly step: (ticks: number, intents?: readonly PlayerInput[]) => Snapshot;
   /** What the HUD shows now. */
   readonly snapshot: () => Snapshot;
+  /** What the music does: the worklet loaded, the DJ and its decks, the bar, the intensity, the output loudness. */
+  readonly music: () => MusicProbe;
 }
 
 declare global {
@@ -19,8 +22,8 @@ declare global {
   }
 }
 
-/** Installs `window.__game` for the given world; returns the uninstaller. */
-export function installDevGame(current: () => World): () => void {
+/** Installs `window.__game` for the given world and its music; returns the uninstaller. */
+export function installDevGame(current: () => World, music: () => MusicProbe): () => void {
   window.__game = {
     world: current,
     step: (ticks, intents = []) => {
@@ -29,6 +32,7 @@ export function installDevGame(current: () => World): () => void {
       return snapshot(current());
     },
     snapshot: () => snapshot(current()),
+    music,
   };
 
   return () => {

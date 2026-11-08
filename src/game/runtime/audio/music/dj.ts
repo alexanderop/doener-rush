@@ -29,7 +29,7 @@ type Fade = MixKind | "crossfade";
 export type Deck = 0 | 1;
 
 /** A song on a deck; its first bar plays at bar `start` of the clock. */
-interface Spin {
+export interface Spin {
   readonly track: Track;
   readonly deck: Deck;
   readonly start: number;
