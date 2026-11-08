@@ -45,6 +45,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
     const view = createShopView(element, world, looks);
     const keys = newKeys();
     const pads = [newPad(), newPad()];
+    const solo = !world.drivers.some((d) => d.kind === "keys" && d.binding === 1);
     let last = performance.now();
     let lag = 0;
     let frame = 0;
@@ -95,7 +96,7 @@ export function useGameCanvas(canvas: RefObject<HTMLCanvasElement | null>, world
 
       while (lag >= TICK_MS && ticks < MAX_TICKS_PER_FRAME) {
         // presses during the countdown or a pause are dropped, so a mashed key does not act on the first tick
-        const intents = takeIntents(keys, pads);
+        const intents = takeIntents(keys, pads, solo);
 
         if (start.phase === "running" && !pausedRef.current && !isOver(world)) step(world, intents);
         lag -= TICK_MS;

@@ -58,16 +58,20 @@ export function releaseAll(keys: Keys): void {
 
 /**
  * The intents for one tick, from the keyboard and pad `i` for binding `i`; either one works.
+ * With `solo` nobody plays on the second binding, so its arrow keys walk player 1 as well.
  * Consumes the presses, so a tap of interact acts once even when a frame runs several ticks,
  * and a tap between two ticks is not lost.
  */
-export function takeIntents(keys: Keys, pads: readonly Pad[] = []): PlayerInput[] {
+export function takeIntents(keys: Keys, pads: readonly Pad[] = [], solo = false): PlayerInput[] {
+  const held = (b: Binding, dir: "up" | "down" | "left" | "right") =>
+    Number(keys.down.has(b[dir]) || (solo && b === BINDINGS[0] && keys.down.has(BINDINGS[1]?.[dir] ?? "")));
+
   const intents = BINDINGS.map((b, i) => {
     const pad = pads[i] ?? newPad();
 
     return {
-      dx: clampStep(Number(keys.down.has(b.right)) - Number(keys.down.has(b.left)) + pad.dx),
-      dy: clampStep(Number(keys.down.has(b.down)) - Number(keys.down.has(b.up)) + pad.dy),
+      dx: clampStep(held(b, "right") - held(b, "left") + pad.dx),
+      dy: clampStep(held(b, "down") - held(b, "up") + pad.dy),
       interact: keys.pressed.has(b.interact) || pad.pressed.has("interact"),
       work: keys.down.has(b.work) || pad.held.has("work"),
       dash: keys.pressed.has(b.dash) || pad.pressed.has("dash"),

@@ -121,3 +121,21 @@ describe("keyboard and pad together", () => {
     expect(takeIntents(keys)[0]).toMatchObject({ dx: 0, dy: -1 });
   });
 });
+
+describe("arrow keys", () => {
+  it("walk player 1 when nobody plays on the second binding", () => {
+    const keys = newKeys();
+    keyDown(keys, "ArrowLeft");
+
+    expect(takeIntents(keys, [], true)[0]).toMatchObject({ dx: -1, dy: 0 });
+  });
+
+  it("stay player 2's keys in a two-player round", () => {
+    const keys = newKeys();
+    keyDown(keys, "ArrowLeft");
+    const [p1, p2] = takeIntents(keys, [], false);
+
+    expect(p1?.dx).toBe(0);
+    expect(p2?.dx).toBe(-1);
+  });
+});
