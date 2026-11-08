@@ -282,7 +282,7 @@ function waiting(ctx: Ctx, recipe: Recipe, ready = true): Station | null {
   let bestRank = -Infinity;
 
   for (const s of ctx.sight.stations) {
-    if (s.type !== "counter" && s.type !== "toaster" && s.type !== "mixer") continue;
+    if (s.type !== "counter" && s.type !== "belt" && s.type !== "toaster" && s.type !== "mixer") continue;
     const doener = doenerIn(s.item);
     const dist = ctx.reach.get(s);
 

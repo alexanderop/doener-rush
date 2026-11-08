@@ -1136,8 +1136,48 @@ function sinkModel(s: Station): THREE.Group {
   return g;
 }
 
+/** Chevrons on one belt tile; the scene slides them along so the belt reads as running. */
+const BELT_CHEVRONS = 4;
+
+/**
+ * A conveyor belt set into a steel counter: dark rubber between two rails, yellow chevrons pointing the way it
+ * runs. Built along +x and turned to face `dir`; the chevrons sit in the `belt` group the scene animates.
+ */
+function beltModel(s: Extract<Station, { type: "belt" }>): THREE.Group {
+  const g = counter(s.x, s.y, true);
+  const run = new THREE.Group();
+  run.rotation.y = Math.atan2(-s.dir.dy, s.dir.dx);
+  g.add(run);
+  run.add(box(1, 0.05, 0.7, mat("#2a2c31", "#000000", 0.95), TOP + 0.01));
+
+  for (const z of [-0.41, 0.41]) {
+    const rail = box(1, 0.08, 0.08, steel("#8d949c"), TOP + 0.03);
+    rail.position.z = z;
+    run.add(rail);
+  }
+
+  const chevrons = new THREE.Group();
+  chevrons.name = "belt";
+  run.add(chevrons);
+
+  for (let i = 0; i < BELT_CHEVRONS; i++) {
+    const chevron = new THREE.Group();
+
+    for (const side of [-1, 1]) {
+      const arm = box(0.05, 0.012, 0.3, mat("#f2c230", "#3a2a00", 0.6), TOP + 0.04);
+      arm.position.set(0, 0, side * 0.12);
+      arm.rotation.y = side * 0.75;
+      chevron.add(arm);
+    }
+
+    chevrons.add(chevron);
+  }
+
+  return g;
+}
+
 /** How far above the counter top an item sits, for stations with something under it. */
-const SLOT_LIFT = new Map<Station["type"], number>([["toaster", 0.15], ["board", 0.065], ["pass", 0.04], ["mixer", 0.06]]);
+const SLOT_LIFT = new Map<Station["type"], number>([["toaster", 0.15], ["board", 0.065], ["pass", 0.04], ["mixer", 0.06], ["belt", 0.04]]);
 
 /** The model of a station. Its `slot` child is where a held item sits. */
 export function stationModel(s: Station): THREE.Group {
@@ -1145,6 +1185,7 @@ export function stationModel(s: Station): THREE.Group {
 
   switch (s.type) {
     case "counter": g = counter(s.x, s.y); break;
+    case "belt": g = beltModel(s); break;
     case "crate": g = crateModel(s, s.goods); break;
     case "board": g = boardModel(s); break;
     case "toaster": g = s.look === "oven" ? ovenModel(s) : grillModel(s); break;

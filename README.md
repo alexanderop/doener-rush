@@ -35,7 +35,7 @@ Each player picks a chef look on the home page with the arrows beside the pictur
 
 ## Levels and the save
 
-The home page picks one of six kitchens. Each one opens once the kitchen before it has at least one star; the first is always open.
+The home page picks one of eight kitchens. Each one opens once the kitchen before it has at least one star; the first is always open.
 
 | # | Level | Id | What is new |
 | --- | --- | --- | --- |
@@ -45,12 +45,23 @@ The home page picks one of six kitchens. Each one opens once the kitchen before 
 | 4 | Der Schlauch | `schlauch` | Long and narrow: the spit at the far end, the pass at the other |
 | 5 | Großküche | `grosskueche` | Big kitchen, two grills, customers come faster |
 | 6 | Backstube | `backstube` | The bakery: knead dough in the mixer, top it, bake it in two ovens. Franzbrötchen, Mohnbrötchen and Brezel |
+| 7 | Fließband | `fliessband` | A thick wall splits kitchen and counter. One belt carries the döner to the front, one carries dirty plates back; the way around is long |
+| 8 | Hafenimbiss | `hafen` | A canal splits the kitchen. Two bridges stay up 12 s and sink for 7 s: throw bread and veg across the water |
 
-The levels are data in `src/game/runtime/levels.ts`: the floor plan (its legend is the comment on `Level`; the bakery adds `M` flour and `Y` butter crates, `Q` mixer, `E` oven, and the toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt), the menu customers order from, and a pace on top of the crew's (customer gaps, patience, star scores). `levels.test.ts` proves every plan is playable (four start tiles, every station its menu needs, all reachable) and that two bots score in a full shift on each.
+The levels are data in `src/game/runtime/levels.ts`: the floor plan (its legend is the comment on `Level`; the bakery adds `M` flour and `Y` butter crates, `Q` mixer, `E` oven, and the toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt; the moving kitchens add belts `>` `<` `^` `v`, water `~` and bridges `#`), the menu customers order from, and a pace on top of the crew's (customer gaps, patience, star scores). `levels.test.ts` proves every plan is playable (four start tiles, every station its menu needs, all reachable) and that two bots score in a full shift on each.
 
-In the URL: `/play?level=<id>`; without it a shift plays Der Imbiss, so old links keep working. `?scenario=` always uses Der Imbiss and is never saved.
+In the URL: `/play?level=<id>`; without it a shift plays Der Imbiss, so old links keep working. `?scenario=` plays the kitchen the scenario names (Der Imbiss for most) and is never saved.
 
 The best score and stars per level live in `localStorage` under `doener-rush/progress/v1` (`src/game/persistence/progress.ts`, parsed with Effect Schema; a broken or blocked save is an empty one). The end card says "Neuer Rekord!" when a shift beats the best and offers "Nächstes Level". Every kitchen can be played from the start. Clear site data to reset the records.
+
+## Kitchens that move
+
+Two things in a kitchen move on their own, both from the floor plan and both counted in ticks, so a seed replays the same shift.
+
+- **Conveyor belts** (`>` `<` `^` `v`, running the way they point) are a `belt` station: put an item down and take it up like on a counter, or throw one onto it. Every `BELT_TICKS` (0.6 s, `kitchen/prototypes.ts`) each item moves one tile along onto the next belt tile if that one is free or frees up in the same move, so a full line moves as one. An item stops at the end of its belt. `moveBelts` in `kitchen/simulation.ts`.
+- **Bridges** (`#`) span the water (`~`). All bridges of a kitchen share one state machine in `runtime/bridge.ts` (`up`, `held`, `down`) on the level's `bridge` schedule (`{ up, down }` in ticks). Up, a bridge is floor; down, it is water. A bridge due to sink waits while any cook's footprint touches it. Two seconds before it moves it wobbles and blinks (`BRIDGE_WARNING`). `isSolid` in `runtime/world.ts` is the one answer to where a cook can stand; `blocksThrow` says where a throw stops, so a throw flies over water and is lost if it comes down there.
+
+Bots path over a bridge only while it is up and not about to sink (unless they already stand on it), never wait on one, and pick döner up from belts but never load them.
 
 ## How a döner gets made
 
@@ -100,7 +111,8 @@ The music is rendered sample by sample in an AudioWorklet (`music/chip.worklet.t
 | `src/game/runtime/lineup.ts` | The `Lineup`: one `Driver` per cook, a keyboard binding or a bot |
 | `src/game/runtime/looks.ts` | The chef looks and which cook wears which |
 | `src/game/runtime/levels.ts` | The campaign: each level's floor plan (ASCII), menu and pace |
-| `src/game/runtime/world.ts` | The `World`, built from a level |
+| `src/game/runtime/world.ts` | The `World`, built from a level; `isSolid` and `blocksThrow` |
+| `src/game/runtime/bridge.ts` | The bridges' state machine and schedule |
 | `src/game/persistence/progress.ts` | The save: best score and stars per level, which levels are open |
 | `src/shared/storage.ts` | The one place that touches `localStorage`; never throws |
 | `src/game/runtime/step.ts` | One tick in fixed order: cooks, stations, orders. HUD snapshot |
@@ -118,12 +130,12 @@ Feature boundaries are enforced by the `factory-architecture` oxlint plugin; the
 
 | Layer | Where | What it proves |
 | --- | --- | --- |
-| Examples | `src/**/*.test.ts` | Chop, toast, burn, spit cooking and shaving, sauce, serve rules, walking and collision, a scripted cook making a Döner Pur from scratch, bots running whole shifts and baking in the Backstube (`runtime/bots.test.ts`), every level playable (`runtime/levels.test.ts`), the save (`persistence/progress.test.ts`) |
+| Examples | `src/**/*.test.ts` | Chop, toast, burn, spit cooking and shaving, sauce, serve rules, walking and collision, a scripted cook making a Döner Pur from scratch, bots running whole shifts and baking in the Backstube (`runtime/bots.test.ts`), every level playable (`runtime/levels.test.ts`), belts, bridges and throws over the canal (`runtime/moving.test.ts`, `runtime/bridge.test.ts`), the save (`persistence/progress.test.ts`) |
 | Properties | `src/game/runtime/step.test.ts` | Random two-player input never puts a cook inside a station, and replays the same round |
 | Browser | `pnpm e2e` | Real keyboard input and HUD: walking, dashing, a stubbed gamepad walking, serving at the pass, putting out a fire, the end-of-shift card, a star on level 1 opening level 2, a star in the Großküche opening the Backstube. Runs one worker: headless WebGL renders on the CPU |
 | Lint rules | `tools/oxlint/**/*.test.ts` | The architecture and coding standard rules themselves |
 
 ### Driving the game as an agent
 
-1. `pnpm dev`, then open `http://localhost:3000/play?level=<id>&humans=0&bots=2` for a level, or `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `catch`, `backstube`, `rush`, `last-seconds`). A named scenario skips the recipe card and the countdown; plain `/play` has them.
+1. `pnpm dev`, then open `http://localhost:3000/play?level=<id>&humans=0&bots=2` for a level, or `http://localhost:3000/play?scenario=<name>&seed=<n>` (scenarios: `shift`, `ready-classic`, `burning-spit`, `kitchen-fire`, `dirty-dishes`, `prep-line`, `catch`, `backstube`, `belt`, `bridge`, `canal-throw`, `rush`, `last-seconds`). A named scenario skips the recipe card and the countdown; plain `/play` has them.
 2. In the console or with `agent-browser eval`: `__game.step(ticks, [intent1, intent2])` runs ticks with intents `{ dx, dy, interact, work, dash, throw }`, `__game.snapshot()` returns what the HUD shows, `__game.world()` the live state, `__game.music()` what the music plays (after a key press unlocks audio).

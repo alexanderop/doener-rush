@@ -1,16 +1,17 @@
 import { think } from "../../features/bots/public.ts";
 import type { Sight } from "../../features/bots/public.ts";
-import { IDLE, facingTile, fly, throwHeld, walk } from "../../features/cooks/public.ts";
-import type { Intent, Thrown } from "../../features/cooks/public.ts";
-import { interact, isBurning, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
+import { IDLE, facingTile, fly, throwHeld, tilesUnder, walk } from "../../features/cooks/public.ts";
+import type { Cook, Intent, Thrown } from "../../features/cooks/public.ts";
+import { beltsMove, interact, isBurning, moveBelts, spreadFire, stepStation, work } from "../../features/kitchen/public.ts";
 import { ordersSnapshot, serve, stepOrders } from "../../features/orders/public.ts";
 import type { OrdersSnapshot } from "../../features/orders/public.ts";
 import type { Item, Station } from "../../features/kitchen/public.ts";
 import { TICK_RATE, seconds } from "../core/grid.ts";
+import { isClosing, stepBridge } from "./bridge.ts";
 import type { PlayerInput } from "./lineup.ts";
 import { enforceRules } from "./rules.ts";
 import type { World } from "./world.ts";
-import { isSolid, stationAt } from "./world.ts";
+import { blocksThrow, isBridge, isSolid, stationAt } from "./world.ts";
 import { stepTutorial, tutorialView } from "./tutorial/tutorial.ts";
 import type { TutorialView } from "./tutorial/tutorial.ts";
 
@@ -29,7 +30,7 @@ export function isOver(world: World): boolean {
  * Advances the world by one tick. `intents[b]` drives the cook binding `b` controls now; missing
  * intents idle. A swap press moves that control to the binding's next cook. Bots think for their cook from what they see at
  * that moment, so a bot sees the moves of the cooks before it.
- * The order is fixed (cooks by id, then thrown ingredients, stations, orders), so a seed and the same
+ * The order is fixed (cooks by id, then thrown ingredients, bridges, belts, stations, orders), so a seed and the same
  * intents always give the same round.
  */
 export function step(world: World, intents: readonly PlayerInput[]): void {
@@ -44,7 +45,7 @@ export function step(world: World, intents: readonly PlayerInput[]): void {
     let intent = IDLE;
 
     if (driver?.kind === "keys") intent = world.control[driver.binding] === i ? intentOf(intents[driver.binding]) : parkedIntent(world, i);
-    else if (mind !== undefined) intent = think(sightOf(world), mind, cook);
+    else if (mind !== undefined) intent = think(sightOf(world, cook), mind, cook);
     walk(cook, intent, solid, world.cooks);
     const thrown = intent.throw ? throwHeld(cook) : null;
 
@@ -68,7 +69,10 @@ export function step(world: World, intents: readonly PlayerInput[]): void {
     }
   });
 
-  flyThrown(world, solid);
+  flyThrown(world);
+  stepBridges(world);
+
+  if (beltsMove(world.tick)) moveBelts(world.stations.values(), (x, y) => stationAt(world, x, y));
 
   for (const station of world.stations.values()) stepStation(station);
   enforceRules(world);
@@ -79,12 +83,15 @@ export function step(world: World, intents: readonly PlayerInput[]): void {
   stepTutorial(world);
 }
 
-/** Moves every ingredient in the air one tick, oldest throw first, and records how the finished flights ended. */
-function flyThrown(world: World, solid: (x: number, y: number) => boolean): void {
+/**
+ * Moves every ingredient in the air one tick, oldest throw first, and records how the finished flights ended. A throw
+ * flies over water; one that runs out of flight above it is lost like one that hits the floor.
+ */
+function flyThrown(world: World): void {
   const flying: Thrown[] = [];
 
   for (const thrown of world.thrown) {
-    const landing = fly(thrown, world.cooks, (x, y) => stationAt(world, x, y), solid);
+    const landing = fly(thrown, world.cooks, (x, y) => stationAt(world, x, y), (x, y) => blocksThrow(world, x, y));
 
     if (landing === null) flying.push(thrown);
     else world.landings.push({ tick: world.tick, landing });
@@ -93,6 +100,19 @@ function flyThrown(world: World, solid: (x: number, y: number) => boolean): void
   world.thrown.splice(0, world.thrown.length, ...flying);
 
   while (world.landings.length > 0 && world.tick - (world.landings[0]?.tick ?? world.tick) > LANDING_TICKS) world.landings.shift();
+}
+
+/** The bridges follow their schedule; one due to sink waits while any cook's footprint touches a bridge tile. */
+function stepBridges(world: World): void {
+  const { bridges } = world;
+
+  if (bridges === null) return;
+  const occupied = world.cooks.some((cook) => isOnBridge(world, cook));
+  bridges.state = stepBridge(bridges.state, bridges.schedule, occupied);
+}
+
+function isOnBridge(world: World, cook: Cook): boolean {
+  return tilesUnder(cook.x, cook.y).some((t) => isBridge(world, t.x, t.y));
 }
 
 /** The cook part of a player's input. */
@@ -152,8 +172,14 @@ function fightable(world: World, x: number, y: number): Station | null {
   return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx = 0, dy = 0]) => !isSolid(world, x + dx, y + dy)) ? station : null;
 }
 
-/** What a bot sees: the world read-only, plus every bot's claims so two never chase the same job. */
-function sightOf(world: World): Sight {
+/**
+ * What a bot sees: the world read-only, plus every bot's claims so two never chase the same job. A bridge about to
+ * sink counts as water to a bot not on one yet, so it never starts across; one already on it walks on, and the bridge waits.
+ */
+function sightOf(world: World, me: Cook): Sight {
+  const bridges = world.bridges;
+  const avoid = bridges !== null && isClosing(bridges.state) && !isOnBridge(world, me);
+
   const claims = new Map<string, number>();
 
   for (const [id, mind] of world.bots) {
@@ -165,7 +191,8 @@ function sightOf(world: World): Sight {
   return {
     width: world.width,
     height: world.height,
-    solid: (x, y) => isSolid(world, x, y),
+    solid: (x, y) => isSolid(world, x, y) || (avoid && isBridge(world, x, y)),
+    crossing: (x, y) => isBridge(world, x, y),
     stationAt: (x, y) => stationAt(world, x, y),
     stations: [...world.stations.values()],
     cooks: world.cooks,

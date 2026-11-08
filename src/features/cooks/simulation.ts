@@ -64,11 +64,22 @@ function dashStep(cook: Cook, intent: Intent, solid: (x: number, y: number) => b
 }
 
 function fits(x: number, y: number, solid: (x: number, y: number) => boolean): boolean {
+  return tilesUnder(x, y).every((t) => !solid(t.x, t.y));
+}
+
+/** The tiles a cook's square footprint covers when its centre is at `x`, `y`: one to four. */
+export function tilesUnder(x: number, y: number): Tile[] {
+  const tiles: Tile[] = [];
+
   for (const cx of [x - RADIUS, x + RADIUS]) {
-    for (const cy of [y - RADIUS, y + RADIUS]) if (solid(Math.floor(cx), Math.floor(cy))) return false;
+    for (const cy of [y - RADIUS, y + RADIUS]) {
+      const tile = { x: Math.floor(cx), y: Math.floor(cy) };
+
+      if (!tiles.some((t) => t.x === tile.x && t.y === tile.y)) tiles.push(tile);
+    }
   }
 
-  return true;
+  return tiles;
 }
 
 function clear(cook: Cook, x: number, y: number, others: readonly Cook[]): boolean {

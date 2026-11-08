@@ -1,5 +1,8 @@
-import { CHOPPED, HEAT, MIX_TICKS, RAW, WHOLE, sideAt, toastAt } from "../../../features/kitchen/public.ts";
+import type { Cook } from "../../../features/cooks/public.ts";
+import { CHOPPED, DIRTY, HEAT, MIX_TICKS, RAW, WHOLE, sideAt, toastAt } from "../../../features/kitchen/public.ts";
 import { ROUND_TICKS, RECIPES, addOrder } from "../../../features/orders/public.ts";
+import type { Dir } from "../../core/grid.ts";
+import { seconds } from "../../core/grid.ts";
 import type { Recipe } from "../../../features/orders/public.ts";
 import { levelOf } from "../levels.ts";
 import type { Level } from "../levels.ts";
@@ -9,7 +12,8 @@ import { newWorld } from "../world.ts";
 
 /**
  * A named starting state for tests, e2e features and `?scenario=` in the browser. Only `shift` plays in the level it
- * is given; `backstube` sets up the bakery, the others the original shop, whose tiles they name.
+ * is given; `backstube`, `belt`, `bridge` and `canal-throw` set up their own kitchen, the others the original shop,
+ * whose tiles they name.
  */
 export interface Scenario {
   readonly description: string;
@@ -22,6 +26,14 @@ function recipe(id: string): Recipe {
   if (found === undefined) throw new Error(`No recipe ${id}`);
 
   return found;
+}
+
+/** Puts a cook in the middle of tile `x`, `y`, facing `face`. */
+function place(cook: Cook | undefined, x: number, y: number, face: Dir): void {
+  if (cook === undefined) return;
+  cook.x = x + 0.5;
+  cook.y = y + 0.5;
+  cook.face = face;
 }
 
 /** Every scenario by name. */
@@ -179,6 +191,60 @@ export const SCENARIOS = {
 
         if (station.x === 7) station.item = { kind: "bowl", contents: ["flour"], knead: 0 };
       }
+
+      return world;
+    },
+  },
+  belt: {
+    description: "The Fließband: a döner rides the upper belt to the front, two dirty plates ride the lower belt back, cook 1 waits at the upper belt's start with toasted bread, cook 2 at its end.",
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup, levelOf("fliessband"));
+      world.orders.untilNext = Number.MAX_SAFE_INTEGER;
+      addOrder(world.orders, recipe("classic"));
+
+      for (const station of world.stations.values()) {
+        if (station.type !== "belt") continue;
+
+        if (station.x === 6 && station.y === 3) station.item = { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: ["meat", "lettuce"] };
+
+        if (station.y === 6 && station.x >= 7) station.item = { kind: "plate", plate: DIRTY };
+      }
+
+      const [loader, unloader] = world.cooks;
+      place(loader, 5, 3, { dx: 1, dy: 0 });
+      place(unloader, 9, 3, { dx: -1, dy: 0 });
+
+      if (loader !== undefined) loader.held = { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: [] };
+
+      return world;
+    },
+  },
+  bridge: {
+    description: "The Hafenimbiss a second before its bridges sink: cook 1 stands on the upper bridge, cook 2 on the far bank.",
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup, levelOf("hafen"));
+      world.orders.untilNext = Number.MAX_SAFE_INTEGER;
+
+      if (world.bridges !== null) world.bridges.state = { state: "up", left: seconds(1) };
+      const [onBridge, ashore] = world.cooks;
+      place(onBridge, 7, 2, { dx: 1, dy: 0 });
+      place(ashore, 11, 2, { dx: -1, dy: 0 });
+
+      return world;
+    },
+  },
+  "canal-throw": {
+    description: "The Hafenimbiss with its bridges down: cook 1 on the near bank holds a whole lettuce and faces the canal; cook 2 waits empty-handed across the water in the same row.",
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup, levelOf("hafen"));
+      world.orders.untilNext = Number.MAX_SAFE_INTEGER;
+
+      if (world.bridges !== null) world.bridges.state = { state: "down", left: seconds(30) };
+      const [thrower, catcher] = world.cooks;
+      place(thrower, 6, 1, { dx: 1, dy: 0 });
+      place(catcher, 10, 1, { dx: -1, dy: 0 });
+
+      if (thrower !== undefined) thrower.held = { kind: "veg", veg: "lettuce", cut: WHOLE };
 
       return world;
     },

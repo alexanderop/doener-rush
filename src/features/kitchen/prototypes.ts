@@ -82,6 +82,9 @@ export const TRAY_PORTIONS = 3;
 /** Ticks of work at the sink to wash one plate. */
 export const WASH_TICKS = seconds(2.5);
 
+/** Ticks a conveyor belt takes to carry an item one tile. */
+export const BELT_TICKS = seconds(0.6);
+
 /** Clean plates on the rack when a shift starts. */
 export const START_PLATES = 3;
 

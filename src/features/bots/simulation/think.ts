@@ -39,16 +39,19 @@ export function think(sight: Sight, mind: BotMind, me: Cook): Intent {
 
 /**
  * A bot with nothing to do does not stand where another cook needs to: it walks off any tile in front of a station
- * to the nearest free one that touches none, and stands in its middle, not across the edge to the next. A station
- * with a single floor tile before it would otherwise stay out of reach for good.
+ * or on a crossing to the nearest free one that is neither, and stands in its middle, not across the edge to the next.
+ * A station with a single floor tile before it would otherwise stay out of reach for good, and a bridge could never sink.
  */
 function makeWay(sight: Sight, me: Cook): Intent {
   const tile = { x: Math.floor(me.x), y: Math.floor(me.y) };
-  const touches = (x: number, y: number) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx = 0, dy = 0]) => sight.stationAt(x + dx, y + dy) !== null);
+
+  const inWay = (x: number, y: number) =>
+    sight.crossing(x, y) || [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx = 0, dy = 0]) => sight.stationAt(x + dx, y + dy) !== null);
+
   const taken = (x: number, y: number) => sight.cooks.some((c) => c.id !== me.id && Math.floor(c.x) === x && Math.floor(c.y) === y);
 
-  if (!touches(tile.x, tile.y)) return Math.hypot(tile.x + 0.5 - me.x, tile.y + 0.5 - me.y) > 0.15 ? walkToward(me, tile, [tile]) : IDLE;
-  const path = findPath(sight.width, sight.height, (x, y) => sight.solid(x, y) || taken(x, y), tile, (x, y) => !touches(x, y));
+  if (!inWay(tile.x, tile.y)) return Math.hypot(tile.x + 0.5 - me.x, tile.y + 0.5 - me.y) > 0.15 ? walkToward(me, tile, [tile]) : IDLE;
+  const path = findPath(sight.width, sight.height, (x, y) => sight.solid(x, y) || taken(x, y), tile, (x, y) => !inWay(x, y));
 
   return path === null ? IDLE : walkToward(me, tile, path);
 }

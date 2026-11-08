@@ -6,8 +6,10 @@ import { sideAt } from "./machines/side.ts";
 import { RAW, toastAt } from "./machines/toast.ts";
 import type { Item, Station } from "./model.ts";
 import type { Filling } from "./model.ts";
-import { BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, HEAT, MIX_TICKS, SHAVE_TICKS, TRAY_PORTIONS, WASH_TICKS } from "./prototypes.ts";
-import { addTo, interact, isBaked, isBurntBase, isChopped, land, newSpit, spreadFire, stepStation, work } from "./simulation.ts";
+import { BELT_TICKS, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, HEAT, MIX_TICKS, SHAVE_TICKS, TRAY_PORTIONS, WASH_TICKS } from "./prototypes.ts";
+import {
+  addTo, beltsMove, interact, isBaked, isBurntBase, isChopped, land, moveBelts, newSpit, spreadFire, stepStation, work,
+} from "./simulation.ts";
 
 const board = (): Station => ({ type: "board", x: 0, y: 0, fire: OUT, item: null });
 
@@ -288,5 +290,61 @@ describe("given the bakery", () => {
 
     for (let i = HEAT.dough.burnt; i < HEAT.dough.ignite; i++) stepStation(station);
     expect(station.fire.state).toBe("burning");
+  });
+});
+
+describe("given a line of conveyor belts", () => {
+  type Belt = Extract<Station, { type: "belt" }>;
+
+  const veg = (v: "lettuce" | "tomato" | "onion"): Item => ({ kind: "veg", veg: v, cut: WHOLE });
+
+  /** Four belts running right along row 0, listed tail first so plan order cannot carry the line along by itself. */
+  function line(): Belt[] {
+    return [0, 1, 2, 3].map((x) => ({ type: "belt", x, y: 0, fire: OUT, dir: { dx: 1, dy: 0 }, item: null }));
+  }
+
+  function move(belts: Belt[]): void {
+    moveBelts(belts, (x, y) => belts.find((b) => b.x === x && b.y === y) ?? null);
+  }
+
+  it("moves a full line one tile together, the head first", () => {
+    const belts = line();
+    const [a, b, c] = [veg("lettuce"), veg("tomato"), veg("onion")];
+    belts[0]!.item = a;
+    belts[1]!.item = b;
+    belts[2]!.item = c;
+    move(belts);
+    expect(belts.map((s) => s.item)).toEqual([null, a, b, c]);
+  });
+
+  it("stops each item at the end of the belt and closes the gaps behind it", () => {
+    const belts = line();
+    const [a, b] = [veg("lettuce"), veg("tomato")];
+    belts[0]!.item = a;
+    belts[2]!.item = b;
+
+    for (let i = 0; i < 5; i++) move(belts);
+    expect(belts.map((s) => s.item)).toEqual([null, null, a, b]);
+  });
+
+  it("leaves an item on a burning belt where it is", () => {
+    const belts = line();
+    const a = veg("onion");
+    belts[1]!.item = a;
+    belts[1]!.fire = ignite(OUT);
+    move(belts);
+    expect(belts[1]!.item).toBe(a);
+  });
+
+  it("holds and hands back an item like a counter, and takes one thrown at it", () => {
+    const [belt] = line();
+    expect(interact(belt!, veg("onion"))).toBeNull();
+    expect(interact(belt!, null)).toMatchObject({ kind: "veg", veg: "onion" });
+    expect(land(belt!, veg("tomato"))).toBe(true);
+    expect(belt!.item).toMatchObject({ veg: "tomato" });
+  });
+
+  it("moves every BELT_TICKS ticks", () => {
+    expect([0, 1, BELT_TICKS - 1, BELT_TICKS, BELT_TICKS * 2].map(beltsMove)).toEqual([true, false, false, true, true]);
   });
 });

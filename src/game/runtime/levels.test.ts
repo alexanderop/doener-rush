@@ -7,7 +7,10 @@ import { lineupOf } from "./lineup.ts";
 import { run, snapshot } from "./step.ts";
 import { newWorld } from "./world.ts";
 
-const LEGEND = new Set("=SRKPXBWLTOghstDUNF1234.MYQEzml");
+const LEGEND = new Set("=SRKPXBWLTOghstDUNF1234.MYQEzml><^v~#");
+
+/** Tiles that need no floor next to them: counters, belts and water. */
+const PASSIVE = new Set("=><^v~");
 
 /** The plan characters a base or filling needs: where it comes from and the stations it passes through. */
 const SOURCE = {
@@ -29,7 +32,8 @@ const SOURCE = {
 /** Stations every kitchen needs whatever the menu: pass, plates, washing up, bin and extinguisher. */
 const ALWAYS = ["P", "D", "U", "N", "X", "F"];
 
-const isFloor = (ch: string | undefined) => ch === "." || (ch !== undefined && ch >= "1" && ch <= "4");
+/** Where a cook can stand, counting a bridge as up. */
+const isFloor = (ch: string | undefined) => ch === "." || ch === "#" || (ch !== undefined && ch >= "1" && ch <= "4");
 
 /** Everything that keeps a level from being playable, in words; empty when it is. */
 function problems(level: Level): string[] {
@@ -57,6 +61,8 @@ function problems(level: Level): string[] {
   }
 
   if (recipes.length !== level.menu.length || recipes.length === 0) found.push("menu names unknown recipes or none");
+
+  if (tiles.some((t) => t.ch === "#") !== (level.bridge !== undefined)) found.push("bridges and a bridge schedule come together");
   const needed = new Set([...ALWAYS, ...recipes.flatMap((r) => [r.base, ...r.fillings].flatMap((part) => [...SOURCE[part]]))]);
 
   for (const ch of needed) {
@@ -82,7 +88,7 @@ function problems(level: Level): string[] {
     if (ch >= "2" && ch <= "4" && !reached.has(`${x},${y}`)) found.push(`start ${ch} cannot reach start 1`);
     const reachable = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx = 0, dy = 0]) => reached.has(`${x + dx},${y + dy}`));
 
-    if (!isFloor(ch) && ch !== "=" && !reachable) found.push(`${ch} at ${x},${y} has no floor a cook can reach next to it`);
+    if (!isFloor(ch) && !PASSIVE.has(ch) && !reachable) found.push(`${ch} at ${x},${y} has no floor a cook can reach next to it`);
   }
 
   return found;

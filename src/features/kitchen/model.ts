@@ -1,3 +1,4 @@
+import type { Dir } from "../../game/core/grid.ts";
 import type { Cut } from "./machines/cut.ts";
 import type { Fire } from "./machines/fire.ts";
 import type { Plate } from "./machines/plate.ts";
@@ -62,6 +63,8 @@ interface Burnable {
 /** A tile of the kitchen that is not floor. Each kind reacts to interact and work differently. */
 export type Station = Burnable & (
   | { readonly type: "counter"; item: Item | null }
+  /** A conveyor belt: holds an item like a counter and carries it one tile along `dir` every BELT_TICKS. */
+  | { readonly type: "belt"; readonly dir: Dir; item: Item | null }
   | { readonly type: "crate"; readonly goods: CrateGoods; item: null }
   | { readonly type: "board"; item: Item | null }
   | { readonly type: "toaster"; readonly look: "grill" | "oven"; item: Item | null }

@@ -281,6 +281,66 @@ const BACKINGS: Readonly<Record<LevelId, Backing>> = {
     beat: "k . h k s . h . k h . k s . h h",
     fill: "k . h k s . h . k . s s s s s s",
   },
+  // the conveyor kitchen: a pumping eighth-note bass like a motor, clockwork arps, a counter-line that ticks along
+  fliessband: {
+    tone: { leadDuty: 0.125, arpDuty: 0.5, wave: WAVES.square, bassCutoff: 950, padCutoff: 1300 },
+    bass: {
+      E: "E2 . E2 . E3 . E2 . E2 . E2 . E3 . D3 .",
+      F: "F2 . F2 . F3 . F2 . F2 . F2 . F3 . E3 .",
+      Am: "A1 . A1 . A2 . A1 . A1 . A1 . A2 . G#2 .",
+      Dm: "D2 . D2 . D3 . D2 . D2 . D2 . D3 . C3 .",
+    },
+    pad: {
+      E: "E3:47 - . . E3:47 - . . E3:47 - . . E3:47 - . .",
+      F: "F3:47 - . . F3:47 - . . F3:47 - . . F3:47 - . .",
+      Am: "A3:37 - . . A3:37 - . . A3:37 - . . A3:37 - . .",
+      Dm: "D3:37 - . . D3:37 - . . D3:37 - . . D3:37 - . .",
+    },
+    arp: {
+      E: "E5:47 E5:47 . E5:47 E5:47 . E5:47 . E5:47 E5:47 . E5:47 E5:47 . E5:47 .",
+      F: "F5:47 F5:47 . F5:47 F5:47 . F5:47 . F5:47 F5:47 . F5:47 F5:47 . F5:47 .",
+      Am: "A4:37 A4:37 . A4:37 A4:37 . A4:37 . A4:37 A4:37 . A4:37 A4:37 . A4:37 .",
+      Dm: "D5:37 D5:37 . D5:37 D5:37 . D5:37 . D5:37 D5:37 . D5:37 D5:37 . D5:37 .",
+    },
+    counter: {
+      E: "E4 . G#4 . B4 . G#4 . E4 . G#4 . B4 . D5 .",
+      F: "F4 . A4 . C5 . A4 . F4 . A4 . C5 . E5 .",
+      Am: "A4 . C5 . E5 . C5 . A4 . C5 . E5 . G#4 .",
+      Dm: "D4 . F4 . A4 . F4 . D4 . F4 . A4 . C5 .",
+    },
+    beat: "k . h h s . h h k . h h s . h k",
+    fill: "k . h h s . h h k k s . s s s s",
+  },
+  // the harbour: a swaying bass that rolls like a boat, long pads, a counter-melody like a shanty answering
+  hafen: {
+    tone: { leadDuty: 0.5, arpDuty: 0.125, wave: WAVES.triangle, bassCutoff: 600, padCutoff: 2000 },
+    bass: {
+      E: "E2 - - B1 - - E2 - G#2 - - E2 - - B1 -",
+      F: "F2 - - C2 - - F2 - A2 - - F2 - - C2 -",
+      Am: "A1 - - E2 - - A1 - C2 - - A1 - - E2 -",
+      Dm: "D2 - - A1 - - D2 - F2 - - D2 - - A1 -",
+    },
+    pad: {
+      E: "E3:47 - - - - - - - E3:47 - - - - - - -",
+      F: "F3:47 - - - - - - - F3:47 - - - - - - -",
+      Am: "A2:37 - - - - - - - A2:37 - - - - - - -",
+      Dm: "D3:37 - - - - - - - D3:37 - - - - - - -",
+    },
+    arp: {
+      E: "E5:47 . . E5:47 . . E5:47 . . E5:47 . . E5:47 . . .",
+      F: "F5:47 . . F5:47 . . F5:47 . . F5:47 . . F5:47 . . .",
+      Am: "A4:37 . . A4:37 . . A4:37 . . A4:37 . . A4:37 . . .",
+      Dm: "D5:37 . . D5:37 . . D5:37 . . D5:37 . . D5:37 . . .",
+    },
+    counter: {
+      E: "B3 - - G#3 - - E3 - B3 - - D4 - - B3 -",
+      F: "C4 - - A3 - - F3 - C4 - - E4 - - C4 -",
+      Am: "E4 - - C4 - - A3 - E4 - - G#4 - - E4 -",
+      Dm: "A3 - - F3 - - D3 - A3 - - C4 - - A3 -",
+    },
+    beat: "k . . h s . k . . h s . k . h .",
+    fill: "k . . h s . k . . k s s s s s s",
+  },
 };
 
 /** The leads, each with its theme: the takes are not versions of the main theme's melody. */

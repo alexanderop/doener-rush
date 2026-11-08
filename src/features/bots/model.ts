@@ -10,8 +10,10 @@ import type { Order } from "../orders/public.ts";
 export interface Sight {
   readonly width: number;
   readonly height: number;
-  /** True where a cook cannot stand: stations and everything outside the shop. */
+  /** True where a cook cannot stand: stations, water and everything outside the shop. */
   readonly solid: (x: number, y: number) => boolean;
+  /** True on a tile others must cross, such as a bridge: a bot with nothing to do never waits there. */
+  readonly crossing: (x: number, y: number) => boolean;
   readonly stationAt: (x: number, y: number) => Station | null;
   readonly stations: readonly Station[];
   readonly cooks: readonly Cook[];

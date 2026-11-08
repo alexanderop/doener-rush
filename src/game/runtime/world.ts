@@ -1,4 +1,4 @@
-import type { Tile } from "../core/grid.ts";
+import type { Dir, Tile } from "../core/grid.ts";
 import { newMind } from "../../features/bots/public.ts";
 import type { BotMind } from "../../features/bots/public.ts";
 import { newCook } from "../../features/cooks/public.ts";
@@ -7,6 +7,8 @@ import { OUT, START_PLATES, newSpit } from "../../features/kitchen/public.ts";
 import type { CrateGoods, Sauce, Station, Topping } from "../../features/kitchen/public.ts";
 import { RECIPES, combinePace, newOrders, paceFor } from "../../features/orders/public.ts";
 import type { OrdersState } from "../../features/orders/public.ts";
+import { isUp, newBridge } from "./bridge.ts";
+import type { Bridges } from "./bridge.ts";
 import { DEFAULT_LEVEL } from "./levels.ts";
 import type { Level } from "./levels.ts";
 import { TWO_PLAYERS, crewOf } from "./lineup.ts";
@@ -17,6 +19,8 @@ import type { Rules } from "./rules.ts";
 const CRATES = new Map<string, CrateGoods>([
   ["B", "bread"], ["W", "wrap"], ["L", "lettuce"], ["T", "tomato"], ["O", "onion"], ["M", "flour"], ["Y", "butter"],
 ]);
+
+const BELTS = new Map<string, Dir>([[">", { dx: 1, dy: 0 }], ["<", { dx: -1, dy: 0 }], ["^", { dx: 0, dy: -1 }], ["v", { dx: 0, dy: 1 }]]);
 
 const SAUCE_KEYS = new Map<string, Sauce | Topping>([
   ["g", "garlic"], ["h", "herb"], ["s", "spicy"], ["z", "cinnamon"], ["m", "poppy"], ["l", "lye"],
@@ -31,6 +35,10 @@ export interface World {
   readonly height: number;
   /** Stations by `y * width + x`; floor tiles have none. */
   readonly stations: Map<number, Station>;
+  /** Open water (`~`) by `y * width + x`: nobody walks there, but a throw flies over it. */
+  readonly water: ReadonlySet<number>;
+  /** The bridges (`#`) over the water and where they are in their schedule; null in a kitchen without. */
+  readonly bridges: Bridges | null;
   readonly cooks: Cook[];
   /** Ingredients in the air, oldest throw first. */
   readonly thrown: Thrown[];
@@ -66,6 +74,8 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
   const height = plan.length;
   const width = Math.max(...plan.map((row) => row.length));
   const stations = new Map<number, Station>();
+  const water = new Set<number>();
+  const bridgeTiles = new Set<number>();
   const starts: Tile[] = [];
   plan.forEach((row, y) => {
     [...row].forEach((ch, x) => {
@@ -73,9 +83,16 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
 
       if (station !== null) stations.set(y * width + x, station);
 
+      if (ch === "~") water.add(y * width + x);
+
+      if (ch === "#") bridgeTiles.add(y * width + x);
+
       if (ch >= "1" && ch <= "4") starts[Number(ch) - 1] = { x, y };
     });
   });
+
+  if (bridgeTiles.size > 0 && level.bridge === undefined) throw new Error(`${level.id} has bridges but no bridge schedule.`);
+  const bridges = level.bridge === undefined ? null : { tiles: bridgeTiles, schedule: level.bridge, state: newBridge(level.bridge) };
 
   const cooks = lineup.drivers.map((_, i) => {
     const start = starts[i];
@@ -93,7 +110,7 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
   const control = [0, 1].map((b) => lineup.drivers.findIndex((d) => d.kind === "keys" && d.binding === b));
 
   return {
-    seed, tick: 0, rng: seed, width, height, stations, cooks, thrown: [], landings: [], drivers: lineup.drivers, control, parked: new Set(), bots,
+    seed, tick: 0, rng: seed, width, height, stations, water, bridges, cooks, thrown: [], landings: [], drivers: lineup.drivers, control, parked: new Set(), bots,
     orders: newOrders(combinePace(paceFor(crewOf(lineup)), level.pace), RECIPES.filter((r) => level.menu.includes(r.id))), platesDue: [], endTick, rules: NORMAL_RULES, tutorial: null,
   };
 }
@@ -101,6 +118,9 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
 function stationFor(ch: string, x: number, y: number): Station | null {
   const at = { x, y, fire: OUT };
   const goods = CRATES.get(ch);
+  const dir = BELTS.get(ch);
+
+  if (dir !== undefined) return { ...at, type: "belt", dir, item: null };
 
   if (goods !== undefined) return { ...at, type: "crate", goods, item: null };
   const sauce = SAUCE_KEYS.get(ch);
@@ -132,9 +152,26 @@ export function stationAt(world: World, x: number, y: number): Station | null {
   return world.stations.get(y * world.width + x) ?? null;
 }
 
-/** True where a cook cannot walk: stations and everything outside the shop. */
+/** True where a cook cannot walk: stations, everything outside the shop, and water (a bridge while it is down). */
 export function isSolid(world: World, x: number, y: number): boolean {
+  return blocksThrow(world, x, y) || isWater(world, x, y);
+}
+
+/** True where a thrown item stops: stations and everything outside the shop. It flies on over floor and water. */
+export function blocksThrow(world: World, x: number, y: number): boolean {
   if (x < 0 || y < 0 || x >= world.width || y >= world.height) return true;
 
   return world.stations.has(y * world.width + x);
+}
+
+/** True on a tile a bridge spans, up or down. */
+export function isBridge(world: World, x: number, y: number): boolean {
+  return x >= 0 && x < world.width && world.bridges?.tiles.has(y * world.width + x) === true;
+}
+
+/** True on water: open water, or a bridge while it is down. */
+export function isWater(world: World, x: number, y: number): boolean {
+  if (x < 0 || x >= world.width) return false;
+
+  return world.water.has(y * world.width + x) || (world.bridges !== null && isBridge(world, x, y) && !isUp(world.bridges.state));
 }

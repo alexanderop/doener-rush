@@ -4,4 +4,4 @@ export { IDLE } from "./model.ts";
 
 export { THROW_TICKS } from "./prototypes.ts";
 
-export { facingTile, fly, newCook, throwHeld, walk } from "./simulation.ts";
+export { facingTile, fly, newCook, throwHeld, tilesUnder, walk } from "./simulation.ts";

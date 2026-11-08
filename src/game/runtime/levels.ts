@@ -1,8 +1,10 @@
 import { NORMAL_PACE } from "../../features/orders/public.ts";
 import type { Pace, RecipeId } from "../../features/orders/public.ts";
+import { seconds } from "../core/grid.ts";
+import type { BridgeSchedule } from "./bridge.ts";
 
 /** The kitchens of the campaign, in the order they unlock. */
-export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "grosskueche" | "backstube";
+export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "grosskueche" | "backstube" | "fliessband" | "hafen";
 
 /**
  * One kitchen of the campaign: its floor plan, what customers may order there, and how busy it is on top of the
@@ -13,7 +15,8 @@ export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "gr
  * crates `B` bread, `W` wrap, `L` lettuce, `T` tomato, `O` onion ·
  * sauces `g` garlic, `h` herb, `s` spicy · `t` prep tray · `D` plate rack · `U` dirty-plate return ·
  * `N` sink · `F` counter with the fire extinguisher · `1`–`4` where the cooks start (floor) ·
- * bakery: crates `M` flour, `Y` butter · `Q` mixer · `E` oven · toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt.
+ * bakery: crates `M` flour, `Y` butter · `Q` mixer · `E` oven · toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt ·
+ * conveyor belts `>` `<` `^` `v`, running the way they point · `~` water · `#` a bridge over the water, up and down by `bridge`.
  */
 export interface Level {
   readonly id: LevelId;
@@ -23,6 +26,8 @@ export interface Level {
   readonly plan: readonly string[];
   readonly menu: readonly RecipeId[];
   readonly pace: Pace;
+  /** How long the `#` bridges stay up and down; only a kitchen with bridges has one. */
+  readonly bridge?: BridgeSchedule;
 }
 
 /** Every level, easiest first. Level n + 1 unlocks once level n has a star. */
@@ -129,6 +134,43 @@ export const LEVELS: readonly Level[] = [
     ],
     menu: ["franz", "mohn", "brezel"],
     pace: NORMAL_PACE,
+  },
+  {
+    id: "fliessband",
+    name: "Fließband",
+    note: "Eine dicke Wand trennt Küche und Theke. Zwei Bänder fahren Döner und Teller rüber, außen herum ist es weit.",
+    plan: [
+      "=S=RRF====PP=ghs=",
+      "B.1...===.......U",
+      "W.....===.......=",
+      "K.....>>>.......=",
+      "K.....===.......X",
+      "L.ttt.===.......=",
+      "T.....<<<.......=",
+      "O.3........4..2.=",
+      "=X=N=D===========",
+    ],
+    menu: ["classic", "durum", "veggie", "pur"],
+    pace: { arrival: 1.1, patience: 1.2, stars: 0.85 },
+  },
+  {
+    id: "hafen",
+    name: "Hafenimbiss",
+    note: "Ein Kanal teilt die Küche. Die Brücken gehen auf und ab: werft Brot und Gemüse übers Wasser.",
+    plan: [
+      "=B=W=L====S=RPP=",
+      "T.1....~~...2..U",
+      "O......##......g",
+      "K......~~t.....h",
+      "K......~~t.....s",
+      "X......~~t.....F",
+      "=..3...##....4.X",
+      "=......~~=.....R",
+      "==========D=N===",
+    ],
+    menu: ["classic", "durum", "veggie", "pur"],
+    pace: { arrival: 1.15, patience: 1.2, stars: 0.8 },
+    bridge: { up: seconds(12), down: seconds(7) },
   },
 ];
 

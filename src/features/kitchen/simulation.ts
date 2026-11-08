@@ -6,7 +6,7 @@ import { RAW, char, heatTicks, heatUp, holdBelowBurnt } from "./machines/toast.t
 import type { Side } from "./machines/side.ts";
 import type { CrateGoods, Doener, Filling, Item, Spit, Station } from "./model.ts";
 import {
-  FAMILY, HEAT, MIX_TICKS, SHAVE_TICKS,
+  BELT_TICKS, FAMILY, HEAT, MIX_TICKS, SHAVE_TICKS,
   SPIT_IGNITE, SPIT_TURN, THROWABLE, TRAY_PORTIONS, WASH_TICKS, isBread, isDry, isFull,
 } from "./prototypes.ts";
 
@@ -189,6 +189,7 @@ export function interact(station: Station, held: Item | null): Item | null {
       return swapOrCombine(station, held);
     case "board":
     case "counter":
+    case "belt":
       return swapOrCombine(station, held);
   }
 }
@@ -412,6 +413,39 @@ export function spreadFire(stations: Iterable<Station>, at: (x: number, y: numbe
       const next = at(s.x + dx, s.y + dy);
 
       if (next !== null) ignite(next);
+    }
+  }
+}
+
+type Belt = Extract<Station, { type: "belt" }>;
+
+/** True on the ticks the belts carry their items on: every BELT_TICKS. */
+export function beltsMove(tick: number): boolean {
+  return tick % BELT_TICKS === 0;
+}
+
+/**
+ * Carries every item on a belt one tile along it, onto the next belt tile if that one is free or frees up in this
+ * same move: the head of a line goes first, so a full line moves as one. An item stays at the end of its belt, on a
+ * burning belt, and when a belt merging in from earlier in plan order took the tile first.
+ */
+export function moveBelts(stations: Iterable<Station>, at: (x: number, y: number) => Station | null): void {
+  const belts = [...stations].filter((s): s is Belt => s.type === "belt");
+  const arrived = new Set<Belt>();
+  let moving = true;
+
+  while (moving) {
+    moving = false;
+
+    for (const belt of belts) {
+      if (belt.item === null || arrived.has(belt) || isBurning(belt.fire)) continue;
+      const next = at(belt.x + belt.dir.dx, belt.y + belt.dir.dy);
+
+      if (next?.type !== "belt" || next.item !== null || isBurning(next.fire)) continue;
+      next.item = belt.item;
+      belt.item = null;
+      arrived.add(next);
+      moving = true;
     }
   }
 }
