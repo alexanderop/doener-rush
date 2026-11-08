@@ -46,6 +46,9 @@ const CARDS: Readonly<Record<Family, { readonly title: string; readonly steps: r
   },
 };
 
+/** The last step in a kitchen whose guests sit at tables: the plate goes to the table that ordered it. */
+const TO_TABLE = { tool: "🪑", label: "An den richtigen Tisch" } as const;
+
 function Arrow() {
   return (
     <svg viewBox="0 0 40 24" className="mt-7 w-9 shrink-0 text-[#2f6fb0]" aria-hidden>
@@ -59,8 +62,9 @@ function Arrow() {
  * The recipe card at the start of a shift: how the level's dish is made, a döner or a pastry. Up while the start is
  * in its intro phase (a few seconds, or until any key), then it fades out for the countdown. Never takes the pointer.
  */
-export function RecipeIntro({ family }: { readonly family: Family }) {
+export function RecipeIntro({ family, atTables = false }: { readonly family: Family; readonly atTables?: boolean }) {
   const card = CARDS[family];
+  const steps = card.steps.map((step, i) => (atTables && i === card.steps.length - 1 ? { ...step, ...TO_TABLE } : step));
   const intro = useAtomValue(startAtom).phase === "intro";
   const [shown, setShown] = useState(intro);
 
@@ -88,7 +92,7 @@ export function RecipeIntro({ family }: { readonly family: Family }) {
           Neues<br />Rezept
         </div>
         <ol className="flex items-start justify-center gap-0.5 px-4 pb-2 pt-5">
-          {card.steps.map((step, i) => (
+          {steps.map((step, i) => (
             <li key={step.label} className="flex items-start">
               {i > 0 && <Arrow />}
               <div className="flex w-[5.4rem] flex-col items-center text-center">

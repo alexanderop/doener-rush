@@ -10,6 +10,7 @@ import { THROW_TICKS, facingTile } from "../../../features/cooks/public.ts";
 import type { Landing, Thrown } from "../../../features/cooks/public.ts";
 import type { Item, Station } from "../../../features/kitchen/public.ts";
 import { BELT_TICKS, BURNT, CHOPPED, CHOP_TICKS, DIRTY, HEAT, MIX_TICKS, RAW, SHAVE_TICKS, WASH_TICKS, cutTicks, dousing, isBurning, isChopped } from "../../../features/kitchen/public.ts";
+import type { Seat } from "../../../features/orders/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
 import { LOOKS } from "../looks.ts";
@@ -21,7 +22,7 @@ import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
 import { GESTURES, IDLE_SECONDS, WIND_UP, easeOutCubic, handoffOf, restPose } from "./motion.ts";
 import type { GestureKind, Pose } from "./motion.ts";
-import { BELT_CHEVRONS, TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
+import { BELT_CHEVRONS, GUEST_SEAT, TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
 import { bubbleSprite, nameTag, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
 import type { Bar } from "./overlays.ts";
 import { bakeStatic, contactShadow, geo } from "./parts.ts";
@@ -176,10 +177,19 @@ interface Transit {
   age: number;
 }
 
+/** Seconds a guest at a table cheers or fumes in the chair before vanishing. */
+const GUEST_EXIT = 1.1;
+
+/** A seated guest's size: the same as the queue at the pass, so they read from the camera. */
+const GUEST_SCALE = 1.15;
+
+/** A customer: walking up to the pass and queueing along the street wall, or a guest sitting at a table. */
 interface CustomerView {
   readonly group: THREE.Group;
   readonly rig: THREE.Object3D;
   readonly arms: readonly THREE.Object3D[];
+  /** The patience bar over a seated guest's head; null for the queue at the pass, whose tickets show it. */
+  readonly bar: Bar | null;
   target: THREE.Vector3;
   leaving: "no" | "happy" | "angry";
   age: number;
@@ -187,6 +197,12 @@ interface CustomerView {
   patience: number;
   emitAcc: number;
 }
+
+/** The colour of a seated guest's patience bar in each mood, as the tickets colour theirs. */
+const PATIENCE_COLOR = { calm: "#3fbf4f", cross: "#f5b324", fuming: "#e5322d" } as const;
+
+/** How a customer looks on the way out: calm after a meal, fuming after giving up. */
+const LEAVING_MOOD = { happy: "calm", angry: "fuming" } as const;
 
 /** How a waiting customer feels, by the patience left: calm, hands on hips, then stamping and fuming. */
 function moodOf(patience: number): "calm" | "cross" | "fuming" {
@@ -418,6 +434,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   });
 
   const passes = stations.flatMap((v) => (v.station.type === "pass" ? [v] : []));
+  const tables = new Map(stations.flatMap((v) => (v.station.type === "table" ? [[v.station.table, v] as const] : [])));
   const stationAt = new Map(stations.map((v) => [v.station.y * world.width + v.station.x, v]));
   const transits: Transit[] = [];
   const transitTo = new THREE.Vector3();
@@ -495,12 +512,27 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     fog.far = distance * 2.6;
     const pass = passes[0];
 
-    // the HUD flies a served customer's coins from here to the score
-    if (pass !== undefined) {
-      at.copy(pass.centre).project(camera);
-      canvas.parentElement?.style.setProperty("--pass-x", `${((at.x + 1) / 2) * width}px`);
-      canvas.parentElement?.style.setProperty("--pass-y", `${((1 - at.y) / 2) * height}px`);
-    }
+    if (pass !== undefined) pinCoins(pass.centre, width, height);
+  }
+
+  /** The HUD flies a served customer's coins from this point to the score: the pass, or the table just served. */
+  function pinCoins(point: THREE.Vector3, width: number, height: number): void {
+    const screen = point.clone().project(camera);
+    canvas.parentElement?.style.setProperty("--pass-x", `${((screen.x + 1) / 2) * width}px`);
+    canvas.parentElement?.style.setProperty("--pass-y", `${((1 - screen.y) / 2) * height}px`);
+  }
+
+  /** Where a seat is: over the pass (between two pass tiles), or on a table; null when the kitchen has neither. */
+  function spotOf(seat: Seat): THREE.Vector3 | null {
+    if (seat.kind === "table") return tables.get(seat.table)?.centre.clone() ?? null;
+    const pass = passes[0];
+
+    return pass === undefined ? null : pass.centre.clone().setX(pass.centre.x + (passes.length > 1 ? 0.5 : 0));
+  }
+
+  /** The chair behind a table, where its guest sits facing the room. */
+  function chairOf(table: StationView): THREE.Vector3 {
+    return new THREE.Vector3(table.centre.x, GUEST_SEAT.lift, table.centre.z + GUEST_SEAT.z);
   }
 
   function slotOf(index: number): THREE.Vector3 {
@@ -513,27 +545,48 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     return new THREE.Vector3(first - 0.85 * (index - passes.length + 1), 0, -1.15);
   }
 
+  /**
+   * A new customer: one for the pass walks in from the street on the side its id picks; a guest appears in the chair
+   * of its table with a puff and a patience bar over the head.
+   */
+  function newCustomer(id: number, chair: THREE.Vector3 | null, streetWidth: number): CustomerView {
+    const group = customerModel(id);
+    let bar: Bar | null = null;
+
+    if (chair === null) {
+      group.scale.setScalar(1.15);
+      group.add(contactShadow(0.3, 0.45));
+      group.position.set(id % 2 === 0 ? -2.5 : streetWidth + 2.5, 0, -1.9);
+    } else {
+      group.position.copy(chair);
+      bar = progressBar();
+      scene.add(bar.group);
+      fx.emit("pop", at.set(chair.x, 0.9, chair.z), 8);
+    }
+
+    scene.add(group);
+
+    return { group, rig: named(group, "rig"), arms: [named(group, "armL"), named(group, "armR")], bar, target: group.position.clone(), leaving: "no", age: 0, patience: 1, emitAcc: 0 };
+  }
+
   function syncCustomers(w: World, dt: number, t: number): void {
     const queue = w.orders.queue;
     const present = new Set(queue.map((o) => o.id));
-    queue.forEach((order, i) => {
+    let inLine = 0;
+
+    for (const order of queue) {
+      const table = order.seat.kind === "table" ? tables.get(order.seat.table) : undefined;
+      const target = table === undefined ? slotOf(inLine++) : chairOf(table);
       let view = customers.get(order.id);
 
       if (view === undefined) {
-        const group = customerModel(order.id);
-        group.scale.setScalar(1.15);
-        group.add(contactShadow(0.3, 0.45));
-        group.position.set(order.id % 2 === 0 ? -2.5 : w.width + 2.5, 0, -1.9);
-        scene.add(group);
-        view = {
-          group, rig: named(group, "rig"), arms: [named(group, "armL"), named(group, "armR")], target: slotOf(i), leaving: "no", age: 0, patience: 1, emitAcc: 0,
-        };
+        view = newCustomer(order.id, table === undefined ? null : target, w.width);
         customers.set(order.id, view);
       }
 
-      view.target = slotOf(i);
+      view.target = target;
       view.patience = order.ticksLeft / Math.max(1, order.patience);
-    });
+    }
 
     for (const [id, view] of customers) {
       view.age += dt;
@@ -542,63 +595,110 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
         const served = w.orders.events.some((e) => e.event.type === "served" && e.event.orderId === id);
         view.leaving = served ? "happy" : "angry";
         view.age = 0;
-        view.target = new THREE.Vector3(served ? w.width + 4 : -4, 0, -2);
+
+        // a guest at a table reacts in the chair; the queue at the pass walks off along the street
+        if (view.bar === null) view.target = new THREE.Vector3(served ? w.width + 4 : -4, 0, -2);
 
         if (!served) fx.emit("smoke", at.set(view.group.position.x, 1.4, view.group.position.z), 8);
       }
 
-      const pos = view.group.position;
-      const dx = view.target.x - pos.x;
-      const dz = view.target.z - pos.z;
-      const dist = Math.hypot(dx, dz);
-      const speed = view.leaving === "no" ? 2.6 : 3.4;
-      const moving = dist > 0.04;
+      const moving = view.bar === null && walkCustomer(view, dt);
+      poseCustomer(view, id, dt, t, moving);
+      const gone = view.bar === null ? view.leaving !== "no" && !moving : sitGuest(view.bar, view);
 
-      if (moving) {
-        const step = Math.min(dist, speed * dt);
-        pos.x += (dx / dist) * step;
-        pos.z += (dz / dist) * step;
-        view.group.rotation.y = Math.atan2(dx, dz);
-      } else {
-        view.group.rotation.y = 0;
-      }
-
-      const cheering = view.leaving === "happy" && view.age < 0.9;
-      const jump = cheering ? Math.abs(Math.sin(view.age * 10)) * 0.35 : 0;
-      const mood = view.leaving === "no" ? moodOf(view.patience) : "calm";
-      const bob = moving ? Math.abs(Math.sin(t * 12 + id)) * 0.06 : Math.sin(t * 2 + id) * 0.01;
-      // a fuming customer stamps from foot to foot and steam puffs off their head
-      const stamp = mood === "fuming" && !moving ? Math.abs(Math.sin(t * 9 + id)) * 0.07 : 0;
-      view.rig.position.y = bob + jump + stamp;
-      view.rig.rotation.z = mood === "fuming" ? Math.sin(t * 9 + id) * 0.09 : 0;
-      view.arms.forEach((arm, side) => {
-        const out = side === 0 ? -1 : 1;
-
-        if (cheering) {
-          arm.position.set(out * 0.27, 0.86, 0);
-          arm.rotation.z = out * (0.3 + Math.sin(view.age * 20) * 0.15);
-        } else {
-          arm.position.set(out * 0.25, 0.55, 0);
-          arm.rotation.z = out * (mood === "calm" ? 0.2 : 0.75);
-        }
-      });
-
-      if (mood === "fuming") {
-        view.emitAcc += dt * (view.patience < 0.12 ? 6 : 3);
-        const n = Math.floor(view.emitAcc);
-        view.emitAcc -= n;
-
-        if (n > 0) fx.emit(view.patience < 0.12 ? "smoke" : "steam", at.set(pos.x, 1.45, pos.z), n);
-      }
-
-      const s = 1 + (moving ? Math.sin(t * 24 + id) * 0.04 : 0);
-      view.rig.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
-
-      if (view.leaving !== "no" && !moving) {
+      if (gone) {
         scene.remove(view.group);
+
+        if (view.bar !== null) scene.remove(view.bar.group);
         customers.delete(id);
       }
     }
+  }
+
+  /** Walks a customer of the pass toward its target, facing the way it goes; true while it still moves. */
+  function walkCustomer(view: CustomerView, dt: number): boolean {
+    const pos = view.group.position;
+    const dx = view.target.x - pos.x;
+    const dz = view.target.z - pos.z;
+    const dist = Math.hypot(dx, dz);
+    const speed = view.leaving === "no" ? 2.6 : 3.4;
+
+    if (dist <= 0.04) {
+      view.group.rotation.y = 0;
+
+      return false;
+    }
+
+    const step = Math.min(dist, speed * dt);
+    pos.x += (dx / dist) * step;
+    pos.z += (dz / dist) * step;
+    view.group.rotation.y = Math.atan2(dx, dz);
+
+    return true;
+  }
+
+  /**
+   * How a customer feels, in body language: calm, hands on hips, then stamping and fuming with steam, smoke as they
+   * give up; a jump with both arms up when served.
+   */
+  function poseCustomer(view: CustomerView, id: number, dt: number, t: number, moving: boolean): void {
+    const pos = view.group.position;
+    const cheering = view.leaving === "happy" && view.age < 0.9;
+    const jump = cheering ? Math.abs(Math.sin(view.age * 10)) * 0.35 : 0;
+    const mood = view.leaving === "no" ? moodOf(view.patience) : LEAVING_MOOD[view.leaving];
+    const bob = moving ? Math.abs(Math.sin(t * 12 + id)) * 0.06 : Math.sin(t * 2 + id) * 0.01;
+    // a fuming customer stamps from foot to foot and steam puffs off their head
+    const stamp = mood === "fuming" && !moving ? Math.abs(Math.sin(t * 9 + id)) * 0.07 : 0;
+    view.rig.position.y = bob + jump + stamp;
+    view.rig.rotation.z = mood === "fuming" ? Math.sin(t * 9 + id) * 0.09 : 0;
+    view.arms.forEach((arm, side) => {
+      const out = side === 0 ? -1 : 1;
+
+      if (cheering) {
+        arm.position.set(out * 0.27, 0.86, 0);
+        arm.rotation.z = out * (0.3 + Math.sin(view.age * 20) * 0.15);
+      } else {
+        arm.position.set(out * 0.25, 0.55, 0);
+        arm.rotation.z = out * (mood === "calm" ? 0.2 : 0.75);
+      }
+    });
+
+    if (mood === "fuming") {
+      view.emitAcc += dt * (view.patience < 0.12 || view.leaving === "angry" ? 6 : 3);
+      const n = Math.floor(view.emitAcc);
+      view.emitAcc -= n;
+
+      if (n > 0) fx.emit(view.patience < 0.12 || view.leaving === "angry" ? "smoke" : "steam", at.set(pos.x, 1.45 + pos.y, pos.z), n);
+    }
+
+    const s = 1 + (moving ? Math.sin(t * 24 + id) * 0.04 : 0);
+    view.rig.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
+  }
+
+  /**
+   * A guest in the chair: pops in on arrival, shows patience as a bar over the head, and after cheering or fuming for
+   * GUEST_EXIT shrinks away in a puff. True once the guest is gone.
+   */
+  function sitGuest(bar: Bar, view: CustomerView): boolean {
+    const pos = view.group.position;
+
+    if (view.leaving === "no") {
+      view.group.scale.setScalar(GUEST_SCALE * popScale(view.age));
+      bar.group.position.set(pos.x, pos.y + 1.6, pos.z);
+      bar.group.quaternion.copy(camera.quaternion);
+      showBar(bar, view.patience, PATIENCE_COLOR[moodOf(view.patience)]);
+
+      return false;
+    }
+
+    bar.group.visible = false;
+    const fade = (view.age - GUEST_EXIT) / 0.2;
+    view.group.scale.setScalar(GUEST_SCALE * Math.max(0.01, 1 - Math.max(0, fade)));
+
+    if (fade < 1) return false;
+    fx.emit(view.leaving === "happy" ? "confetti" : "smoke", at.set(pos.x, 0.9, pos.z), 10);
+
+    return true;
   }
 
   /** Ingredients in the air on an arc, tumbling end over end, with a shadow on the floor below; a puff where each flight ends. */
@@ -703,12 +803,14 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     for (const entry of w.orders.events) {
       if (seen.has(entry)) continue;
       seen.add(entry);
-      const pass = passes[0];
+      const spot = entry.event.type === "expired" ? null : spotOf(entry.event.seat);
 
-      if (pass === undefined) continue;
-      at.set(pass.centre.x + (passes.length > 1 ? 0.5 : 0), TOP + 0.3, pass.centre.z);
+      if (spot === null) continue;
+      at.set(spot.x, TOP + 0.3, spot.z);
 
       if (entry.event.type === "served") {
+        if (entry.event.seat.kind === "table") pinCoins(spot, lastW, lastH);
+
         fx.emit("confetti", at, 40);
         fx.emit("sparks", at, 24, "#ffd166");
 

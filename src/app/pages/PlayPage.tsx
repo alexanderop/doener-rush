@@ -97,7 +97,7 @@ export function PlayPage({ search }: { readonly search: PlaySearch }) {
       <Scoreboard />
       <Toasts />
       <Controls drivers={world.drivers} looks={looks} />
-      <RecipeIntro family={FAMILY[world.orders.menu[0]?.base ?? "bread"]} />
+      <RecipeIntro family={FAMILY[world.orders.menu[0]?.base ?? "bread"]} atTables={world.orders.seating.kind === "tables"} />
       <Countdown />
       <RoundOver
         level={scenario === undefined ? level : null}

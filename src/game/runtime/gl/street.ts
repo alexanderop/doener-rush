@@ -15,6 +15,9 @@ const WALL_H = 1.05;
 
 const WALL_T = 0.55;
 
+/** How many tiles around a table the dining room's wooden floor reaches. */
+const DINING_REACH = 2;
+
 /** Stations a cook stands at for long stretches: they get a rubber mat on the floor in front. */
 const MAT_STATIONS: ReadonlySet<string> = new Set(["board", "toaster", "spit", "sink"]);
 
@@ -44,6 +47,25 @@ function floorTexture(world: World): THREE.Texture {
         glaze.addColorStop(0.5, "rgba(255,240,220,0)");
         g.fillStyle = glaze;
         g.fillRect(x * px + 3, y * px + 3, px - 6, px - 6);
+      }
+    }
+
+    // the dining room: wooden boards instead of tiles on the floor around the tables
+    const tables = [...world.stations.values()].filter((s) => s.type === "table");
+
+    for (let y = 0; y < world.height; y++) {
+      for (let x = 0; x < world.width; x++) {
+        const under = world.stations.get(y * world.width + x);
+
+        if ((under !== undefined && under.type !== "table") || !tables.some((s) => Math.abs(s.x - x) <= DINING_REACH && Math.abs(s.y - y) <= DINING_REACH)) continue;
+
+        for (let board = 0; board < 4; board++) {
+          const n = hash(x * 4 + board, y) * 18 - 9;
+          g.fillStyle = `rgb(${168 + n},${112 + n},${70 + n * 0.6})`;
+          g.fillRect(x * px, y * px + board * 32, px, 31);
+          g.fillStyle = "rgba(60,30,15,0.45)";
+          g.fillRect(x * px + ((board * 53 + x * 29) % px), y * px + board * 32, 2, 31);
+        }
       }
     }
 
@@ -103,13 +125,19 @@ function floorTexture(world: World): THREE.Texture {
       g.stroke();
     }
 
-    // fake ambient occlusion: shade the floor along every edge that touches a station
+    // fake ambient occlusion: shade the floor along every edge that touches a station; a table stands free on its leg
+    const blocky = (x: number, y: number) => {
+      const station = world.stations.get(y * world.width + x);
+
+      return station !== undefined && station.type !== "table";
+    };
+
     for (let y = 0; y < world.height; y++) {
       for (let x = 0; x < world.width; x++) {
         if (world.stations.has(y * world.width + x)) continue;
 
         for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-          if (!world.stations.has((y + oy) * world.width + (x + ox))) continue;
+          if (!blocky(x + ox, y + oy)) continue;
           const x0 = x * px + (ox === 1 ? px : 0);
           const y0 = y * px + (oy === 1 ? px : 0);
 

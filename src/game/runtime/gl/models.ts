@@ -1177,7 +1177,7 @@ function beltModel(s: Extract<Station, { type: "belt" }>): THREE.Group {
 }
 
 /** Where a guest sits at a table, from the tile's centre: on the chair behind it, lifted onto the seat. */
-const GUEST_SEAT = { z: -0.3, lift: 0.17 } as const;
+export const GUEST_SEAT = { z: -0.3, lift: 0.17 } as const;
 
 /** How high the top of a dining table is. */
 const TABLE_TOP = 0.64;
