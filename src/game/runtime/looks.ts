@@ -1,21 +1,31 @@
 /**
- * How the cooks look: a table of chefs, each a body colour, skin, hair, something on the head
- * and maybe a moustache or glasses. Players pick theirs on the home page; every other cook
+ * How the cooks look: a table of chefs, people and animals in turn, each a body colour, skin
+ * or fur, hair, something on the head and maybe a moustache or glasses. Players pick theirs on the home page; every other cook
  * takes the next free look, so no two cooks in a shift look alike. Pure data: the 3D models
  * that draw a look live in `gl/models.ts`.
  */
 import type { Driver } from "./lineup.ts";
 
 /** What a cook wears on the head; hair styles count too. */
-export type Headwear = "toque" | "cap" | "bandana" | "beanie" | "paperhat" | "ponytail" | "bun";
+export type Headwear = "toque" | "cap" | "bandana" | "beanie" | "paperhat" | "ponytail" | "bun" | "minitoque" | "none";
+
+/** The animals a cook or a guest can be. */
+export type Animal = "cat" | "bear" | "bunny" | "fox" | "frog" | "panda" | "penguin" | "duck";
+
+/** What kind of creature wears a look: it decides ears, muzzle or beak, and tail. */
+export type Species = "human" | Animal;
 
 /** Something on the face besides eyes and nose. */
 export type Accessory = "none" | "moustache" | "glasses";
 
-/** One chef look. `body` is the cook's colour everywhere: jacket, hat trim, name tag, key help. */
+/**
+ * One chef look. `body` is the cook's colour everywhere: jacket, hat trim, name tag, key help.
+ * An animal's `skin` is its fur or feathers and its `hair` the second colour: muzzle, inner ears, beak.
+ */
 export interface Look {
   readonly id: string;
   readonly name: string;
+  readonly species: Species;
   readonly body: string;
   readonly skin: string;
   readonly hair: string;
@@ -25,14 +35,22 @@ export interface Look {
 
 /** Every look, in the order bots take them. */
 export const LOOKS = [
-  { id: "mehmet", name: "Mehmet", body: "#e94f37", skin: "#d9a57a", hair: "#2b1a10", headwear: "toque", accessory: "moustache" },
-  { id: "lena", name: "Lena", body: "#3f88c5", skin: "#f3c79e", hair: "#a0522d", headwear: "cap", accessory: "none" },
-  { id: "can", name: "Can", body: "#44bba4", skin: "#a8714c", hair: "#1d1d1d", headwear: "bandana", accessory: "none" },
-  { id: "jule", name: "Jule", body: "#f6ae2d", skin: "#f6d3b5", hair: "#e8c547", headwear: "beanie", accessory: "glasses" },
-  { id: "elif", name: "Elif", body: "#ef7fb0", skin: "#d9a57a", hair: "#2b1a10", headwear: "ponytail", accessory: "none" },
-  { id: "hans", name: "Hans", body: "#6cbf4a", skin: "#f3c79e", hair: "#c0c4c8", headwear: "paperhat", accessory: "glasses" },
-  { id: "gerda", name: "Oma Gerda", body: "#a77bd9", skin: "#f6d3b5", hair: "#e4e4e4", headwear: "bun", accessory: "glasses" },
-  { id: "deniz", name: "Deniz", body: "#ff8c42", skin: "#a8714c", hair: "#1d1d1d", headwear: "cap", accessory: "moustache" },
+  { id: "mehmet", name: "Mehmet", species: "human", body: "#e94f37", skin: "#d9a57a", hair: "#2b1a10", headwear: "toque", accessory: "moustache" },
+  { id: "mimi", name: "Mimi", species: "cat", body: "#ff5d8f", skin: "#f2a65a", hair: "#fff4e6", headwear: "minitoque", accessory: "none" },
+  { id: "lena", name: "Lena", species: "human", body: "#3f88c5", skin: "#f3c79e", hair: "#a0522d", headwear: "cap", accessory: "none" },
+  { id: "bruno", name: "Bruno", species: "bear", body: "#3558a8", skin: "#9a6a42", hair: "#e8cba6", headwear: "minitoque", accessory: "none" },
+  { id: "can", name: "Can", species: "human", body: "#44bba4", skin: "#a8714c", hair: "#1d1d1d", headwear: "bandana", accessory: "none" },
+  { id: "hoppel", name: "Hoppel", species: "bunny", body: "#7ec8e3", skin: "#f4f0ea", hair: "#f6b0c0", headwear: "none", accessory: "none" },
+  { id: "jule", name: "Jule", species: "human", body: "#f6ae2d", skin: "#f6d3b5", hair: "#e8c547", headwear: "beanie", accessory: "glasses" },
+  { id: "finn", name: "Finn", species: "fox", body: "#2f8f5b", skin: "#e8762c", hair: "#fff4e6", headwear: "minitoque", accessory: "none" },
+  { id: "elif", name: "Elif", species: "human", body: "#ef7fb0", skin: "#d9a57a", hair: "#2b1a10", headwear: "ponytail", accessory: "none" },
+  { id: "quaki", name: "Quaki", species: "frog", body: "#f2d22e", skin: "#6cc24a", hair: "#d8f0a0", headwear: "none", accessory: "none" },
+  { id: "hans", name: "Hans", species: "human", body: "#6cbf4a", skin: "#f3c79e", hair: "#c0c4c8", headwear: "paperhat", accessory: "glasses" },
+  { id: "bao", name: "Bao", species: "panda", body: "#b5179e", skin: "#f7f5f0", hair: "#22222a", headwear: "minitoque", accessory: "none" },
+  { id: "gerda", name: "Oma Gerda", species: "human", body: "#a77bd9", skin: "#f6d3b5", hair: "#e4e4e4", headwear: "bun", accessory: "glasses" },
+  { id: "fiete", name: "Fiete", species: "penguin", body: "#16a3b8", skin: "#2d3348", hair: "#f7f5f0", headwear: "minitoque", accessory: "none" },
+  { id: "deniz", name: "Deniz", species: "human", body: "#ff8c42", skin: "#a8714c", hair: "#1d1d1d", headwear: "cap", accessory: "moustache" },
+  { id: "erna", name: "Erna", species: "duck", body: "#c0392b", skin: "#ffd84a", hair: "#f08a24", headwear: "none", accessory: "none" },
 ] as const satisfies readonly Look[];
 
 /** The name of a look in links and the save. */

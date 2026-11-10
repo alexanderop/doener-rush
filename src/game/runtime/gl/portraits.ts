@@ -18,8 +18,8 @@ export function renderPortraits(looks: readonly Look[], size = 224): ReadonlyMap
   sun.position.set(2, 4, 3);
   scene.add(sun);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
-  camera.position.set(0, 1.6, 2.85);
-  camera.lookAt(0, 0.8, 0);
+  camera.position.set(0, 1.75, 3.3);
+  camera.lookAt(0, 0.9, 0);
   const shots = new Map<string, string>();
 
   try {

@@ -83,7 +83,7 @@ export function box(w: number, h: number, d: number, material: THREE.Material, y
 
 /** A box with bevelled, rounded edges. */
 export function rbox(w: number, h: number, d: number, r: number, material: THREE.Material, y = h / 2): THREE.Mesh {
-  const mesh = solid(geo(`rbox|${w}|${h}|${d}|${r}`, () => new RoundedBoxGeometry(w, h, d, 1, r)), material);
+  const mesh = solid(geo(`rbox|${w}|${h}|${d}|${r}`, () => new RoundedBoxGeometry(w, h, d, 2, r)), material);
   mesh.position.y = y;
 
   return mesh;
@@ -302,6 +302,23 @@ export function label(map: THREE.Texture, size: number): THREE.Mesh {
   return mesh;
 }
 
+/** A soft additive halo that always faces the camera: the warm bloom round a burner or a fire. */
+export function halo(color: string, size: number, opacity: number): THREE.Sprite {
+  const map = canvasTexture("halo", 64, 64, (g) => {
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, "rgba(255,255,255,1)");
+    grad.addColorStop(0.35, "rgba(255,255,255,0.35)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+  });
+
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, opacity, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  sprite.scale.setScalar(size);
+
+  return sprite;
+}
+
 const BAKE_ATTRIBUTES = ["position", "normal", "uv"] as const;
 
 /** A geometry copy in world space with exactly position, normal and uv, non-indexed, so any two can merge. */
@@ -323,6 +340,38 @@ function bakeable(mesh: THREE.Mesh): THREE.BufferGeometry {
   g.applyMatrix4(mesh.matrixWorld);
 
   return g;
+}
+
+const receded = new Map<string, THREE.Material>();
+
+/**
+ * Pushes a subtree into the background: every plain material under `root` is swapped for a
+ * copy with `by` (0–1) of its saturation and half as much of its lightness taken away, so the
+ * world around the kitchen stops competing with it. Materials with their own shader stay.
+ */
+export function recede(root: THREE.Object3D, by: number): void {
+  const hsl = { h: 0, s: 0, l: 0 };
+
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || Array.isArray(o.material)) return;
+    const material: THREE.Material = o.material;
+
+    if (!(material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshBasicMaterial)) return;
+
+    if (material.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile) return;
+    const key = `${material.uuid}|${by}`;
+    let dull = receded.get(key);
+
+    if (dull === undefined) {
+      const copy = material.clone();
+      copy.color.getHSL(hsl);
+      copy.color.setHSL(hsl.h, hsl.s * (1 - by), hsl.l * (1 - by / 2));
+      dull = copy;
+      receded.set(key, dull);
+    }
+
+    o.material = dull;
+  });
 }
 
 /**

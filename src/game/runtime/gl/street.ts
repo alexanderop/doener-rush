@@ -22,29 +22,29 @@ const DINING_REACH = 2;
 const MAT_STATIONS: ReadonlySet<string> = new Set(["board", "toaster", "spit", "sink"]);
 
 /**
- * The kitchen floor: one warm terracotta tile per world tile, low contrast so cooks and food
- * stay the brightest things on screen. Worn spots, rubber mats in front of the work stations,
+ * The kitchen floor: a cool slate checkerboard, one tile per world tile, dark and blue so the
+ * warm counters, cooks and food stand out against it. Worn spots, rubber mats in front of the work stations,
  * a drain, and darker floor where it meets a counter.
  */
 function floorTexture(world: World): THREE.Texture {
   const px = 128;
 
   return canvasTexture(`floor|${world.width}x${world.height}`, world.width * px, world.height * px, (g) => {
-    g.fillStyle = "#6e4a38";
+    g.fillStyle = "#2c3546";
     g.fillRect(0, 0, world.width * px, world.height * px);
 
     for (let y = 0; y < world.height; y++) {
       for (let x = 0; x < world.width; x++) {
         const n = hash(x, y) * 14 - 7;
-        const alt = (x + y) % 2 === 0 ? 6 : -6;
-        g.fillStyle = `rgb(${204 + n + alt},${160 + n + alt},${126 + n + alt * 0.7})`;
+        const light = (x + y) % 2 === 0;
+        g.fillStyle = light ? `rgb(${126 + n},${144 + n},${170 + n})` : `rgb(${74 + n},${90 + n},${118 + n})`;
         g.beginPath();
         g.roundRect(x * px + 3, y * px + 3, px - 6, px - 6, 10);
         g.fill();
         // glaze: a soft highlight on the upper-left of each tile
         const glaze = g.createLinearGradient(x * px, y * px, x * px + px, y * px + px);
-        glaze.addColorStop(0, "rgba(255,240,220,0.16)");
-        glaze.addColorStop(0.5, "rgba(255,240,220,0)");
+        glaze.addColorStop(0, "rgba(230,240,255,0.18)");
+        glaze.addColorStop(0.5, "rgba(230,240,255,0)");
         g.fillStyle = glaze;
         g.fillRect(x * px + 3, y * px + 3, px - 6, px - 6);
       }
@@ -75,8 +75,8 @@ function floorTexture(world: World): THREE.Texture {
       const cy = hash(i, 13) * world.height * px;
       const r = 40 + hash(i, 21) * 90;
       const spot = g.createRadialGradient(cx, cy, 0, cx, cy, r);
-      spot.addColorStop(0, "rgba(70,40,25,0.10)");
-      spot.addColorStop(1, "rgba(70,40,25,0)");
+      spot.addColorStop(0, "rgba(20,26,40,0.12)");
+      spot.addColorStop(1, "rgba(20,26,40,0)");
       g.fillStyle = spot;
       g.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
@@ -92,11 +92,11 @@ function floorTexture(world: World): THREE.Texture {
         if (fx < 0 || fy < 0 || fx >= world.width || fy >= world.height || world.stations.has(fy * world.width + fx)) continue;
         const x0 = fx * px + 10;
         const y0 = fy * px + 10;
-        g.fillStyle = "#3d4a44";
+        g.fillStyle = "#22272e";
         g.beginPath();
         g.roundRect(x0, y0, px - 20, px - 20, 14);
         g.fill();
-        g.fillStyle = "#4c5c54";
+        g.fillStyle = "#39414b";
 
         for (let my = 0; my < 6; my++) {
           for (let mx = 0; mx < 6; mx++) {
@@ -145,8 +145,8 @@ function floorTexture(world: World): THREE.Texture {
             ? g.createLinearGradient(0, y0, 0, y0 - oy * 48)
             : g.createLinearGradient(x0, 0, x0 - ox * 48, 0);
 
-          grad.addColorStop(0, "rgba(40,20,10,0.5)");
-          grad.addColorStop(1, "rgba(40,20,10,0)");
+          grad.addColorStop(0, "rgba(12,16,28,0.6)");
+          grad.addColorStop(1, "rgba(12,16,28,0)");
           g.fillStyle = grad;
           g.fillRect(x * px, y * px, px, px);
         }
@@ -196,7 +196,7 @@ function paverMap(): THREE.Texture {
   return t;
 }
 
-/** One straight stretch of the brick rim, with a lighter rounded cap. */
+/** One straight stretch of the brick rim, with a dark rounded capstone. */
 function wallRun(x0: number, z0: number, x1: number, z1: number, height: number): THREE.Group {
   const g = new THREE.Group();
   const w = Math.abs(x1 - x0);
@@ -207,8 +207,8 @@ function wallRun(x0: number, z0: number, x1: number, z1: number, height: number)
   const body = solid(new THREE.BoxGeometry(w, height, d), new THREE.MeshStandardMaterial({ color: "#a8644e", map: bricks, roughness: 0.85 }));
   body.position.set((x0 + x1) / 2, height / 2, (z0 + z1) / 2);
   g.add(body);
-  const cap = solid(new THREE.BoxGeometry(w + 0.08, 0.1, d + 0.08), mat("#9c5a44", "#000000", 0.7));
-  cap.position.set((x0 + x1) / 2, height + 0.05, (z0 + z1) / 2);
+  const cap = rbox(w + 0.12, 0.16, d + 0.12, 0.06, mat("#6f3526", "#000000", 0.7));
+  cap.position.set((x0 + x1) / 2, height + 0.06, (z0 + z1) / 2);
   g.add(cap);
 
   return g;

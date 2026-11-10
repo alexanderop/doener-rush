@@ -6,9 +6,9 @@
 import * as THREE from "three";
 import type { Base, Bowl, CrateGoods, Dry, Filling, Item, Sauce, Station, Topping } from "../../../features/kitchen/public.ts";
 import { BURNT, COOKED, HEAT, ICONS, foodOn, heatTicks, isChopped } from "../../../features/kitchen/public.ts";
-import type { Accessory, Headwear, Look } from "../looks.ts";
+import type { Accessory, Animal, Headwear, Look, Species } from "../looks.ts";
 import {
-  ball, blob, box, canvasTexture, cyl, emojiBadge, geo, hash, label, mapped, mat, meatMap, rbox, ring, solid, steel, woodMap,
+  ball, blob, box, canvasTexture, cyl, emojiBadge, geo, halo, hash, label, mapped, mat, meatMap, rbox, ring, solid, steel, woodMap,
 } from "./parts.ts";
 
 /** Height of a counter top. */
@@ -16,9 +16,14 @@ export const TOP = 0.9;
 
 type Veg = "lettuce" | "tomato" | "onion";
 
-const CABINET = "#2f7d7a";
+const CABINET = "#1f968d";
 
-const WORKTOP = "#e7c393";
+/** The cabinet colour of each kind of station, so a cook finds heat, water and the pass by colour; the rest are teal. */
+const CABINETS: Partial<Record<Station["type"], string>> = {
+  crate: "#5a9e3a", toaster: "#3d4554", spit: "#c9402e", sauce: "#e58a2a", pass: "#f0b02c", sink: "#3b82c6", rack: "#3b82c6", return: "#3b82c6", mixer: "#8a5cc0",
+};
+
+const WORKTOP = "#f6e3c0";
 
 const BRASS = "#d9a646";
 
@@ -41,19 +46,21 @@ function outlined(mesh: THREE.Mesh, thickness = 1.08): THREE.Mesh {
 // ---------------------------------------------------------------- counters
 
 /**
- * The cabinet every station stands on: teal tiled doors, a brass trim and a chunky wooden
+ * The cabinet every station stands on: doors in the station's colour, a brass trim and a chunky wooden
  * worktop with rounded edges. Each tile gets a slightly different tone so a row of counters
  * reads as separate blocks.
  */
-function counter(x: number, y: number, metalTop = false): THREE.Group {
+function counter(s: Station, metalTop = false): THREE.Group {
   const g = new THREE.Group();
+  const { x, y } = s;
+  const cabinet = CABINETS[s.type] ?? CABINET;
   const tone = (Math.floor(hash(x, y) * 4) / 4 - 0.375) * 2;
   const wood = woodMap();
-  g.add(box(0.84, 0.08, 0.82, mat("#4a2414"), 0.04));
-  const body = box(0.92, TOP - 0.2, 0.9, mat(shade(CABINET, tone * 0.05)), 0.08 + (TOP - 0.2) / 2);
+  g.add(box(0.84, 0.08, 0.82, mat("#1c2230"), 0.04));
+  const body = rbox(0.94, TOP - 0.2, 0.92, 0.05, mat(shade(cabinet, tone * 0.04)), 0.08 + (TOP - 0.2) / 2);
   g.add(body);
-  const door = rbox(0.74, 0.44, 0.05, 0.02, mat(shade(CABINET, 0.06 + tone * 0.04)), 0.44);
-  door.position.z = 0.44;
+  const door = rbox(0.74, 0.44, 0.05, 0.02, mat(shade(cabinet, 0.07 + tone * 0.03)), 0.44);
+  door.position.z = 0.45;
   g.add(door);
   const knob = ball(0.03, mat(BRASS, "#000000", 0.35), 8);
   knob.position.set(0.27, 0.56, 0.48);
@@ -61,8 +68,8 @@ function counter(x: number, y: number, metalTop = false): THREE.Group {
   g.add(box(0.97, 0.04, 0.97, mat(BRASS, "#000000", 0.4), TOP - 0.13));
 
   const top = metalTop
-    ? rbox(1, 0.12, 1, 0.035, steel("#c9ced4"), TOP - 0.06)
-    : rbox(1, 0.12, 1, 0.035, mapped(shade(WORKTOP, tone * 0.06), wood), TOP - 0.06);
+    ? rbox(1, 0.12, 1, 0.05, steel("#d3d8de"), TOP - 0.06)
+    : rbox(1, 0.12, 1, 0.05, mapped(shade(WORKTOP, tone * 0.06), wood), TOP - 0.06);
 
   g.add(top);
 
@@ -694,7 +701,7 @@ function crateContents(goods: CrateGoods): THREE.Group {
 }
 
 function crateModel(s: Station, goods: CrateGoods): THREE.Group {
-  const g = counter(s.x, s.y);
+  const g = counter(s);
   const crate = new THREE.Group();
   crate.position.y = TOP;
   const wood = mapped("#c4884a", woodMap());
@@ -718,7 +725,7 @@ function crateModel(s: Station, goods: CrateGoods): THREE.Group {
 }
 
 function boardModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y);
+  const g = counter(s);
   const board = rbox(0.74, 0.06, 0.54, 0.025, mapped("#e6ad69", woodMap()), TOP + 0.03);
   g.add(board);
   const groove = rbox(0.66, 0.008, 0.46, 0.004, mapped("#cf9554", woodMap()), TOP + 0.062);
@@ -737,9 +744,18 @@ function boardModel(s: Station): THREE.Group {
   return g;
 }
 
+/** The warm bloom over a heater at work, named `ember`; dark until the scene lights it. */
+function ember(y: number, z: number): THREE.Sprite {
+  const glow = halo("#ff8a2a", 1.5, 0);
+  glow.name = "ember";
+  glow.position.set(0, y, z);
+
+  return glow;
+}
+
 /** A contact grill: ridged plates, a hinged lid with a handle and a status lamp. */
 function grillModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y, true);
+  const g = counter(s, true);
   g.add(rbox(0.8, 0.12, 0.66, 0.03, mat("#33363b", "#000000", 0.5), TOP + 0.06));
   const plate = box(0.66, 0.02, 0.52, mat("#1c1d20", "#000000", 0.5), TOP + 0.13);
   g.add(plate);
@@ -776,13 +792,15 @@ function grillModel(s: Station): THREE.Group {
   lamp.position.set(0.3, TOP + 0.08, 0.34);
   g.add(lamp);
 
+  g.add(ember(TOP + 0.22, 0.02));
+
   return g;
 }
 
 /** A dispenser on a board: a squeeze bottle for a sauce, a shaker with a steel cap for a topping. */
 function sauceModel(s: Station, sauce: Sauce | Topping): THREE.Group {
   const shaker = sauce === "cinnamon" || sauce === "poppy" || sauce === "lye";
-  const g = counter(s.x, s.y);
+  const g = counter(s);
   g.add(rbox(0.5, 0.05, 0.4, 0.02, mapped("#b77a3f", woodMap()), TOP + 0.025));
   const bottleGroup = new THREE.Group();
   bottleGroup.scale.setScalar(1.3);
@@ -825,7 +843,7 @@ function sauceModel(s: Station, sauce: Sauce | Topping): THREE.Group {
 
 /** A stand mixer: a heavy foot, a column and a head over the bowl, the whisk turning under it. */
 function mixerModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y);
+  const g = counter(s);
   const body = mat("#e94f37", "#000000", 0.35);
   g.add(rbox(0.62, 0.08, 0.66, 0.04, body, TOP + 0.04));
   const column = rbox(0.26, 0.66, 0.24, 0.08, body, TOP + 0.33);
@@ -863,7 +881,7 @@ function mixerModel(s: Station): THREE.Group {
 
 /** A deck oven: a dark steel box with a door hinged at the bottom that folds down while it stands empty. */
 function ovenModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y, true);
+  const g = counter(s, true);
   const shell = mat("#3d4148", "#000000", 0.45);
   g.add(rbox(0.9, 0.08, 0.84, 0.03, shell, TOP + 0.04));
   g.add(rbox(0.9, 0.08, 0.84, 0.03, shell, TOP + 0.47));
@@ -896,6 +914,8 @@ function ovenModel(s: Station): THREE.Group {
   lid.add(handle);
   g.add(lid);
   g.add(frontBadge("🔥", TOP + 0.47, 0.43, 0.14));
+
+  g.add(ember(TOP + 0.3, 0.2));
 
   return g;
 }
@@ -930,7 +950,7 @@ function coneQuarter(side: number): THREE.BufferGeometry {
 
 /** The spit: a tall heater with glowing burners, a drip tray and a bumpy layered cone of four sides. */
 function spitModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y, true);
+  const g = counter(s, true);
   const housing = rbox(0.9, 1.45, 0.2, 0.05, steel("#8a9097"), TOP + 0.72);
   housing.position.z = -0.4;
   g.add(housing);
@@ -948,6 +968,9 @@ function spitModel(s: Station): THREE.Group {
     g.add(burner);
   }
 
+  const bloom = halo("#ff7a2a", 1.9, 0.38);
+  bloom.position.set(0, TOP + 0.7, -0.1);
+  g.add(bloom);
   const hood = rbox(0.96, 0.09, 0.42, 0.035, steel("#9aa1a8"), TOP + 1.46);
   hood.position.z = -0.27;
   g.add(hood);
@@ -992,7 +1015,7 @@ function spitModel(s: Station): THREE.Group {
 
 /** The pass: a steel shelf under two warm heat lamps, with a service bell. */
 function passModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y, true);
+  const g = counter(s, true);
   g.add(rbox(0.66, 0.035, 0.46, 0.015, mat("#d4362b"), TOP + 0.018));
 
   for (const x of [-0.44, 0.44]) {
@@ -1061,7 +1084,7 @@ function binModel(): THREE.Group {
 
 /** A steel prep tray (bain-marie) set into the counter; the scene fills its `stock`. */
 function trayModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y, true);
+  const g = counter(s, true);
   const pan = rbox(0.78, 0.1, 0.62, 0.03, steel("#aeb5bd"), TOP + 0.02);
   g.add(pan);
   const well = rbox(0.7, 0.02, 0.54, 0.02, steel("#6f767e"), TOP + 0.075);
@@ -1087,7 +1110,7 @@ export function trayStock(veg: Veg | null, portions: number): THREE.Group {
 
 /** A plate rack on the counter: wire uprights the clean plates lean between. */
 function rackModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y);
+  const g = counter(s);
   g.add(rbox(0.6, 0.03, 0.5, 0.01, steel("#9aa1a9"), TOP + 0.015));
 
   for (const x of [-0.27, 0.27]) {
@@ -1103,7 +1126,7 @@ function rackModel(s: Station): THREE.Group {
 
 /** The hatch where served plates come back dirty: a counter with a little window frame and arrow. */
 function returnModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y, true);
+  const g = counter(s, true);
   const frame = rbox(0.9, 0.5, 0.08, 0.03, mat("#3a3d42"), TOP + 0.25);
   frame.position.z = -0.42;
   g.add(frame);
@@ -1117,7 +1140,7 @@ function returnModel(s: Station): THREE.Group {
 
 /** A steel sink with a tap; dirty plates soak in it, clean ones dry beside it. */
 function sinkModel(s: Station): THREE.Group {
-  const g = counter(s.x, s.y, true);
+  const g = counter(s, true);
   const basin = rbox(0.56, 0.04, 0.5, 0.03, mat("#5e7f99", "#000000", 0.2), TOP - 0.02);
   basin.position.x = -0.1;
   g.add(basin);
@@ -1144,7 +1167,7 @@ export const BELT_CHEVRONS = 4;
  * runs. Built along +x and turned to face `dir`; the chevrons sit in the `belt` group the scene animates.
  */
 function beltModel(s: Extract<Station, { type: "belt" }>): THREE.Group {
-  const g = counter(s.x, s.y, true);
+  const g = counter(s, true);
   const run = new THREE.Group();
   run.rotation.y = Math.atan2(-s.dir.dy, s.dir.dx);
   g.add(run);
@@ -1287,7 +1310,7 @@ export function stationModel(s: Station): THREE.Group {
   let g: THREE.Group;
 
   switch (s.type) {
-    case "counter": g = counter(s.x, s.y); break;
+    case "counter": g = counter(s); break;
     case "belt": g = beltModel(s); break;
     case "crate": g = crateModel(s, s.goods); break;
     case "board": g = boardModel(s); break;
@@ -1419,6 +1442,15 @@ const HEADWEAR: Record<Headwear, (rig: THREE.Group, look: Look) => void> = {
     tie.position.set(0, 1.14, -0.07);
     rig.add(tie);
   },
+  // a little chef's hat that sits between an animal's ears
+  minitoque: (rig, look) => {
+    const hat = new THREE.Group();
+    hat.scale.setScalar(0.62);
+    hat.position.y = 0.45;
+    HEADWEAR.toque(hat, look);
+    rig.add(hat);
+  },
+  none: () => {},
 };
 
 /** What each look has on its face. */
@@ -1448,10 +1480,352 @@ const ACCESSORIES: Record<Accessory, (rig: THREE.Group, look: Look) => void> = {
   },
 };
 
+// ---------------------------------------------------------------- species
+
+/** The radius of a cook's head; faces are built round its centre and scaled for smaller heads. */
+const HEAD = 0.23;
+
+/** The two colours of a creature: skin, fur or feathers, and the second one (muzzle, inner ears, beak). */
+interface Coat {
+  readonly fur: string;
+  readonly trim: string;
+}
+
 /**
- * A round little cook in one chef look: chunky body in the look's colour, apron, scarf, the
- * look's headwear and face, and a dark outline. Parts the scene animates are named: `rig`
- * (squash and stretch), `held`, `handL`/`handR`, `footL`/`footR`, `eyes`.
+ * A species' face, built round the centre of a head of radius `HEAD`: where the eyes and the
+ * mouth sit, what grows on the head (`ears` go into their own group so they can fold back),
+ * and the tail, if it has one.
+ */
+interface Face {
+  readonly eyes: { readonly x: number; readonly y: number; readonly z: number };
+  /** Where the mouth sits; null for a beak, which has none. */
+  readonly mouth: { readonly y: number; readonly z: number } | null;
+  readonly build: (head: THREE.Group, ears: THREE.Group, coat: Coat) => void;
+  readonly tail: ((coat: Coat) => THREE.Object3D) | null;
+}
+
+const PINK = "#f29b8a";
+
+const SNOUT = "#2b1d1a";
+
+function fur(color: string): THREE.MeshStandardMaterial {
+  return mat(color, "#000000", 0.75);
+}
+
+/** Two rosy cheeks. */
+function cheeks(head: THREE.Group, x: number, y: number, z: number): void {
+  for (const side of [-x, x]) {
+    const cheek = ball(0.04, mat(PINK), 8);
+    cheek.scale.set(1, 0.6, 0.4);
+    cheek.position.set(side, y, z);
+    head.add(cheek);
+  }
+}
+
+/** A small nose button. */
+function snoutTip(head: THREE.Group, color: string, r: number, y: number, z: number): void {
+  const tip = ball(r, mat(color, "#000000", 0.35), 8);
+  tip.scale.set(1.25, 0.8, 0.7);
+  tip.position.set(0, y, z);
+  head.add(tip);
+}
+
+/** Two pointed ears with a coloured inside, tilted outwards. */
+function pointedEars(ears: THREE.Group, coat: Coat, size: number): void {
+  for (const x of [-0.165, 0.165]) {
+    const ear = outlined(solid(geo("ear-cone", () => new THREE.ConeGeometry(0.09, 0.18, 4)), fur(coat.fur)), 1.1);
+    ear.scale.setScalar(size);
+    ear.position.set(x, 0.2, -0.01);
+    ear.rotation.set(0, Math.PI / 4, x < 0 ? 0.45 : -0.45);
+    ears.add(ear);
+    const inner = solid(geo("ear-cone", () => new THREE.ConeGeometry(0.09, 0.18, 4)), mat(coat.trim));
+    inner.castShadow = false;
+    inner.scale.setScalar(size * 0.55);
+    inner.position.set(x, 0.19, 0.035);
+    inner.rotation.copy(ear.rotation);
+    ears.add(inner);
+  }
+}
+
+/** Two round ears with a coloured inside. */
+function roundEars(ears: THREE.Group, outer: string, inside: string): void {
+  for (const x of [-0.17, 0.17]) {
+    const ear = outlined(ball(0.085, fur(outer), 10), 1.1);
+    ear.position.set(x, 0.17, -0.02);
+    ears.add(ear);
+    const inner = ball(0.05, mat(inside), 8);
+    inner.castShadow = false;
+    inner.scale.set(1, 1, 0.5);
+    inner.position.set(x, 0.17, 0.045);
+    ears.add(inner);
+  }
+}
+
+/** A broad, soft muzzle with a nose on it. */
+function muzzle(head: THREE.Group, color: string, reach: number): void {
+  const m = ball(0.095, fur(color), 12);
+  m.scale.set(1.1, 0.8, reach);
+  m.position.set(0, -0.07, 0.17);
+  head.add(m);
+  snoutTip(head, SNOUT, 0.03, -0.035, 0.17 + 0.095 * reach - 0.005);
+}
+
+/** A tail that sticks out behind and a little up; the scene wags it at its root. */
+function tailOf(length: number, width: number, color: string, tip: string | null): THREE.Group {
+  const tail = new THREE.Group();
+  const stem = outlined(solid(geo(`tail|${length}|${width}`, () => new THREE.CapsuleGeometry(width, length, 4, 10)), fur(color)), 1.1);
+  stem.rotation.x = -1.05;
+  stem.position.set(0, (length / 2 + width) * 0.5, -(length / 2 + width) * 0.87);
+  tail.add(stem);
+
+  if (tip !== null) {
+    const end = ball(width * 1.05, fur(tip), 10);
+    end.position.set(0, (length + width) * 0.5, -(length + width) * 0.87);
+    tail.add(end);
+  }
+
+  return tail;
+}
+
+/** A round scut. */
+function scut(r: number, color: string): THREE.Group {
+  const tail = new THREE.Group();
+  const puff = outlined(ball(r, fur(color), 10), 1.1);
+  puff.position.z = -r * 0.6;
+  tail.add(puff);
+
+  return tail;
+}
+
+/** Every species' face. Faces differ by what they grow, so each is a small builder. */
+const FACES: Record<Species, Face> = {
+  human: {
+    eyes: { x: 0.08, y: 0.03, z: 0.2 },
+    mouth: { y: -0.1, z: 0.208 },
+    build: (head, _, coat) => {
+      cheeks(head, 0.13, -0.04, 0.19);
+      const nose = ball(0.045, mat(shade(coat.fur, -0.06)), 8);
+      nose.position.set(0, -0.02, 0.23);
+      head.add(nose);
+    },
+    tail: null,
+  },
+  cat: {
+    eyes: { x: 0.085, y: 0.03, z: 0.2 },
+    mouth: { y: -0.105, z: 0.238 },
+    build: (head, ears, coat) => {
+      pointedEars(ears, { fur: coat.fur, trim: PINK }, 1.3);
+
+      for (const x of [-0.042, 0.042]) {
+        const pad = ball(0.055, fur(coat.trim), 10);
+        pad.scale.set(1, 0.85, 0.7);
+        pad.position.set(x, -0.075, 0.195);
+        head.add(pad);
+      }
+
+      snoutTip(head, "#e8778a", 0.022, -0.04, 0.24);
+      cheeks(head, 0.15, -0.05, 0.17);
+    },
+    tail: (coat) => tailOf(0.26, 0.04, coat.fur, coat.trim),
+  },
+  bear: {
+    eyes: { x: 0.085, y: 0.04, z: 0.2 },
+    mouth: { y: -0.11, z: 0.243 },
+    build: (head, ears, coat) => {
+      roundEars(ears, coat.fur, coat.trim);
+      muzzle(head, coat.trim, 0.8);
+    },
+    tail: (coat) => scut(0.065, coat.fur),
+  },
+  bunny: {
+    eyes: { x: 0.085, y: 0.03, z: 0.2 },
+    mouth: { y: -0.105, z: 0.238 },
+    build: (head, ears, coat) => {
+      for (const x of [-0.08, 0.08]) {
+        const ear = outlined(solid(geo("ear-long", () => new THREE.CapsuleGeometry(0.05, 0.24, 4, 10)), fur(coat.fur)), 1.1);
+        ear.position.set(x, 0.36, -0.03);
+        ear.rotation.z = x < 0 ? 0.16 : -0.16;
+        ears.add(ear);
+        const inner = solid(geo("ear-long", () => new THREE.CapsuleGeometry(0.05, 0.24, 4, 10)), mat(coat.trim));
+        inner.castShadow = false;
+        inner.scale.set(0.55, 0.8, 0.4);
+        inner.position.set(x, 0.36, 0.005);
+        inner.rotation.z = ear.rotation.z;
+        ears.add(inner);
+      }
+
+      for (const x of [-0.04, 0.04]) {
+        const pad = ball(0.052, fur("#ffffff"), 10);
+        pad.scale.set(1, 0.85, 0.7);
+        pad.position.set(x, -0.075, 0.195);
+        head.add(pad);
+      }
+
+      snoutTip(head, "#e8778a", 0.02, -0.04, 0.238);
+      cheeks(head, 0.15, -0.05, 0.17);
+    },
+    tail: () => scut(0.085, "#ffffff"),
+  },
+  fox: {
+    eyes: { x: 0.09, y: 0.04, z: 0.2 },
+    mouth: { y: -0.115, z: 0.25 },
+    build: (head, ears, coat) => {
+      pointedEars(ears, { fur: coat.fur, trim: SNOUT }, 1.4);
+      const snout = ball(0.08, fur(coat.trim), 12);
+      snout.scale.set(0.95, 0.7, 1.3);
+      snout.position.set(0, -0.07, 0.185);
+      head.add(snout);
+      snoutTip(head, SNOUT, 0.027, -0.045, 0.285);
+
+      for (const x of [-0.19, 0.19]) {
+        const fluff = blob(0.075, fur(coat.trim));
+        fluff.position.set(x, -0.08, 0.04);
+        head.add(fluff);
+      }
+    },
+    tail: (coat) => tailOf(0.22, 0.085, coat.fur, coat.trim),
+  },
+  frog: {
+    eyes: { x: 0.115, y: 0.2, z: 0.135 },
+    mouth: { y: -0.05, z: 0.222 },
+    build: (head, _, coat) => {
+      for (const x of [-0.115, 0.115]) {
+        const bump = outlined(ball(0.088, fur(coat.fur), 12), 1.1);
+        bump.position.set(x, 0.19, 0.06);
+        head.add(bump);
+      }
+
+      for (const x of [-0.03, 0.03]) {
+        const nostril = ball(0.011, mat(SNOUT), 6);
+        nostril.position.set(x, 0.03, 0.227);
+        head.add(nostril);
+      }
+
+      cheeks(head, 0.15, -0.03, 0.165);
+    },
+    tail: null,
+  },
+  panda: {
+    eyes: { x: 0.085, y: 0.03, z: 0.205 },
+    mouth: { y: -0.11, z: 0.243 },
+    build: (head, ears, coat) => {
+      roundEars(ears, coat.trim, coat.trim);
+
+      for (const x of [-0.085, 0.085]) {
+        const patch = ball(0.068, fur(coat.trim), 10);
+        patch.scale.set(1, 1.25, 0.4);
+        patch.position.set(x, 0.02, 0.172);
+        patch.rotation.z = x < 0 ? -0.35 : 0.35;
+        head.add(patch);
+      }
+
+      muzzle(head, coat.fur, 0.8);
+    },
+    tail: (coat) => scut(0.06, coat.fur),
+  },
+  penguin: {
+    eyes: { x: 0.08, y: 0.04, z: 0.238 },
+    mouth: null,
+    build: (head, _, coat) => {
+      const face = ball(0.2, fur(coat.trim), 14);
+      face.scale.set(0.86, 0.95, 0.86);
+      face.position.set(0, -0.02, 0.075);
+      head.add(face);
+      const beak = solid(geo("beak-cone", () => new THREE.ConeGeometry(0.05, 0.11, 8).rotateX(Math.PI / 2)), mat("#f59a23", "#000000", 0.5));
+      beak.position.set(0, -0.05, 0.285);
+      head.add(beak);
+      cheeks(head, 0.13, -0.06, 0.215);
+    },
+    tail: (coat) => scut(0.05, coat.fur),
+  },
+  duck: {
+    eyes: { x: 0.085, y: 0.05, z: 0.2 },
+    mouth: null,
+    build: (head, _, coat) => {
+      const bill = rbox(0.17, 0.05, 0.14, 0.022, mat(coat.trim, "#000000", 0.5), 0);
+      bill.position.set(0, -0.05, 0.255);
+      head.add(bill);
+
+      for (const [x, z, r] of [[0, 0, 0.06], [0.035, -0.05, 0.045]] as const) {
+        const tuft = blob(r, fur(coat.fur));
+        tuft.position.set(x, 0.24, z);
+        head.add(tuft);
+      }
+
+      cheeks(head, 0.15, -0.04, 0.17);
+    },
+    tail: (coat) => tailOf(0.1, 0.055, coat.fur, null),
+  },
+};
+
+/**
+ * Builds a species' face onto a head of radius `r` centred `y` above `parent`: eyes (named
+ * `eyes`), a mouth (named `mouth`, with a `smile` and a `gasp` the scene switches between)
+ * and the species' own features, its ears in a group named `ears`.
+ */
+function faceOn(parent: THREE.Object3D, species: Species, coat: Coat, y: number, r: number): void {
+  const spec = FACES[species];
+  const head = new THREE.Group();
+  head.position.y = y;
+  head.scale.setScalar(r / HEAD);
+  parent.add(head);
+  const ears = new THREE.Group();
+  ears.name = "ears";
+  head.add(ears);
+  spec.build(head, ears, coat);
+  const eyes = new THREE.Group();
+  eyes.name = "eyes";
+  eyes.position.set(0, spec.eyes.y, spec.eyes.z);
+
+  for (const x of [-spec.eyes.x, spec.eyes.x]) {
+    const eye = ball(0.035, mat("#1d1d1d", "#000000", 0.3), 8);
+    eye.scale.set(0.85, 1.15, 0.6);
+    eye.position.x = x;
+    eyes.add(eye);
+    const glint = ball(0.011, mat("#ffffff", "#ffffff"), 5);
+    glint.position.set(x + 0.012, 0.016, 0.022);
+    eyes.add(glint);
+  }
+
+  head.add(eyes);
+
+  if (spec.mouth === null) return;
+  const mouth = new THREE.Group();
+  mouth.name = "mouth";
+  mouth.position.set(0, spec.mouth.y, spec.mouth.z);
+  const dark = mat("#3a1c16", "#000000", 0.5);
+  const smile = new THREE.Mesh(geo("smile", () => new THREE.TorusGeometry(0.04, 0.011, 5, 10, Math.PI).rotateZ(Math.PI)), dark);
+  smile.name = "smile";
+  smile.position.y = 0.02;
+  const gasp = new THREE.Mesh(geo("gasp", () => new THREE.SphereGeometry(0.03, 10, 8)), dark);
+  gasp.name = "gasp";
+  gasp.scale.set(1, 1, 0.35);
+  gasp.visible = false;
+  mouth.add(smile, gasp);
+  head.add(mouth);
+}
+
+/** A species' tail on a body, named `tail` so the scene can wag it; nothing for a species without. */
+function tailOn(parent: THREE.Object3D, species: Species, coat: Coat, y: number, z: number, scale: number): void {
+  const tail = FACES[species].tail?.(coat);
+
+  if (tail === undefined) return;
+  tail.name = "tail";
+  tail.position.set(0, y, z);
+  tail.scale.setScalar(scale);
+  parent.add(tail);
+}
+
+/** How much bigger than life a cook's head is, and the height of the neck it grows from. */
+const HEAD_SCALE = 1.28;
+
+const NECK = 0.72;
+
+/**
+ * A round little cook in one chef look: a big head on a chunky body in the look's colour, apron, scarf, the
+ * look's headwear and its species' face and tail, and a dark outline. Parts the scene animates
+ * are named: `rig` (squash and stretch), `held`, `handL`/`handR`, `footL`/`footR`, `eyes`,
+ * `mouth` (with `smile` and `gasp`), and an animal's `ears` and `tail`.
  */
 export function cookModel(look: Look): THREE.Group {
   const g = new THREE.Group();
@@ -1471,47 +1845,29 @@ export function cookModel(look: Look): THREE.Group {
   scarf.rotation.x = Math.PI / 2;
   scarf.position.y = 0.72;
   rig.add(scarf);
-  const head = outlined(ball(0.23, mat(look.skin, "#000000", 0.6), 18), 1.07);
+  // the head and all it wears, grown from the neck: a big head on a short body reads from far above
+  const face = new THREE.Group();
+  face.scale.setScalar(HEAD_SCALE);
+  face.position.y = NECK * (1 - HEAD_SCALE);
+  rig.add(face);
+  const head = outlined(ball(HEAD, mat(look.skin, "#000000", 0.6), 18), 1.07);
   head.position.y = 0.92;
-  rig.add(head);
-  const eyes = new THREE.Group();
-  eyes.name = "eyes";
-  eyes.position.set(0, 0.95, 0.2);
-
-  for (const x of [-0.08, 0.08]) {
-    const eye = ball(0.035, mat("#1d1d1d", "#000000", 0.3), 8);
-    eye.scale.set(0.85, 1.15, 0.6);
-    eye.position.x = x;
-    eyes.add(eye);
-    const glint = ball(0.011, mat("#ffffff", "#ffffff"), 5);
-    glint.position.set(x + 0.012, 0.016, 0.022);
-    eyes.add(glint);
-  }
-
-  rig.add(eyes);
-
-  for (const x of [-0.13, 0.13]) {
-    const cheek = ball(0.04, mat("#f29b8a"), 8);
-    cheek.scale.set(1, 0.6, 0.4);
-    cheek.position.set(x, 0.88, 0.19);
-    rig.add(cheek);
-  }
-
-  const nose = ball(0.045, mat(shade(look.skin, -0.06)), 8);
-  nose.position.set(0, 0.9, 0.23);
-  rig.add(nose);
-  HEADWEAR[look.headwear](rig, look);
-  ACCESSORIES[look.accessory](rig, look);
+  face.add(head);
+  const coat = { fur: look.skin, trim: look.hair };
+  faceOn(face, look.species, coat, 0.92, HEAD);
+  tailOn(rig, look.species, coat, 0.3, -0.25, 1);
+  HEADWEAR[look.headwear](face, look);
+  ACCESSORIES[look.accessory](face, look);
 
   for (const x of [-0.3, 0.3]) {
-    const hand = outlined(ball(0.085, mat(look.skin), 10), 1.12);
-    hand.position.set(x, 0.5, 0.18);
+    const hand = outlined(ball(0.11, mat(look.skin), 10), 1.12);
+    hand.position.set(x * 1.07, 0.5, 0.18);
     hand.name = x < 0 ? "handL" : "handR";
     rig.add(hand);
   }
 
   for (const x of [-0.12, 0.12]) {
-    const foot = ball(0.09, mat("#3a2a22"), 10);
+    const foot = ball(0.105, mat("#3a2a22"), 10);
     foot.scale.set(1, 0.55, 1.35);
     foot.position.set(x, 0.05, 0.04);
     foot.name = x < 0 ? "footL" : "footR";
@@ -1531,6 +1887,20 @@ const SHIRTS = ["#3f88c5", "#f6ae2d", "#7b4ea3", "#2e9e44", "#e94f37", "#ef7fb0"
 
 const SKIN = ["#f3c79e", "#d9a57a", "#a8714c", "#f6d3b5"];
 
+/** The animals that come to eat, and what each wears. */
+const GUEST_COATS: Record<Animal, Coat> = {
+  cat: { fur: "#8d8f98", trim: "#f1f1f1" },
+  bear: { fur: "#6e4a2e", trim: "#d9b98e" },
+  bunny: { fur: "#d9c3a5", trim: "#f6b0c0" },
+  fox: { fur: "#e8762c", trim: "#fff4e6" },
+  frog: { fur: "#6cc24a", trim: "#d8f0a0" },
+  panda: { fur: "#f7f5f0", trim: "#22222a" },
+  penguin: { fur: "#2d3348", trim: "#f7f5f0" },
+  duck: { fur: "#fbfaf5", trim: "#f08a24" },
+};
+
+const GUEST_ANIMALS: readonly Animal[] = ["cat", "bear", "bunny", "fox", "frog", "panda", "penguin", "duck"];
+
 const HAIR = ["#2b1a10", "#a0522d", "#e8c547", "#1d1d1d", "#c0c4c8"];
 
 /** A customer waiting outside the pass: shirt, skin, hair and headgear vary with `index`. */
@@ -1540,8 +1910,11 @@ export function customerModel(index: number): THREE.Group {
   rig.name = "rig";
   g.add(rig);
   const shirt = SHIRTS[index % SHIRTS.length] ?? "#3f88c5";
-  const skin = SKIN[(index * 3) % SKIN.length] ?? "#f3c79e";
   const hair = HAIR[(index * 7) % HAIR.length] ?? "#2b1a10";
+  // two guests in five are animals
+  const animal = index % 5 < 2 ? GUEST_ANIMALS[(index * 3) % GUEST_ANIMALS.length] : undefined;
+  const coat = animal === undefined ? { fur: SKIN[(index * 3) % SKIN.length] ?? "#f3c79e", trim: hair } : GUEST_COATS[animal];
+  const skin = coat.fur;
 
   for (const x of [-0.1, 0.1]) {
     const leg = cyl(0.07, 0.065, 0.26, mat("#33415c"), 8);
@@ -1565,11 +1938,12 @@ export function customerModel(index: number): THREE.Group {
   head.position.y = 0.98;
   rig.add(head);
 
-  for (const x of [-0.065, 0.065]) {
-    const eye = ball(0.026, mat("#1d1d1d"), 6);
-    eye.scale.set(0.85, 1.2, 0.6);
-    eye.position.set(x, 1, 0.17);
-    rig.add(eye);
+  faceOn(rig, animal ?? "human", coat, 0.98, 0.19);
+
+  if (animal !== undefined) {
+    tailOn(rig, animal, coat, 0.42, -0.2, 0.85);
+
+    return g;
   }
 
   const style = index % 3;

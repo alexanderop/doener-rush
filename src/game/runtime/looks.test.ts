@@ -33,8 +33,8 @@ describe("given a crew with players and bots", () => {
   });
 
   it("gives each player their pick and the bots the next free looks in table order", () => {
-    expect(ids(crewLooks(lineupOf(2, 2).drivers, ["jule", "mehmet"]))).toEqual(["jule", "mehmet", "lena", "can"]);
-    expect(ids(crewLooks(lineupOf(1, 3).drivers, DEFAULT_PICKS))).toEqual(["mehmet", "lena", "can", "jule"]);
+    expect(ids(crewLooks(lineupOf(2, 2).drivers, ["jule", "mehmet"]))).toEqual(["jule", "mehmet", "mimi", "lena"]);
+    expect(ids(crewLooks(lineupOf(1, 3).drivers, DEFAULT_PICKS))).toEqual(["mehmet", "mimi", "lena", "bruno"]);
   });
 
   it("keeps player 1's pick when both players pick the same look", () => {
@@ -42,7 +42,7 @@ describe("given a crew with players and bots", () => {
   });
 
   it("dresses the second cook of a swap pair in the next free look", () => {
-    expect(ids(crewLooks(lineupOf(1, 1, true).drivers, ["lena", "mehmet"]))).toEqual(["lena", "mehmet", "can"]);
+    expect(ids(crewLooks(lineupOf(1, 1, true).drivers, ["lena", "mehmet"]))).toEqual(["lena", "mehmet", "mimi"]);
   });
 });
 
@@ -62,11 +62,11 @@ describe("given the arrows of a look picker", () => {
 
     expect(walk(1)).toEqual(LOOK_IDS);
     expect(new Set(walk(-1))).toEqual(new Set(LOOK_IDS));
-    expect(stepLook("mehmet", -1)).toBe("deniz");
+    expect(stepLook("mehmet", -1)).toBe("erna");
   });
 
   it("skips the look the other player wears", () => {
-    expect(stepLook("mehmet", 1, new Set(["lena"]))).toBe("can");
-    expect(stepLook("can", -1, new Set(["lena"]))).toBe("mehmet");
+    expect(stepLook("mehmet", 1, new Set(["mimi"]))).toBe("lena");
+    expect(stepLook("lena", -1, new Set(["mimi"]))).toBe("mehmet");
   });
 });

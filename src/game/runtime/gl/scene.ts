@@ -15,6 +15,7 @@ import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
 import { LOOKS } from "../looks.ts";
 import type { Look } from "../looks.ts";
+import { TICK_RATE } from "../../core/grid.ts";
 import type { World } from "../world.ts";
 import { isWater } from "../world.ts";
 import { createCanal } from "./canal.ts";
@@ -25,22 +26,33 @@ import type { GestureKind, Pose } from "./motion.ts";
 import { BELT_CHEVRONS, GUEST_SEAT, TOP, cookModel, customerModel, itemKey, itemModel, meatColor, plateStack, stationModel, trayStock } from "./models.ts";
 import { bubbleSprite, nameTag, progressBar, setBubble, showBar, spitBubble, tickSprite, warningSprite } from "./overlays.ts";
 import type { Bar } from "./overlays.ts";
-import { bakeStatic, contactShadow, geo } from "./parts.ts";
+import { bakeStatic, contactShadow, geo, halo, recede } from "./parts.ts";
 import { backdrop } from "./scenery.ts";
 import type { Scenery } from "./scenery.ts";
 import { shopShell } from "./street.ts";
 
-const TILT = THREE.MathUtils.degToRad(46);
+const TILT = THREE.MathUtils.degToRad(52);
 
 /**
- * How much of the screen the kitchen may fill, in NDC from the centre: a wide screen keeps
- * a third of itself for the world around (and the HUD over it), a phone in portrait gives
- * the kitchen nearly its full width. `drop` lowers the kitchen on screen with a lens shift,
+ * How much of the screen the kitchen may fill, in NDC from the centre: the kitchen is the
+ * picture, so it takes most of a wide screen and nearly the full width of a phone in portrait. `drop` lowers the kitchen on screen with a lens shift,
  * so more of the world beyond the pass shows than of the ground behind the kitchen.
  */
-const REACH = { wide: 0.6, tall: 0.94, high: 0.6, drop: 0.12 } as const;
+const REACH = { wide: 0.86, tall: 0.96, high: 0.8, drop: 0.12 } as const;
 
-const ITEM_SCALE = 1.55;
+const ITEM_SCALE = 1.8;
+
+/** Seconds the cooks grin after a dish went out. */
+const CHEER_SECONDS = 1.3;
+
+/** The last seconds of a shift, when the cooks sweat. */
+const RUSH_SECONDS = 20;
+
+/** How far the world around the kitchen is dulled, so the kitchen is the brightest, most colourful thing on screen. */
+const OUTSIDE_FADE = 0.45;
+
+/** Cooks stand nearly a tile wide, so they are the first thing the eye finds. */
+const COOK_SCALE = 1.38;
 
 const BUBBLE = 0.36;
 
@@ -75,6 +87,8 @@ interface StationParts {
   readonly glow: THREE.MeshStandardMaterial | null;
   readonly sides: readonly (THREE.MeshStandardMaterial | null)[];
   readonly heat: THREE.PointLight | null;
+  /** The bloom over a grill or an oven while it is hot. */
+  readonly ember: THREE.Sprite | null;
   readonly water: THREE.Object3D;
   /** Where the sink's water rests when nobody scrubs. */
   readonly waterRest: number;
@@ -84,6 +98,7 @@ interface StationParts {
 
 function partsOf(group: THREE.Group): StationParts {
   const heat = group.getObjectByName("heat");
+  const ember = group.getObjectByName("ember");
   const water = named(group, "water");
 
   return {
@@ -95,6 +110,7 @@ function partsOf(group: THREE.Group): StationParts {
     glow: standardOf(group, "glow"),
     sides: [0, 1, 2, 3].map((side) => standardOf(group, `side${side}`)),
     heat: heat instanceof THREE.PointLight ? heat : null,
+    ember: ember instanceof THREE.Sprite ? ember : null,
     water,
     waterRest: water.position.y,
     belt: named(group, "belt"),
@@ -142,6 +158,11 @@ interface CookView {
   readonly hands: readonly THREE.Object3D[];
   readonly feet: readonly THREE.Object3D[];
   readonly eyes: THREE.Object3D;
+  /** The two shapes of the mouth: a curve that smiles or frowns, and an open one for a gasp or a cheer. */
+  readonly smile: THREE.Object3D;
+  readonly gasp: THREE.Object3D;
+  /** An animal's tail; a stand-in for a cook without one. */
+  readonly tail: THREE.Object3D;
   readonly focus: THREE.Mesh;
   readonly focusBin: THREE.Mesh;
   /** The "DU" tag of a cook in a swap pair, shown while the player moves it; null otherwise. */
@@ -153,7 +174,14 @@ interface CookView {
   stride: number;
   walking: boolean;
   squash: number;
-  dust: number;
+  /** How much of the walk cycle shows, 0 standing to 1 in full stride; eased so a cook settles into and out of a walk. */
+  gait: number;
+  /** Seconds left of the grin after a dish went out. */
+  cheer: number;
+  /** Seconds until the next bead of sweat, while the shift runs out. */
+  sweat: number;
+  /** Footfalls so far in the walk cycle, to puff dust as each foot lands. */
+  steps: number;
   blink: number;
   /** Items on their way here from a station; the hand stays empty until the last one lands. */
   incoming: number;
@@ -188,6 +216,10 @@ interface CustomerView {
   readonly group: THREE.Group;
   readonly rig: THREE.Object3D;
   readonly arms: readonly THREE.Object3D[];
+  /** An animal guest's ears and tail; stand-ins for a guest without. */
+  readonly ears: THREE.Object3D;
+  readonly tail: THREE.Object3D;
+  readonly smile: THREE.Object3D;
   /** The patience bar over a seated guest's head; null for the queue at the pass, whose tickets show it. */
   readonly bar: Bar | null;
   target: THREE.Vector3;
@@ -200,6 +232,9 @@ interface CustomerView {
 
 /** The colour of a seated guest's patience bar in each mood, as the tickets colour theirs. */
 const PATIENCE_COLOR = { calm: "#3fbf4f", cross: "#f5b324", fuming: "#e5322d" } as const;
+
+/** How far back an animal guest lays its ears in each mood, in radians. */
+const EARS_BACK = { calm: 0, cross: -0.35, fuming: -0.75 } as const;
 
 /** How a customer looks on the way out: calm after a meal, fuming after giving up. */
 const LEAVING_MOOD = { happy: "calm", angry: "fuming" } as const;
@@ -322,13 +357,15 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
   const outside = backdrop(world, scenery);
+  recede(outside.still, OUTSIDE_FADE);
+  recede(outside.live, OUTSIDE_FADE);
   const background = new THREE.Color(outside.sky);
   scene.background = background;
   const fog = new THREE.Fog(background, 30, 80);
   scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
-  scene.add(new THREE.HemisphereLight("#fff3dc", "#6a4a3a", 1.25));
-  const sun = new THREE.DirectionalLight("#ffe0b0", 2.7);
+  scene.add(new THREE.HemisphereLight("#fff1d8", "#4f5f86", 1.3));
+  const sun = new THREE.DirectionalLight("#ffdca6", 2.8);
   sun.position.set(world.width / 2 - 6, 16, world.height / 2 + 7);
   sun.target.position.set(world.width / 2, 0, world.height / 2);
   sun.castShadow = true;
@@ -341,7 +378,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   sun.shadow.normalBias = 0.03;
   sun.shadow.radius = 4;
   scene.add(sun, sun.target);
-  const fill = new THREE.DirectionalLight("#cfe0ff", 0.55);
+  const fill = new THREE.DirectionalLight("#bcd2ff", 0.6);
   fill.position.set(world.width / 2 + 8, 8, world.height / 2 + 10);
   scene.add(fill);
   // everything that never moves is merged into a few meshes once the stations are built
@@ -352,7 +389,8 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   scene.add(fx.object);
   // one light lends its flicker to the fire; it stays in the scene at zero so lighting shaders never recompile
   const fireLight = new THREE.PointLight("#ff7a2a", 0, 3.6, 1.6);
-  scene.add(fireLight);
+  const fireHalo = halo("#ff8a2a", 3, 0);
+  scene.add(fireLight, fireHalo);
   const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const cameraHome = new THREE.Vector3();
   let freeze = 0;
@@ -401,7 +439,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     const look = looks[i] ?? LOOKS[0];
     const color = look.body;
     const group = cookModel(look);
-    group.scale.setScalar(1.22);
+    group.scale.setScalar(COOK_SCALE);
     const shadow = contactShadow(0.36, 0.5);
     group.add(shadow);
     const focus = slabGlow("#ffd23f", false);
@@ -413,22 +451,22 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
 
     if (driver?.kind === "bot") {
       const tag = nameTag(color, "BOT");
-      tag.position.y = 1.62;
+      tag.position.y = 1.9;
       group.add(tag);
     }
 
     const you = isPaired(world.drivers, i) ? nameTag(color, "DU") : null;
 
     if (you !== null) {
-      you.position.y = 1.62;
+      you.position.y = 1.9;
       group.add(you);
     }
 
     return {
       group, focus, focusBin, bubble, you,
-      rig: named(group, "rig"), held: named(group, "held"), eyes: named(group, "eyes"),
+      rig: named(group, "rig"), held: named(group, "held"), eyes: named(group, "eyes"), smile: named(group, "smile"), gasp: named(group, "gasp"), tail: named(group, "tail"),
       hands: [named(group, "handL"), named(group, "handR")], feet: [named(group, "footL"), named(group, "footR")],
-      key: "", yaw: 0, lastX: cook.x, lastY: cook.y, stride: 0, walking: false, squash: 9, dust: 0, blink: 2 + i, incoming: 0,
+      key: "", yaw: 0, lastX: cook.x, lastY: cook.y, stride: 0, walking: false, squash: 9, gait: 0, cheer: 0, sweat: 0, steps: 0, blink: 2 + i, incoming: 0,
       gesture: null, still: 0, fidgets: 0, touching: false, lean: 0,
     };
   });
@@ -566,7 +604,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
 
     scene.add(group);
 
-    return { group, rig: named(group, "rig"), arms: [named(group, "armL"), named(group, "armR")], bar, target: group.position.clone(), leaving: "no", age: 0, patience: 1, emitAcc: 0 };
+    return { group, rig: named(group, "rig"), arms: [named(group, "armL"), named(group, "armR")], ears: named(group, "ears"), tail: named(group, "tail"), smile: named(group, "smile"), bar, target: group.position.clone(), leaving: "no", age: 0, patience: 1, emitAcc: 0 };
   }
 
   function syncCustomers(w: World, dt: number, t: number): void {
@@ -663,6 +701,11 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       }
     });
 
+    // an animal lays its ears back as it loses patience and wags its tail over a meal; every guest's smile turns over
+    view.ears.rotation.x += (EARS_BACK[mood] - view.ears.rotation.x) * Math.min(1, dt * 8);
+    view.tail.rotation.y = cheering ? Math.sin(view.age * 26) * 0.7 : Math.sin(t * 2.2 + id) * 0.14;
+    view.smile.rotation.z = mood === "calm" ? 0 : Math.PI;
+
     if (mood === "fuming") {
       view.emitAcc += dt * (view.patience < 0.12 || view.leaving === "angry" ? 6 : 3);
       const n = Math.floor(view.emitAcc);
@@ -709,7 +752,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       if (view === undefined) {
         const item = new THREE.Group();
         item.add(itemModel(thrown.item));
-        item.scale.setScalar(1.6);
+        item.scale.setScalar(ITEM_SCALE);
         const thrower = cooks[w.cooks.findIndex((c) => c.id === thrown.by)];
         const hand = thrower === undefined ? new THREE.Vector3(thrown.x, 0.85, thrown.y) : thrower.held.getWorldPosition(new THREE.Vector3());
         view = { item, shadow: contactShadow(0.2, 0.35), hand, age: 0 };
@@ -814,6 +857,8 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
         fx.emit("confetti", at, 40);
         fx.emit("sparks", at, 24, "#ffd166");
 
+        for (const view of cooks) view.cheer = CHEER_SECONDS;
+
         if (!calm) {
           freeze = HIT_STOP;
           shake = SERVE_SHAKE;
@@ -843,7 +888,10 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     view.lastY = cook.y;
     const walking = moved > 0.001 && moved < 0.5;
     view.stride += moved * 9;
-    view.dust -= dt;
+    view.gait += ((walking ? 1 : 0) - view.gait) * Math.min(1, dt * 14);
+    const gait = view.gait;
+    // a foot lands every half cycle, as it reaches the front of its swing
+    const steps = Math.floor(view.stride / Math.PI - 0.5);
     at.set(cook.x - Math.sin(view.yaw) * 0.25, 0.06, cook.y - Math.cos(view.yaw) * 0.25);
 
     if (cook.dash.state === "dashing") fx.emit("dust", at, 3);
@@ -857,15 +905,13 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
 
     if (walking && !view.walking) fx.emit("dust", at, 5);
     else if (walking && Math.abs(diff) > 1.2) fx.emit("dust", at, 4);
-    else if (walking && view.dust <= 0) {
-      fx.emit("dust", at, 1);
-      view.dust = 0.11;
-    }
+    else if (walking && steps !== view.steps) fx.emit("dust", at, 2);
 
+    view.steps = steps;
     view.walking = walking;
-    // squash and stretch: a bounce while walking, a quick squish when picking up or putting down
+    // squash and stretch: tall at the top of each step and squat as the foot lands, a quick squish when picking up or putting down
     view.squash += dt;
-    const bounce = walking ? Math.sin(view.stride * 2) * 0.06 : 0;
+    const bounce = Math.cos(view.stride * 2) * 0.07 * gait;
     const chop = cook.working ? Math.abs(Math.sin(t * 22)) * 0.05 : 0;
     const squish = view.squash < 0.6 ? -Math.exp(-view.squash * 9) * Math.cos(view.squash * 24) * 0.2 : 0;
     // a dash leans the cook forward along the run; work leans it over the station, nodding with each stroke
@@ -889,28 +935,58 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       if (view.gesture.age >= gesture.seconds) view.gesture = null;
     }
 
-    view.rig.rotation.set(view.lean + pose.lean, pose.turn, pose.tilt);
+    // the waddle: the body leans into the walk, twists with each step and rolls from foot to foot
+    const step = Math.sin(view.stride);
+    view.rig.rotation.set(view.lean + pose.lean + 0.1 * gait, pose.turn + step * 0.16 * gait, pose.tilt);
     // standing idle, the cook breathes
     const breath = walking || cook.working ? 0 : Math.sin(t * 2.4 + cookIndex) * 0.018;
     const k = bounce + squish - chop + breath + pose.stretch;
     view.rig.scale.set(1 - k * 0.5, 1 + k, 1 - k * 0.5);
-    view.rig.position.y = walking ? Math.abs(Math.sin(view.stride)) * 0.06 : 0;
-    view.group.rotation.z = walking ? Math.sin(view.stride) * 0.05 : 0;
+    const hop = Math.abs(Math.cos(view.stride)) * 0.1 * gait;
+    view.rig.position.y = hop;
+    view.group.rotation.z = step * 0.1 * gait;
     view.feet.forEach((foot, side) => {
-      foot.position.z = 0.04 + (walking ? Math.sin(view.stride + side * Math.PI) * 0.1 : 0);
-      foot.position.y = 0.05 + (walking ? Math.max(0, Math.sin(view.stride + side * Math.PI)) * 0.05 : 0);
+      // a foot swings forward through the air, lands on its heel, and pushes off from the toe
+      const phase = view.stride + side * Math.PI;
+      foot.position.z = 0.04 + Math.sin(phase) * 0.17 * gait;
+      foot.position.y = 0.05 + Math.max(0, Math.cos(phase)) * 0.12 * gait;
+      foot.rotation.x = -Math.sin(phase) * 0.45 * gait;
     });
     const carrying = cook.held !== null;
     view.hands.forEach((hand, side) => {
       const swing = cook.working ? Math.sin(t * 22 + side * Math.PI) * 0.1 : 0;
-      const walkSwing = walking && !carrying ? Math.sin(view.stride + side * Math.PI) * 0.08 : 0;
+      // arms swing against the legs; a carried item bobs with each step instead
+      const arm = Math.sin(view.stride + (side + 1) * Math.PI) * gait;
       const lift = carrying ? 0 : pose.lift * 0.4;
-      hand.position.set(side === 0 ? -0.27 - lift * 0.2 : 0.27 + lift * 0.2, carrying ? 0.62 : 0.5 + swing + lift, carrying || cook.working ? 0.34 : 0.16 + walkSwing);
+      const out = 0.29 + lift * 0.2 + (carrying || cook.working ? 0 : Math.abs(arm) * 0.03);
+      const y = carrying ? 0.62 : 0.5 + swing + lift + (cook.working ? 0 : Math.abs(arm) * 0.07);
+      hand.position.set(side === 0 ? -out : out, y, carrying || cook.working ? 0.34 : 0.16 + arm * 0.2);
     });
     view.blink -= dt;
 
     if (view.blink < -0.12) view.blink = 2 + ((cookIndex * 1.7 + t) % 2.5);
-    view.eyes.scale.y = view.blink < 0 ? 0.15 : 1;
+    // the face: wide eyes and a gasp while the kitchen burns, a grin after a serve, a frown and sweat as the shift runs out
+    view.cheer -= dt;
+    const left = (w.endTick - w.tick) / TICK_RATE;
+    const alarm = stations.some((v) => isBurning(v.station.fire));
+    const cheer = !alarm && view.cheer > 0;
+    const rush = !alarm && !cheer && left > 0 && left < RUSH_SECONDS;
+    const wide = alarm ? 1.35 : 1;
+    view.eyes.scale.set(wide, view.blink < 0 ? 0.15 : cheer ? 0.6 : wide, 1);
+    view.smile.visible = !alarm;
+    view.smile.rotation.z = rush ? Math.PI : 0;
+    view.smile.scale.setScalar(cheer ? 1.5 : 1);
+    view.gasp.visible = alarm || cheer;
+    view.gasp.scale.set(cheer ? 1.5 : 0.9, cheer ? 0.9 : 1.3, 0.35);
+    view.gasp.position.y = cheer ? -0.012 : 0;
+    view.tail.rotation.y = Math.sin(view.stride) * 0.5 * gait + Math.sin(t * (cheer ? 24 : 2.2) + cookIndex) * (cheer ? 0.6 : 0.12);
+    view.sweat -= dt;
+
+    if (rush && view.sweat <= 0) {
+      view.sweat = 0.4;
+      fx.emit("drip", at.set(cook.x + Math.sin(t * 5) * 0.2, 1.75, cook.y), 1, "#8fd3f4");
+    }
+
     const key = itemKey(cook.held);
     const front = facingTile(cook);
     const station = w.stations.get(front.y * w.width + front.x);
@@ -1119,14 +1195,19 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
       }
     }
 
+    fireHalo.visible = burning !== undefined && quality < 2;
+
     if (burning === undefined || quality >= 2) {
       fireLight.intensity = 0;
 
       return;
     }
 
+    const flicker = 0.75 + Math.sin(t * 31) * 0.1 + Math.sin(t * 17.3) * 0.08 + Math.random() * 0.12;
     fireLight.position.set(burning.centre.x, TOP + 0.6, burning.centre.z + 0.2);
-    fireLight.intensity = 5 * (0.75 + Math.sin(t * 31) * 0.1 + Math.sin(t * 17.3) * 0.08 + Math.random() * 0.12);
+    fireLight.intensity = 5 * flicker;
+    fireHalo.position.copy(fireLight.position);
+    fireHalo.material.opacity = 0.55 * flicker;
   }
 
   function shakeCamera(t: number, dt: number): void {
@@ -1323,6 +1404,8 @@ function workHeater(view: StationView, frame: Frame): boolean {
   const oven = station.look === "oven";
   lid.rotation.x += ((item === null ? open : shut) - lid.rotation.x) * Math.min(1, dt * 12);
 
+  if (parts.ember !== null) parts.ember.material.opacity = toast.state === "toasting" || toast.state === "done" ? 0.3 + Math.sin(t * 9) * 0.05 : 0;
+
   if (toast.state === "toasting") {
     const p = toast.ticks / done;
     showBar(bar, p, "#5fd068");
@@ -1494,7 +1577,11 @@ function syncStation(view: StationView, frame: Frame): void {
   view.slot.scale.setScalar(ITEM_SCALE * popScale(view.pop));
   const done = finished(station);
 
-  if (done && !view.done) view.tickAge = 0;
+  if (done && !view.done) {
+    view.tickAge = 0;
+    fx.emit("sparks", spot.set(centre.x, TOP + 0.35, centre.z), 12, "#fff1c1");
+  }
+
   view.done = done;
   bar.group.visible = false;
   bar.group.quaternion.copy(frame.camera.quaternion);
