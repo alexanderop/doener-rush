@@ -2,6 +2,7 @@ import type { Tile } from "../../game/core/grid.ts";
 import type { Cook } from "../cooks/public.ts";
 import type { Station } from "../kitchen/public.ts";
 import type { Order } from "../orders/public.ts";
+import type { Way } from "./machines/way.ts";
 
 /**
  * What a bot can see of the round: a read-only view the runtime builds from its world, so the
@@ -53,10 +54,6 @@ export interface BotMind {
   best: number;
   /** Ticks without getting closer. */
   stuck: number;
-  /** Ticks left of routing around other cooks after getting stuck. */
-  detour: number;
-  /** A free tile the bot steps onto to let another cook past, or null. */
-  aside: Tile | null;
-  /** Ticks left to reach `aside` before giving up on it. */
-  asideTicks: number;
+  /** How the bot gets past the other cooks: straight on, stepping aside, or routing around them. */
+  way: Way;
 }

@@ -1,5 +1,5 @@
 import type { Cook } from "../../../features/cooks/public.ts";
-import { OUT, ignite, isBaked, isBurning, isChopped } from "../../../features/kitchen/public.ts";
+import { OUT, ignite, isBaked, isBurning, isChopped, vegIn } from "../../../features/kitchen/public.ts";
 import type { Filling, Item, Station } from "../../../features/kitchen/public.ts";
 import type { World } from "../world.ts";
 
@@ -76,7 +76,7 @@ function hasFilling(world: World, filling: Filling): boolean {
 
 /** How far a vegetable got: 0 none, 1 held raw, 2 on a board, 3 chopped, 4 in a tray or the döner. */
 function vegStage(world: World, veg: Veg): number {
-  if (hasFilling(world, veg) || stations(world, (s) => s.type === "tray" && s.veg === veg).length > 0) return 4;
+  if (hasFilling(world, veg) || stations(world, (s) => s.type === "tray" && vegIn(s.tray) === veg).length > 0) return 4;
   const pieces = [me(world).held, ...[...world.stations.values()].map((s) => s.item)];
 
   if (pieces.some((item) => item?.kind === "veg" && item.veg === veg && isChopped(item))) return 3;
@@ -93,7 +93,7 @@ function vegTargets(world: World, veg: Veg): Station[] {
     case 0: return stations(world, (s) => s.type === "crate" && s.goods === veg);
     case 1: return stations(world, (s) => s.type === "board" && s.item === null);
     case 2: return stations(world, (s) => s.type === "board" && s.item?.kind === "veg" && s.item.veg === veg);
-    default: return stations(world, (s) => s.type === "tray" && (s.veg === null || s.veg === veg));
+    default: return stations(world, (s) => s.type === "tray" && (s.tray.state === "empty" || s.tray.veg === veg));
   }
 }
 
@@ -282,10 +282,10 @@ export const LESSONS: readonly Lesson[] = [
     title: "Gemüse drauf",
     text: "Hol Salat und Zwiebel aus den Wannen ({E} mit dem Teller in der Hand).",
     why: "Jedes {E} an einer Wanne legt eine Portion auf den Döner. Jede Zutat passt nur einmal drauf.",
-    targets: (world) => stations(world, (s) => s.type === "tray" && s.veg !== null && (s.veg === "lettuce" || s.veg === "onion") && !hasFilling(world, s.veg)),
+    targets: (world) => stations(world, (s) => s.type === "tray" && s.tray.state === "stocked" && (s.tray.veg === "lettuce" || s.tray.veg === "onion") && !hasFilling(world, s.tray.veg)),
     done: (world) => hasFilling(world, "lettuce") && hasFilling(world, "onion"),
     trouble: (world) => {
-      const empty = (["lettuce", "onion"] as const).find((veg) => !hasFilling(world, veg) && stations(world, (s) => s.type === "tray" && s.veg === veg).length === 0);
+      const empty = (["lettuce", "onion"] as const).find((veg) => !hasFilling(world, veg) && stations(world, (s) => s.type === "tray" && vegIn(s.tray) === veg).length === 0);
 
       if (empty !== undefined) return `Keine ${empty === "lettuce" ? "Salat" : "Zwiebel"} mehr in den Wannen. Stell den Teller ab und schneide neue.`;
 

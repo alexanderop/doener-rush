@@ -3,7 +3,7 @@ import { newMind } from "../../features/bots/public.ts";
 import type { BotMind } from "../../features/bots/public.ts";
 import { newCook } from "../../features/cooks/public.ts";
 import type { Cook, Landing, Thrown } from "../../features/cooks/public.ts";
-import { OUT, START_PLATES, newSpit } from "../../features/kitchen/public.ts";
+import { NO_STOCK, OUT, START_PLATES, newSpit } from "../../features/kitchen/public.ts";
 import type { CrateGoods, Sauce, Station, Topping } from "../../features/kitchen/public.ts";
 import { PASS, RECIPES, combinePace, newOrders, paceFor } from "../../features/orders/public.ts";
 import type { OrdersState, Seating } from "../../features/orders/public.ts";
@@ -145,7 +145,7 @@ function stationFor(ch: string, x: number, y: number, table: number): Station | 
     case "P": return { ...at, type: "pass", item: null };
     case "A": return { ...at, type: "table", table, item: null };
     case "X": return { ...at, type: "bin", item: null };
-    case "t": return { ...at, type: "tray", item: null, veg: null, portions: 0 };
+    case "t": return { ...at, type: "tray", item: null, tray: NO_STOCK };
     case "D": return { ...at, type: "rack", item: null, plates: START_PLATES };
     case "U": return { ...at, type: "return", item: null, plates: 0 };
     case "N": return { ...at, type: "sink", item: null, dirty: 0, clean: 0, scrub: 0 };

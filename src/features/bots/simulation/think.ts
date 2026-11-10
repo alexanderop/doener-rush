@@ -1,18 +1,13 @@
 import type { Tile } from "../../../game/core/grid.ts";
 import { IDLE, facingTile } from "../../cooks/public.ts";
 import type { Cook, Intent } from "../../cooks/public.ts";
+import { DIRECT, giveWay, stepAround, stepAside } from "../machines/way.ts";
 import type { BotMind, Sight, Step } from "../model.ts";
 import { decide } from "./decide.ts";
 import { findPath, isNextTo } from "./path.ts";
 
 /** Ticks without getting closer before a bot routes around the other cooks. */
 const STUCK = 30;
-
-/** Ticks a bot keeps routing around other cooks once it got stuck. */
-const DETOUR = 90;
-
-/** Ticks a bot tries to reach the tile it steps aside to. */
-const ASIDE = 45;
 
 /** Tiles of straight path ahead from which a bot dashes. */
 const DASH_RUN = 4;
@@ -22,7 +17,7 @@ const ALIGNED = 0.05;
 
 /** A bot that has not decided anything yet. */
 export function newMind(): BotMind {
-  return { order: null, task: null, stepKey: "", best: Infinity, stuck: 0, detour: 0, aside: null, asideTicks: 0 };
+  return { order: null, task: null, stepKey: "", best: Infinity, stuck: 0, way: DIRECT };
 }
 
 /**
@@ -67,12 +62,11 @@ function act(sight: Sight, mind: BotMind, me: Cook, step: Step): Intent {
 
   const tile = { x: Math.floor(me.x), y: Math.floor(me.y) };
 
-  if (mind.aside !== null) {
-    const aside = mind.aside;
-    mind.asideTicks -= 1;
+  if (mind.way.state === "aside") {
+    const { to } = mind.way;
+    mind.way = stepAside(mind.way, Math.hypot(to.x + 0.5 - me.x, to.y + 0.5 - me.y) <= 0.15);
 
-    if (mind.asideTicks > 0 && Math.hypot(aside.x + 0.5 - me.x, aside.y + 0.5 - me.y) > 0.15) return walkToward(me, tile, [tile, aside]);
-    mind.aside = null;
+    if (mind.way.state === "aside") return walkToward(me, tile, [tile, to]);
   }
 
   if (isNextTo(tile, step.at)) {
@@ -96,9 +90,7 @@ function act(sight: Sight, mind: BotMind, me: Cook, step: Step): Intent {
     mind.best = left;
     mind.stuck = 0;
   } else if (++mind.stuck >= STUCK) {
-    mind.aside = sidestep(sight, me, tile, mind.detour > 0);
-    mind.asideTicks = ASIDE;
-    mind.detour = DETOUR;
+    mind.way = giveWay(sidestep(sight, me, tile, mind.way.state === "around"));
     mind.stuck = 0;
     mind.best = Infinity;
   }
@@ -137,8 +129,8 @@ function sidestep(sight: Sight, me: Cook, tile: Tile, detoured: boolean): Tile |
 function route(sight: Sight, mind: BotMind, me: Cook, tile: Tile, target: Tile): Tile[] | null {
   const goal = (x: number, y: number) => isNextTo({ x, y }, target);
 
-  if (mind.detour > 0) {
-    mind.detour -= 1;
+  if (mind.way.state === "around") {
+    mind.way = stepAround(mind.way);
 
     const taken = (x: number, y: number) =>
       sight.cooks.some((c) => c.id !== me.id && Math.floor(c.x) === x && Math.floor(c.y) === y);

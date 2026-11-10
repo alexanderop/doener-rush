@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { THROW_TICKS, facingTile } from "../../../features/cooks/public.ts";
 import type { Landing, Thrown } from "../../../features/cooks/public.ts";
 import type { Item, Station } from "../../../features/kitchen/public.ts";
-import { BELT_TICKS, BURNT, CHOPPED, CHOP_TICKS, DIRTY, HEAT, MIX_TICKS, RAW, SHAVE_TICKS, WASH_TICKS, cutTicks, dousing, isBurning, isChopped } from "../../../features/kitchen/public.ts";
+import { BELT_TICKS, BURNT, CHOPPED, CHOP_TICKS, DIRTY, HEAT, MIX_TICKS, RAW, SHAVE_TICKS, WASH_TICKS, cutTicks, dousing, isBurning, isChopped, portionsIn, vegIn } from "../../../features/kitchen/public.ts";
 import type { Seat } from "../../../features/orders/public.ts";
 import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
@@ -1215,7 +1215,7 @@ function syncStock(view: StationView, frame: Frame): void {
   const { station, centre } = view;
   let key = "";
 
-  if (station.type === "tray") key = `${station.veg}:${station.portions}`;
+  if (station.type === "tray") key = `${vegIn(station.tray)}:${portionsIn(station.tray)}`;
   else if (station.type === "rack" || station.type === "return") key = String(station.plates);
   else if (station.type === "sink") key = `${station.dirty}:${station.clean}`;
 
@@ -1224,9 +1224,10 @@ function syncStock(view: StationView, frame: Frame): void {
   view.stock.clear();
 
   if (station.type === "tray") {
-    view.stock.add(trayStock(station.veg, station.portions));
+    const veg = vegIn(station.tray);
+    view.stock.add(trayStock(veg, portionsIn(station.tray)));
     view.bubble.position.set(centre.x, TOP + 0.5, centre.z);
-    setBubble(view.bubble, station.veg === null ? null : { kind: "veg", veg: station.veg, cut: CHOPPED }, BUBBLE);
+    setBubble(view.bubble, veg === null ? null : { kind: "veg", veg, cut: CHOPPED }, BUBBLE);
   } else if (station.type === "rack" || station.type === "return") {
     const stack = plateStack(station.plates, station.type === "return");
     stack.position.y = TOP + 0.02;

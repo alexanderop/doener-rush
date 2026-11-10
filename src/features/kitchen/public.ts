@@ -3,7 +3,7 @@ export type { Family } from "./prototypes.ts";
 export type { Base, Bowl, CrateGoods, Dry, Filling, Item, Sauce, Station, Topping, Veg } from "./model.ts";
 
 export {
-  BELT_TICKS, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, DRY, FAMILY, HEAT, ICONS, LABEL, MIX_TICKS, SHAVE_TICKS, START_PLATES, TRAY_PORTIONS, WASH_TICKS,
+  BELT_TICKS, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, DRY, FAMILY, HEAT, ICONS, LABEL, MIX_TICKS, SHAVE_TICKS, START_PLATES, WASH_TICKS,
 } from "./prototypes.ts";
 
 export {
@@ -19,3 +19,5 @@ export { CHOPPED, WHOLE, cutTicks } from "./machines/cut.ts";
 export { DIRTY, EMPTY, foodOn } from "./machines/plate.ts";
 
 export { sideAt } from "./machines/side.ts";
+
+export { NO_STOCK, portionsIn, takesPortion, trayOf, vegIn } from "./machines/tray.ts";

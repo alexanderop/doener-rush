@@ -1,7 +1,7 @@
 import { seconds } from "../../../game/core/grid.ts";
 import type { Tile } from "../../../game/core/grid.ts";
 import type { Cook } from "../../cooks/public.ts";
-import { DRY, FAMILY, HEAT, TRAY_PORTIONS, accepts, foodOn, heatTicks, isBaked, isBurning, isBurntBase, isChopped } from "../../kitchen/public.ts";
+import { DRY, FAMILY, HEAT, accepts, foodOn, heatTicks, isBaked, isBurning, isBurntBase, isChopped, takesPortion, vegIn } from "../../kitchen/public.ts";
 import type { Filling, Item, Station, Veg } from "../../kitchen/public.ts";
 import { servedAt } from "../../orders/public.ts";
 import type { Order, Recipe } from "../../orders/public.ts";
@@ -125,7 +125,7 @@ function missing(doener: Doener, recipe: Recipe): Filling[] {
 
 /** A tray a döner can take a portion of `veg` from. */
 function hasVeg(s: Station, veg: Veg): boolean {
-  return s.type === "tray" && s.veg === veg && s.portions > 0;
+  return s.type === "tray" && vegIn(s.tray) === veg;
 }
 
 /** Every vegetable in `fillings` is in a tray now. */
@@ -360,13 +360,13 @@ const prep: Rule = (ctx) => {
 
 /** The tray a chopped vegetable goes in: one already holding it, or an empty one if none does. */
 function trayFor(ctx: Ctx, veg: Veg): Station | null {
-  const same = nearest(ctx, (s) => s.type === "tray" && s.veg === veg && s.portions < TRAY_PORTIONS);
+  const same = nearest(ctx, (s) => s.type === "tray" && s.tray.state === "stocked" && takesPortion(s.tray, veg));
 
   if (same !== null) return same;
 
-  if (ctx.sight.stations.some((s) => s.type === "tray" && s.veg === veg)) return null;
+  if (ctx.sight.stations.some((s) => s.type === "tray" && vegIn(s.tray) === veg)) return null;
 
-  return nearest(ctx, (s) => s.type === "tray" && s.veg === null);
+  return nearest(ctx, (s) => s.type === "tray" && s.tray.state === "empty");
 }
 
 /**
@@ -610,9 +610,9 @@ const washSoon: Rule = (ctx) => (rackPlates(ctx) < LOW_PLATES ? dishes(ctx) : nu
 /** Nothing urgent: top the trays up for the next customers. */
 const topUp: Rule = (ctx) => {
   const low = VEGS.filter((v) => {
-    const tray = ctx.sight.stations.find((s) => s.type === "tray" && s.veg === v);
+    const tray = ctx.sight.stations.find((s) => s.type === "tray" && vegIn(s.tray) === v);
 
-    return tray?.type !== "tray" || tray.portions < TRAY_PORTIONS;
+    return tray?.type !== "tray" || takesPortion(tray.tray, v);
   });
 
   return stock(ctx, low);

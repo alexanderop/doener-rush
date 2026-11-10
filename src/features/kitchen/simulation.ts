@@ -3,11 +3,12 @@ import { DIRTY, EMPTY, fill, foodOn, scrape } from "./machines/plate.ts";
 import { holdSideBelowBurnt, roast, scrapeIfBurnt, shaveOff, sideAt } from "./machines/side.ts";
 import { burn, ignite as igniteFire, isBurning, spray, spreadsNow } from "./machines/fire.ts";
 import { RAW, char, heatTicks, heatUp, holdBelowBurnt } from "./machines/toast.ts";
+import { stock, takePortion, takesPortion, vegIn } from "./machines/tray.ts";
 import type { Side } from "./machines/side.ts";
 import type { CrateGoods, Doener, Filling, Item, Spit, Station } from "./model.ts";
 import {
   BELT_TICKS, FAMILY, HEAT, MIX_TICKS, SHAVE_TICKS,
-  SPIT_IGNITE, SPIT_TURN, THROWABLE, TRAY_PORTIONS, WASH_TICKS, isBread, isDry, isFull,
+  SPIT_IGNITE, SPIT_TURN, THROWABLE, WASH_TICKS, isBread, isDry, isFull,
 } from "./prototypes.ts";
 
 /** A fresh spit, part-cooked all round so the first portion comes quickly. */
@@ -209,31 +210,21 @@ function bin(held: Item | null): Item | null {
 /** A prep tray: chopped vegetables go in one portion at a time, and come out into a döner. */
 function tray(station: Extract<Station, { type: "tray" }>, held: Item | null): Item | null {
   if (held?.kind === "veg" && isChopped(held)) {
-    if (station.portions >= TRAY_PORTIONS || (station.veg !== null && station.veg !== held.veg)) return held;
-    station.veg = held.veg;
-    station.portions += 1;
+    if (!takesPortion(station.tray, held.veg)) return held;
+    station.tray = stock(station.tray, held.veg);
 
     return null;
   }
 
-  if (station.veg === null || station.portions === 0) return held;
-  const portion: Item = { kind: "veg", veg: station.veg, cut: CHOPPED };
+  const veg = vegIn(station.tray);
 
-  if (held === null) {
-    takePortion(station);
+  if (veg === null) return held;
+  const portion: Item = { kind: "veg", veg, cut: CHOPPED };
 
-    return portion;
-  }
+  if (held !== null && !addTo(held, portion)) return held;
+  station.tray = takePortion(station.tray);
 
-  if (addTo(held, portion)) takePortion(station);
-
-  return held;
-}
-
-function takePortion(station: Extract<Station, { type: "tray" }>): void {
-  station.portions -= 1;
-
-  if (station.portions === 0) station.veg = null;
+  return held ?? portion;
 }
 
 function swapOrCombine(station: { item: Item | null }, held: Item | null): Item | null {

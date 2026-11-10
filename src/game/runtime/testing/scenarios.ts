@@ -1,5 +1,5 @@
 import type { Cook } from "../../../features/cooks/public.ts";
-import { CHOPPED, DIRTY, HEAT, MIX_TICKS, RAW, WHOLE, sideAt, toastAt } from "../../../features/kitchen/public.ts";
+import { CHOPPED, DIRTY, HEAT, MIX_TICKS, RAW, WHOLE, sideAt, toastAt, trayOf } from "../../../features/kitchen/public.ts";
 import { ROUND_TICKS, RECIPES, addOrder } from "../../../features/orders/public.ts";
 import type { Dir } from "../../core/grid.ts";
 import { seconds } from "../../core/grid.ts";
@@ -129,8 +129,7 @@ export const SCENARIOS = {
 
       for (const station of world.stations.values()) {
         if (station.type === "tray") {
-          station.veg = vegs[tray % 3] ?? "lettuce";
-          station.portions = 3 - (tray % 2);
+          station.tray = trayOf(vegs[tray % 3] ?? "lettuce", 3 - (tray % 2));
           tray += 1;
         }
 

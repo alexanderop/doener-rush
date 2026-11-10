@@ -4,6 +4,7 @@ import { CHOPPED, WHOLE } from "./machines/cut.ts";
 import { DIRTY, EMPTY } from "./machines/plate.ts";
 import { sideAt } from "./machines/side.ts";
 import { RAW, toastAt } from "./machines/toast.ts";
+import { NO_STOCK, trayOf } from "./machines/tray.ts";
 import type { Item, Station } from "./model.ts";
 import type { Filling } from "./model.ts";
 import { BELT_TICKS, BURNT, CHOP_TICKS, COOKED, DOUSE_TICKS, FIRE_SPREAD, HEAT, MIX_TICKS, SHAVE_TICKS, TRAY_PORTIONS, WASH_TICKS } from "./prototypes.ts";
@@ -55,9 +56,9 @@ describe("given an ingredient thrown at a station", () => {
   });
 
   it("refuses bread at a stocked tray and leaves the tray as it was", () => {
-    const tray: Station = { type: "tray", x: 0, y: 0, fire: OUT, item: null, veg: "onion", portions: 2 };
+    const tray: Station = { type: "tray", x: 0, y: 0, fire: OUT, item: null, tray: trayOf("onion", 2) };
     expect(land(tray, bread())).toBe(false);
-    expect(tray).toMatchObject({ veg: "onion", portions: 2 });
+    expect(tray.tray).toEqual(trayOf("onion", 2));
   });
 
   it("refuses everything while the station burns", () => {
@@ -135,7 +136,7 @@ describe("given a sauce bottle", () => {
 const plateOf = (food: Extract<Item, { kind: "base" }> | null = null): Item => ({ kind: "plate", plate: food === null ? EMPTY : { state: "full", food } });
 
 describe("given a prep tray", () => {
-  const tray = (): Extract<Station, { type: "tray" }> => ({ type: "tray", x: 0, y: 0, fire: OUT, item: null, veg: null, portions: 0 });
+  const tray = (): Extract<Station, { type: "tray" }> => ({ type: "tray", x: 0, y: 0, fire: OUT, item: null, tray: NO_STOCK });
 
   it("takes chopped portions of one vegetable, up to TRAY_PORTIONS", () => {
     const station = tray();
@@ -143,7 +144,7 @@ describe("given a prep tray", () => {
     for (let i = 0; i < TRAY_PORTIONS; i++) expect(interact(station, { kind: "veg", veg: "onion", cut: CHOPPED })).toBeNull();
     const extra: Item = { kind: "veg", veg: "onion", cut: CHOPPED };
     expect(interact(station, extra)).toBe(extra);
-    expect(station.portions).toBe(TRAY_PORTIONS);
+    expect(station.tray).toEqual(trayOf("onion", TRAY_PORTIONS));
   });
 
   it("refuses a raw vegetable and a different vegetable", () => {
@@ -151,7 +152,7 @@ describe("given a prep tray", () => {
     interact(station, { kind: "veg", veg: "onion", cut: CHOPPED });
     expect(interact(station, { kind: "veg", veg: "onion", cut: WHOLE })).not.toBeNull();
     expect(interact(station, { kind: "veg", veg: "tomato", cut: CHOPPED })).not.toBeNull();
-    expect(station.portions).toBe(1);
+    expect(station.tray).toEqual(trayOf("onion", 1));
   });
 
   it("puts one portion into the döner on a plate, and empties after the last", () => {
@@ -159,7 +160,7 @@ describe("given a prep tray", () => {
     interact(station, { kind: "veg", veg: "lettuce", cut: CHOPPED });
     const held = interact(station, plateOf(bread()));
     expect(held).toMatchObject({ kind: "plate", plate: { food: { fillings: ["lettuce"] } } });
-    expect(station).toMatchObject({ veg: null, portions: 0 });
+    expect(station.tray).toBe(NO_STOCK);
   });
 });
 

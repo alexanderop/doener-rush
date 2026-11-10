@@ -4,6 +4,7 @@ import type { Fire } from "./machines/fire.ts";
 import type { Plate } from "./machines/plate.ts";
 import type { Side } from "./machines/side.ts";
 import type { Toast } from "./machines/toast.ts";
+import type { Tray } from "./machines/tray.ts";
 
 /** Vegetables that come raw from a crate and must be chopped on a board. */
 export type Veg = "lettuce" | "tomato" | "onion";
@@ -75,7 +76,7 @@ export type Station = Burnable & (
   /** A table in the dining room that seats one guest; `table` is the number on it, counted in floor-plan order from 1. */
   | { readonly type: "table"; readonly table: number; item: null }
   | { readonly type: "bin"; item: null }
-  | { readonly type: "tray"; item: null; veg: Veg | null; portions: number }
+  | { readonly type: "tray"; item: null; tray: Tray }
   | { readonly type: "rack"; item: null; plates: number }
   | { readonly type: "return"; item: null; plates: number }
   | { readonly type: "sink"; item: null; dirty: number; clean: number; scrub: number }

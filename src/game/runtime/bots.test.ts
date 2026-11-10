@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seconds } from "../core/grid.ts";
-import { DOUSE_TICKS, HEAT, toastAt } from "../../features/kitchen/public.ts";
+import { DOUSE_TICKS, HEAT, toastAt, vegIn } from "../../features/kitchen/public.ts";
 import { RECIPES, ROUND_TICKS, addOrder } from "../../features/orders/public.ts";
 import type { Recipe } from "../../features/orders/public.ts";
 import { find, hold, press, walkTo, wait } from "./testing/drive.ts";
@@ -88,9 +88,9 @@ describe("given a bot alone in the shop", () => {
   it("stocks a tray with the vegetable a customer needs and none holds", () => {
     const world = onlyCustomers(SCENARIOS.shift.build(1, lineupOf(0, 1)), "classic");
     const trays = [...world.stations.values()].filter((s) => s.type === "tray");
-    expect(trays.some((t) => t.veg === "lettuce")).toBe(false);
+    expect(trays.some((t) => vegIn(t.tray) === "lettuce")).toBe(false);
     run(world, seconds(15));
-    expect(trays.some((t) => t.veg === "lettuce" && t.portions > 0)).toBe(true);
+    expect(trays.some((t) => vegIn(t.tray) === "lettuce")).toBe(true);
   });
 
   it("makes a Döner Pur from scratch and hands it over", () => {
