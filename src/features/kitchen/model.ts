@@ -54,10 +54,10 @@ export type Item =
 /** What a crate hands out. */
 export type CrateGoods = Veg | Bread | Dry;
 
-/** Where a station stands, and its fire. */
+/** Where a station stands, and its fire. Only a sliding counter ever moves. */
 interface Burnable {
-  readonly x: number;
-  readonly y: number;
+  x: number;
+  y: number;
   fire: Fire;
 }
 

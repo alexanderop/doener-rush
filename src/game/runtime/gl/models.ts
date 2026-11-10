@@ -16,9 +16,9 @@ export const TOP = 0.9;
 
 type Veg = "lettuce" | "tomato" | "onion";
 
-const CABINET = "#1f968d";
+const CABINET = "#aab2ba";
 
-/** The cabinet colour of each kind of station, so a cook finds heat, water and the pass by colour; the rest are teal. */
+/** The cabinet colour of each kind of station, so a cook finds heat, water and the pass by colour; the rest are steel. */
 const CABINETS: Partial<Record<Station["type"], string>> = {
   crate: "#5a9e3a", toaster: "#3d4554", spit: "#c9402e", sauce: "#e58a2a", pass: "#f0b02c", sink: "#3b82c6", rack: "#3b82c6", return: "#3b82c6", mixer: "#8a5cc0",
 };
@@ -756,6 +756,8 @@ function ember(y: number, z: number): THREE.Sprite {
 /** A contact grill: ridged plates, a hinged lid with a handle and a status lamp. */
 function grillModel(s: Station): THREE.Group {
   const g = counter(s, true);
+
+  if (s.y === 0) g.add(extractor());
   g.add(rbox(0.8, 0.12, 0.66, 0.03, mat("#33363b", "#000000", 0.5), TOP + 0.06));
   const plate = box(0.66, 0.02, 0.52, mat("#1c1d20", "#000000", 0.5), TOP + 0.13);
   g.add(plate);
@@ -948,6 +950,30 @@ function coneQuarter(side: number): THREE.BufferGeometry {
   });
 }
 
+const GLASS = new THREE.MeshStandardMaterial({ color: "#cfe8f2", transparent: true, opacity: 0.26, roughness: 0.05 });
+
+/** The extraction hood over a station against the back wall: a steel canopy with a red stripe, a back plate and a duct. */
+function extractor(): THREE.Group {
+  const g = new THREE.Group();
+  const plate = box(1, 1.3, 0.04, steel("#b9c0c7"), TOP + 1.4);
+  plate.position.z = -0.52;
+  g.add(plate);
+  const skirt = rbox(1, 0.14, 0.5, 0.03, steel("#c3c8ce"), TOP + 1.97);
+  skirt.position.z = -0.29;
+  g.add(skirt);
+  const stripe = box(1, 0.05, 0.02, mat("#c9342b"), TOP + 1.97);
+  stripe.position.z = -0.035;
+  g.add(stripe);
+  const crown = rbox(0.78, 0.16, 0.36, 0.03, steel("#aeb5bd"), TOP + 2.11);
+  crown.position.z = -0.33;
+  g.add(crown);
+  const duct = cyl(0.13, 0.13, 0.36, steel("#9aa1a8"), 12);
+  duct.position.set(0, TOP + 2.36, -0.34);
+  g.add(duct);
+
+  return g;
+}
+
 /** The spit: a tall heater with glowing burners, a drip tray and a bumpy layered cone of four sides. */
 function spitModel(s: Station): THREE.Group {
   const g = counter(s, true);
@@ -991,7 +1017,7 @@ function spitModel(s: Station): THREE.Group {
   for (let side = 0; side < 4; side++) {
     const part = solid(
       coneQuarter(side),
-      new THREE.MeshStandardMaterial({ color: meatColor(0.9), map: meat, roughness: 0.75, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: meatColor(0.9), map: meat, roughness: 0.5, flatShading: true }),
     );
 
     part.name = `side${side}`;
@@ -1004,7 +1030,17 @@ function spitModel(s: Station): THREE.Group {
   const cap = cyl(0.13, 0.17, 0.06, steel(), 12);
   cap.position.y = 0.65;
   cone.add(cap);
+  // the tomato every döner man spears on top
+  const tomato = ball(0.1, mat("#e23a2a", "#000000", 0.35), 12);
+  tomato.scale.y = 0.85;
+  tomato.position.y = 0.75;
+  cone.add(tomato);
+  const stalk = cyl(0.035, 0.05, 0.03, mat("#4f9a3a"), 6);
+  stalk.position.y = 0.84;
+  cone.add(stalk);
   g.add(cone);
+
+  if (s.y === 0) g.add(extractor());
   const heat = new THREE.PointLight("#ff8a3c", 2.2, 2.6, 1.6);
   heat.name = "heat";
   heat.position.set(0, TOP + 0.7, -0.05);
@@ -1082,13 +1118,29 @@ function binModel(): THREE.Group {
   return g;
 }
 
-/** A steel prep tray (bain-marie) set into the counter; the scene fills its `stock`. */
+/** A steel prep tray (bain-marie) set into the counter, behind a glass sneeze guard; the scene fills its `stock`. */
 function trayModel(s: Station): THREE.Group {
   const g = counter(s, true);
   const pan = rbox(0.78, 0.1, 0.62, 0.03, steel("#aeb5bd"), TOP + 0.02);
   g.add(pan);
   const well = rbox(0.7, 0.02, 0.54, 0.02, steel("#6f767e"), TOP + 0.075);
   g.add(well);
+
+  // the sneeze guard of a salad bar: a slanted pane on two posts under a steel shelf
+  for (const x of [-0.47, 0.47]) {
+    const post = box(0.03, 0.5, 0.03, steel("#9aa1a9"), TOP + 0.25);
+    post.position.set(x, TOP + 0.25, -0.45);
+    g.add(post);
+  }
+
+  const shelf = rbox(1, 0.03, 0.2, 0.01, steel("#c3c8ce"), TOP + 0.51);
+  shelf.position.z = -0.4;
+  g.add(shelf);
+  const pane = box(0.96, 0.4, 0.015, GLASS, 0);
+  pane.position.set(0, TOP + 0.34, -0.2);
+  pane.rotation.x = -0.75;
+  pane.castShadow = false;
+  g.add(pane);
 
   return g;
 }
@@ -1305,12 +1357,16 @@ function tableModel(s: Extract<Station, { type: "table" }>): THREE.Group {
 /** How far above the counter top an item sits, for stations with something under it. */
 const SLOT_LIFT = new Map<Station["type"], number>([["toaster", 0.15], ["board", 0.065], ["pass", 0.04], ["mixer", 0.06], ["belt", 0.04]]);
 
-/** The model of a station. Its `slot` child is where a held item sits. */
-export function stationModel(s: Station): THREE.Group {
+/** The model of a station. Its `slot` child is where a held item sits. A `rolling` counter is one that slides: steel top, yellow kick band. */
+export function stationModel(s: Station, rolling = false): THREE.Group {
   let g: THREE.Group;
 
   switch (s.type) {
-    case "counter": g = counter(s); break;
+    case "counter":
+      g = counter(s, rolling);
+
+      if (rolling) g.add(box(0.98, 0.1, 0.96, mat("#f2b420"), 0.13));
+      break;
     case "belt": g = beltModel(s); break;
     case "crate": g = crateModel(s, s.goods); break;
     case "board": g = boardModel(s); break;

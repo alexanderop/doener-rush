@@ -86,8 +86,44 @@ describe("given the Fließband", () => {
   });
 });
 
+describe("given the Schiebetheke", () => {
+  it("opens the top of the wall at home and the bottom once the counters slid", () => {
+    const world = newWorld(1, ROUND_TICKS, undefined, levelOf("schiebetheke"));
+    expect([isSolid(world, 7, 1), isSolid(world, 7, 7)]).toEqual([false, true]);
+    run(world, seconds(10));
+    expect([isSolid(world, 7, 1), isSolid(world, 7, 7)]).toEqual([true, false]);
+    run(world, seconds(10));
+    expect([isSolid(world, 7, 1), isSolid(world, 7, 7)]).toEqual([false, true]);
+  });
+
+  it("waits for a cook standing in the gap, then slides once they step out", () => {
+    const world = SCENARIOS.slide.build(1);
+    run(world, seconds(3));
+    expect(world.slides!.state).toEqual({ at: "home", left: 1 });
+    expect(isSolid(world, 7, 1)).toBe(false);
+
+    for (let i = 0; i < seconds(1) && world.slides!.state.at === "home"; i++) step(world, [RIGHT]);
+    expect(world.slides!.state.at).toBe("away");
+    expect(isSolid(world, 7, 1)).toBe(true);
+    expect(tilesUnder(world.cooks[0]!.x, world.cooks[0]!.y).every((t) => !isSolid(world, t.x, t.y))).toBe(true);
+  });
+
+  it("carries what stands on a counter along, and the counter keeps its place in the kitchen's books", () => {
+    const world = SCENARIOS.slide.build(1);
+    const counter = stationAt(world, 7, 2);
+    const doener = counter?.item;
+    world.cooks[0]!.x = 5.5;
+    run(world, seconds(1) + 1);
+    expect(stationAt(world, 7, 1)).toBe(counter);
+    expect(itemOn(world, 7, 1)).toBe(doener);
+    expect(counter).toMatchObject({ x: 7, y: 1 });
+    expect(stationAt(world, 7, 7)).toBeNull();
+    expect(world.stations.size).toBe(newWorld(1, ROUND_TICKS, undefined, levelOf("schiebetheke")).stations.size);
+  });
+});
+
 describe("given four bots in the moving kitchens", () => {
-  it.each(["hafen", "fliessband"] as const)("%s: no cook ever stands in water or a station", (id) => {
+  it.each(["hafen", "fliessband", "schiebetheke"] as const)("%s: no cook ever stands in water or a station", (id) => {
     const world = newWorld(3, ROUND_TICKS, lineupOf(0, 4), levelOf(id));
     const stuck: string[] = [];
 

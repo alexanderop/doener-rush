@@ -10,6 +10,7 @@ import { flock } from "./flock.ts";
 import { customerModel } from "./models.ts";
 import { ball, box, canvasTexture, cyl, geo, hash, mapped, mat, rbox, solid, steel } from "./parts.ts";
 import type { Backdrop } from "./scenery.ts";
+import { drinksFridge, ledgeClutter, menuBoards } from "./shopfront.ts";
 
 const WALL_H = 1.05;
 
@@ -250,7 +251,7 @@ function rimWall(world: World): THREE.Group {
   return g;
 }
 
-/** White subway tiles with a teal band: the kitchen side of the street wall. */
+/** White subway tiles with a red band: the kitchen side of the street wall. */
 function splashMap(): THREE.Texture {
   const t = canvasTexture("splash", 128, 128, (g) => {
     g.fillStyle = "#b9b2a6";
@@ -261,7 +262,7 @@ function splashMap(): THREE.Texture {
         const x = col * 64 + (row % 2) * 32;
         const band = row === 5;
         const v = Math.round(hash(row, col + 9) * 10);
-        g.fillStyle = band ? `rgb(${50 + v},${132 + v},${128 + v})` : `rgb(${240 - v},${236 - v},${226 - v})`;
+        g.fillStyle = band ? `rgb(${204 + v},${46 + v},${38 + v})` : `rgb(${240 - v},${236 - v},${226 - v})`;
         g.beginPath();
         g.roundRect(x + 1.5, row * 16 + 1.5, 61, 13, 3);
         g.fill();
@@ -305,7 +306,7 @@ function backWall(world: World): THREE.Group {
     const panel = solid(new THREE.BoxGeometry(w, SPLASH_H, 0.08), mapped("#ffffff", map, 0.35));
     panel.position.set(x0 + w / 2, SPLASH_H / 2, -0.04);
     g.add(panel);
-    const cap = box(w, 0.06, 0.14, mat("#2f7d7a"), SPLASH_H + 0.03);
+    const cap = box(w, 0.06, 0.14, mat("#c9342b"), SPLASH_H + 0.03);
     cap.position.set(x0 + w / 2, SPLASH_H + 0.03, -0.04);
     g.add(cap);
     // a shelf with jars, and a rail with ladles, on alternate stretches
@@ -640,6 +641,9 @@ export function shopShell(world: World): THREE.Group {
   g.add(floor);
   g.add(rimWall(world));
   g.add(backWall(world));
+  g.add(menuBoards(world, SPLASH_H));
+  g.add(ledgeClutter(world, WALL_H, -WALL_T / 2));
+  g.add(drinksFridge(w + WALL_T + 0.6, 1.4));
 
   // small striped canopies over the two windows; the pass stays open so the queue is in view
   for (const x of [w * 0.28, w * 0.52]) {

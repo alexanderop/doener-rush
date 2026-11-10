@@ -35,7 +35,7 @@ Each player picks a chef look on the home page with the arrows beside the pictur
 
 ## Levels and the save
 
-The home page picks one of nine kitchens. Each one opens once the kitchen before it has at least one star; the first is always open.
+The home page picks one of ten kitchens. Each one opens once the kitchen before it has at least one star; the first is always open.
 
 | # | Level | Id | What is new |
 | --- | --- | --- | --- |
@@ -48,21 +48,30 @@ The home page picks one of nine kitchens. Each one opens once the kitchen before
 | 7 | Fließband | `fliessband` | A thick wall splits kitchen and counter. One belt carries the döner to the front, one carries dirty plates back; the way around is long |
 | 8 | Hafenimbiss | `hafen` | A canal splits the kitchen. Two bridges stay up 12 s and sink for 7 s: throw bread and veg across the water |
 | 9 | Mit Bedienung | `bedienung` | No pass: guests sit at six numbered tables in a dining room behind a wall with one door. Carry each plate to its guest's table, or hand it through the wall |
+| 10 | Schiebetheke | `schiebetheke` | The counter wall in the middle slides up and down every 10 s: the way through is at the top, then at the bottom. What stands on it rides along |
 
-The levels are data in `src/game/runtime/levels.ts`: the floor plan (its legend is the comment on `Level`; the bakery adds `M` flour and `Y` butter crates, `Q` mixer, `E` oven, and the toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt; the moving kitchens add belts `>` `<` `^` `v`, water `~` and bridges `#`; the dining room adds tables `A`), the menu customers order from, and a pace on top of the crew's (customer gaps, patience, star scores). `levels.test.ts` proves every plan is playable (four start tiles, every station its menu needs, all reachable) and that two bots score in a full shift on each.
+The levels are data in `src/game/runtime/levels.ts`: the floor plan (its legend is the comment on `Level`; the bakery adds `M` flour and `Y` butter crates, `Q` mixer, `E` oven, and the toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt; the moving kitchens add belts `>` `<` `^` `v`, water `~`, bridges `#`, and sliding counters `%` with their gap `:`; the dining room adds tables `A`), the menu customers order from, and a pace on top of the crew's (customer gaps, patience, star scores). `levels.test.ts` proves every plan is playable (four start tiles, every station its menu needs, all reachable) and that two bots score in a full shift on each.
 
 In the URL: `/play?level=<id>`; without it a shift plays Der Imbiss, so old links keep working. `?scenario=` plays the kitchen the scenario names (Der Imbiss for most) and is never saved.
 
 The best score and stars per level live in `localStorage` under `doener-rush/progress/v1` (`src/game/persistence/progress.ts`, parsed with Effect Schema; a broken or blocked save is an empty one). The end card says "Neuer Rekord!" when a shift beats the best and offers "Nächstes Level". Every kitchen can be played from the start. Clear site data to reset the records.
 
+## The shop's look
+
+What makes the kitchen a döner shop is static dressing in `src/game/runtime/gl/shopfront.ts`, baked into the kitchen mesh: backlit menu tiles over the back wall (the level's own dishes with a price from their points, then Pommes, Ayran, Cola, Baklava; the columns nearest the pass first, none behind a spit or grill), napkins, chili, foil and a tip jar on the customers' ledge of the pass, and a drinks fridge outside the right wall. In `gl/models.ts` a prep tray stands behind a glass sneeze guard, a spit or grill against the back wall gets an extraction hood (`extractor`), plain cabinets are steel, and the cone carries a tomato and sizzles all shift.
+
 ## Kitchens that move
 
-Two things in a kitchen move on their own, both from the floor plan and both counted in ticks, so a seed replays the same shift.
+Three things in a kitchen move on their own, all from the floor plan and all counted in ticks, so a seed replays the same shift.
 
 - **Conveyor belts** (`>` `<` `^` `v`, running the way they point) are a `belt` station: put an item down and take it up like on a counter, or throw one onto it. Every `BELT_TICKS` (0.6 s, `kitchen/prototypes.ts`) each item moves one tile along onto the next belt tile if that one is free or frees up in the same move, so a full line moves as one. An item stops at the end of its belt. `moveBelts` in `kitchen/simulation.ts`.
 - **Bridges** (`#`) span the water (`~`). All bridges of a kitchen share one state machine in `runtime/bridge.ts` (`up`, `held`, `down`) on the level's `bridge` schedule (`{ up, down }` in ticks). Up, a bridge is floor; down, it is water. A bridge due to sink waits while any cook's footprint touches it. Two seconds before it moves it wobbles and blinks (`BRIDGE_WARNING`). `isSolid` in `runtime/world.ts` is the one answer to where a cook can stand; `blocksThrow` says where a throw stops, so a throw flies over water and is lost if it comes down there.
 
 Bots path over a bridge only while it is up and not about to sink (unless they already stand on it), never wait on one, and pick döner up from belts but never load them.
+
+- **Sliding counters** (`%`, in a straight run with `:` at one end) shift one tile along their track and back on the level's `slide` schedule (`{ home, away }` in ticks), and take what stands on them along. The track is one tile longer than the run, so one end is always open: home it is the `:` tile, away the tile at the other end. All runs of a kitchen share one state machine in `runtime/slide.ts`; `slideTo` in `runtime/world.ts` moves the stations and files them under their new tiles. Counters due to slide wait while a cook's footprint touches the gap they would close. Two seconds before they go they rattle and a sign flashes over the gap (`SLIDE_WARNING`).
+
+Bots treat a gap about to close like a bridge about to sink.
 
 ## Guests at tables
 

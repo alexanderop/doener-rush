@@ -371,6 +371,36 @@ const BACKINGS: Readonly<Record<LevelId, Backing>> = {
     beat: "k . h . s . h h k . h . s . h o",
     fill: "k . h . s . h h k . s . s s o s",
   },
+  // the sliding counters: a bass that swaps octaves every half bar like the wall swaps ends, stabs on the shove
+  schiebetheke: {
+    tone: { leadDuty: 0.25, arpDuty: 0.125, wave: WAVES.triangle, bassCutoff: 650, padCutoff: 1500 },
+    bass: {
+      E: "E2 - E2 . E2 - . . E3 - E3 . E3 - . .",
+      F: "F2 - F2 . F2 - . . F3 - F3 . F3 - . .",
+      Am: "A1 - A1 . A1 - . . A2 - A2 . A2 - . .",
+      Dm: "D2 - D2 . D2 - . . D3 - D3 . D3 - . .",
+    },
+    pad: {
+      E: "E3:47 - . . . . . . E3:47 - . . . . E3:47 .",
+      F: "F3:47 - . . . . . . F3:47 - . . . . F3:47 .",
+      Am: "A3:37 - . . . . . . A3:37 - . . . . A3:37 .",
+      Dm: "D3:37 - . . . . . . D3:37 - . . . . D3:37 .",
+    },
+    arp: {
+      E: "E4:47 . E4:47 . . . . . E5:47 . E5:47 . . . . .",
+      F: "F4:47 . F4:47 . . . . . F5:47 . F5:47 . . . . .",
+      Am: "A4:37 . A4:37 . . . . . A5:37 . A5:37 . . . . .",
+      Dm: "D4:37 . D4:37 . . . . . D5:37 . D5:37 . . . . .",
+    },
+    counter: {
+      E: ". . . . B3 - G#3 - . . . . B4 - G#4 -",
+      F: ". . . . C4 - A3 - . . . . C5 - A4 -",
+      Am: ". . . . E4 - C4 - . . . . E5 - C5 -",
+      Dm: ". . . . A3 - F3 - . . . . A4 - F4 -",
+    },
+    beat: "k . h . s . h . k k h . s . h o",
+    fill: "k . h . s . k . s . k . s s s s",
+  },
 };
 
 /** The leads, each with its theme: the takes are not versions of the main theme's melody. */

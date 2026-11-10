@@ -9,9 +9,10 @@ import type { Item, Station } from "../../features/kitchen/public.ts";
 import { TICK_RATE, seconds } from "../core/grid.ts";
 import { isClosing, stepBridge } from "./bridge.ts";
 import type { PlayerInput } from "./lineup.ts";
+import { isSliding, openGaps, stepSlide } from "./slide.ts";
 import { enforceRules } from "./rules.ts";
 import type { World } from "./world.ts";
-import { blocksThrow, isBridge, isSolid, stationAt } from "./world.ts";
+import { blocksThrow, isBridge, isSolid, slideTo, stationAt } from "./world.ts";
 import { stepTutorial, tutorialView } from "./tutorial/tutorial.ts";
 import type { TutorialView } from "./tutorial/tutorial.ts";
 
@@ -30,7 +31,7 @@ export function isOver(world: World): boolean {
  * Advances the world by one tick. `intents[b]` drives the cook binding `b` controls now; missing
  * intents idle. A swap press moves that control to the binding's next cook. Bots think for their cook from what they see at
  * that moment, so a bot sees the moves of the cooks before it.
- * The order is fixed (cooks by id, then thrown ingredients, bridges, belts, stations, orders), so a seed and the same
+ * The order is fixed (cooks by id, then thrown ingredients, bridges, sliding counters, belts, stations, orders), so a seed and the same
  * intents always give the same round.
  */
 export function step(world: World, intents: readonly PlayerInput[]): void {
@@ -72,6 +73,7 @@ export function step(world: World, intents: readonly PlayerInput[]): void {
 
   flyThrown(world);
   stepBridges(world);
+  stepSlides(world);
 
   if (beltsMove(world.tick)) moveBelts(world.stations.values(), (x, y) => stationAt(world, x, y));
 
@@ -114,6 +116,27 @@ function stepBridges(world: World): void {
 
 function isOnBridge(world: World, cook: Cook): boolean {
   return tilesUnder(cook.x, cook.y).some((t) => isBridge(world, t.x, t.y));
+}
+
+/** The sliding counters follow their schedule; a run due to slide waits while any cook's footprint touches the gap it would close. */
+function stepSlides(world: World): void {
+  const { slides } = world;
+
+  if (slides === null) return;
+  const next = stepSlide(slides.state, slides.schedule, world.cooks.some((cook) => isInGap(world, cook)));
+
+  if (next.at !== slides.state.at) slideTo(world, next.at);
+  slides.state = next;
+}
+
+/** True while a cook's footprint touches a tile the next slide closes. */
+function isInGap(world: World, cook: Cook): boolean {
+  return isGap(world, (x, y) => tilesUnder(cook.x, cook.y).some((t) => t.x === x && t.y === y));
+}
+
+/** True when `hit` holds on a tile the next slide closes. */
+function isGap(world: World, hit: (x: number, y: number) => boolean): boolean {
+  return world.slides !== null && openGaps(world.slides).some((gap) => hit(gap.x, gap.y));
 }
 
 /** The cook part of a player's input. */
@@ -176,10 +199,13 @@ function fightable(world: World, x: number, y: number): Station | null {
 /**
  * What a bot sees: the world read-only, plus every bot's claims so two never chase the same job. A bridge about to
  * sink counts as water to a bot not on one yet, so it never starts across; one already on it walks on, and the bridge waits.
+ * The gap beside sliding counters is the same: about to close, only a bot already in it walks on.
  */
 function sightOf(world: World, me: Cook): Sight {
   const bridges = world.bridges;
   const avoid = bridges !== null && isClosing(bridges.state) && !isOnBridge(world, me);
+  const closing = world.slides !== null && isSliding(world.slides.state) && !isInGap(world, me);
+  const gap = (x: number, y: number) => isGap(world, (gx, gy) => gx === x && gy === y);
 
   const claims = new Map<string, number>();
 
@@ -192,8 +218,8 @@ function sightOf(world: World, me: Cook): Sight {
   return {
     width: world.width,
     height: world.height,
-    solid: (x, y) => isSolid(world, x, y) || (avoid && isBridge(world, x, y)),
-    crossing: (x, y) => isBridge(world, x, y),
+    solid: (x, y) => isSolid(world, x, y) || (avoid && isBridge(world, x, y)) || (closing && gap(x, y)),
+    crossing: (x, y) => isBridge(world, x, y) || gap(x, y),
     stationAt: (x, y) => stationAt(world, x, y),
     stations: [...world.stations.values()],
     cooks: world.cooks,

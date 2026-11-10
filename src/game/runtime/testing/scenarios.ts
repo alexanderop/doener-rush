@@ -12,7 +12,7 @@ import { newWorld } from "../world.ts";
 
 /**
  * A named starting state for tests, e2e features and `?scenario=` in the browser. Only `shift` plays in the level it
- * is given; `backstube`, `belt`, `bridge`, `canal-throw` and `dining-room` set up their own kitchen, the others the original shop,
+ * is given; `backstube`, `belt`, `bridge`, `canal-throw`, `dining-room` and `slide` set up their own kitchen, the others the original shop,
  * whose tiles they name.
  */
 export interface Scenario {
@@ -261,6 +261,23 @@ export const SCENARIOS = {
       place(catcher, 10, 1, { dx: -1, dy: 0 });
 
       if (thrower !== undefined) thrower.held = { kind: "veg", veg: "lettuce", cut: WHOLE };
+
+      return world;
+    },
+  },
+  slide: {
+    description: "The Schiebetheke a second before its counters slide up: a finished döner stands on the top sliding counter, cook 1 stands in the gap they would close, cook 2 waits at the bottom where the wall opens next.",
+    build: (seed, lineup?) => {
+      const world = newWorld(seed, ROUND_TICKS, lineup, levelOf("schiebetheke"));
+      world.orders.untilNext = Number.MAX_SAFE_INTEGER;
+
+      if (world.slides !== null) world.slides.state = { at: "home", left: seconds(1) };
+      const top = world.stations.get(2 * world.width + 7);
+
+      if (top?.type === "counter") top.item = { kind: "base", base: "bread", toast: toastAt("bread", HEAT.bread.done), fillings: ["meat", "lettuce"] };
+      const [inGap, below] = world.cooks;
+      place(inGap, 7, 1, { dx: 1, dy: 0 });
+      place(below, 8, 7, { dx: -1, dy: 0 });
 
       return world;
     },

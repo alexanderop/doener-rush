@@ -15,10 +15,12 @@ import { tutorialTargets } from "../tutorial/tutorial.ts";
 import { isPaired } from "../lineup.ts";
 import { LOOKS } from "../looks.ts";
 import type { Look } from "../looks.ts";
-import { TICK_RATE } from "../../core/grid.ts";
+import { TICK_RATE, seconds } from "../../core/grid.ts";
+import { isSliding } from "../slide.ts";
 import type { World } from "../world.ts";
 import { isWater } from "../world.ts";
 import { createCanal } from "./canal.ts";
+import { createRails } from "./rails.ts";
 import { createFx } from "./fx.ts";
 import type { Fx } from "./fx.ts";
 import { GESTURES, IDLE_SECONDS, WIND_UP, easeOutCubic, handoffOf, restPose } from "./motion.ts";
@@ -58,6 +60,9 @@ const BUBBLE = 0.36;
 
 /** How close two cooks' centres come before they count as bumping; the walk keeps them PERSONAL_SPACE (0.7) apart. */
 const BUMP_DISTANCE = 0.76;
+
+/** Ticks a sliding counter takes to glide onto its new tile. */
+const SLIDE_GLIDE = seconds(0.45);
 
 /** Seconds the view holds still when a dish is served, so the moment lands. */
 const HIT_STOP = 0.04;
@@ -398,9 +403,11 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   scene.add(vignette());
 
   const stations: StationView[] = [];
+  /** Each sliding counter with the way its run goes from home to away. */
+  const slideDirs = new Map((world.slides?.runs ?? []).flatMap((run) => run.stations.map((station) => [station, run.dir] as const)));
 
   for (const station of world.stations.values()) {
-    const group = stationModel(station);
+    const group = stationModel(station, slideDirs.has(station));
     group.position.set(station.x + 0.5, 0, station.y + 0.5);
     const centre = new THREE.Vector3(station.x + 0.5, TOP, station.y + 0.5);
     const bar = progressBar();
@@ -412,7 +419,10 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     warning.position.set(centre.x + 0.42, TOP + (station.type === "spit" ? 1.55 : 0.75), centre.z);
     const danger = slabGlow("#ff2a1a", false);
     danger.position.set(centre.x, TOP - 0.06, centre.z);
-    still.add(group);
+
+    // a sliding counter moves, so it stays out of the baked kitchen
+    if (slideDirs.has(station)) scene.add(group);
+    else still.add(group);
     scene.add(bar.group, bubble, tick, warning, danger);
     stations.push({
       station, group, parts: partsOf(group), slot: named(group, "slot"), stock: named(group, "stock"), stockKey: "", bar, bubble, tick, warning, danger, centre,
@@ -424,6 +434,16 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
   const canal = createCanal(world);
 
   if (canal !== null) scene.add(canal.group);
+  const rails = createRails(world);
+
+  if (rails !== null) scene.add(rails.group);
+
+  const sliders = stations.flatMap((view) => {
+    const dir = slideDirs.get(view.station);
+
+    return dir === undefined ? [] : [{ view, dir }];
+  });
+
   const belts = stations.filter((v) => v.station.type === "belt");
   /** Which belt each item on a belt lay on last frame, to notice it moving on. */
   let onBelt = new Map<Item, StationView>();
@@ -473,7 +493,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
 
   const passes = stations.flatMap((v) => (v.station.type === "pass" ? [v] : []));
   const tables = new Map(stations.flatMap((v) => (v.station.type === "table" ? [[v.station.table, v] as const] : [])));
-  const stationAt = new Map(stations.map((v) => [v.station.y * world.width + v.station.x, v]));
+  const viewOf = new Map(stations.map((v) => [v.station, v]));
   const transits: Transit[] = [];
   const transitTo = new THREE.Vector3();
   const customers = new Map<number, CustomerView>();
@@ -842,6 +862,33 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     onBelt = seen;
   }
 
+  /**
+   * Sliding counters: the sim moves a run a whole tile at once, the view glides it there over SLIDE_GLIDE ticks with
+   * everything that hangs over it, and rattles it on the spot while it is about to go.
+   */
+  function syncSlides(w: World, t: number): void {
+    const slides = w.slides;
+
+    if (slides === null) return;
+    const sign = slides.state.at === "away" ? 1 : -1;
+    const left = slides.moved < 0 ? 0 : (1 - Math.min(1, (w.tick - slides.moved) / SLIDE_GLIDE)) ** 2;
+    const rattle = left === 0 && isSliding(slides.state) && !calm ? Math.sin(t * 46) * 0.014 : 0;
+
+    for (const { view, dir } of sliders) {
+      const { station, centre } = view;
+      const x = station.x + 0.5 + dir.dx * (rattle - sign * left);
+      const z = station.y + 0.5 + dir.dy * (rattle - sign * left);
+      view.group.position.set(x, 0, z);
+      centre.set(x, TOP, z);
+      view.bar.group.position.set(x, TOP + 0.12, z + 0.55);
+      view.tick.position.set(x, TOP + 0.75, z);
+      view.warning.position.set(x + 0.42, TOP + 0.75, z);
+      view.danger.position.set(x, TOP - 0.06, z);
+      view.bubble.position.x = x;
+      view.bubble.position.z = z;
+    }
+  }
+
   function syncEvents(w: World): void {
     for (const entry of w.orders.events) {
       if (seen.has(entry)) continue;
@@ -992,7 +1039,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     const station = w.stations.get(front.y * w.width + front.x);
 
     if (key !== view.key) {
-      const target = stationAt.get(front.y * w.width + front.x);
+      const target = station === undefined ? undefined : viewOf.get(station);
 
       const move = handoffOf({
         heldBefore: view.key !== "",
@@ -1164,6 +1211,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     // cooks first: a hand-off they start hides the station's new item before it is drawn
     for (let i = 0; i < w.cooks.length; i++) syncCook(w, i, dt, t);
     syncBelts(w);
+    syncSlides(w, t);
 
     for (const view of stations) {
       syncStation(view, {
@@ -1177,6 +1225,7 @@ export function createShopView(canvas: HTMLCanvasElement, world: World, looks: r
     syncArrows(w, t);
     syncCustomers(w, dt, t);
     canal?.sync(w, t, fx);
+    rails?.sync(w, t);
     outside.animate(t);
     syncFireLight(t);
     shakeCamera(t, dt);
@@ -1477,6 +1526,11 @@ function workSpit(view: StationView, frame: Frame): boolean {
   // a finished portion: the shave counter falls back after being nearly full
   if (spit.shave === 0 && view.shave >= SHAVE_TICKS - 3) view.tickAge = 0;
   view.shave = spit.shave;
+
+  // the cone sizzles all shift: steam off the top, now and then a drop of fat into the tray
+  if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) fx.emit("steam", spot.set(centre.x + Math.sin(t * 5) * 0.2, TOP + 1.35, centre.z + 0.1), 1);
+
+  if (Math.floor(t * 1.2) !== Math.floor((t - dt) * 1.2)) fx.emit("drip", spot.set(centre.x + Math.sin(t * 11) * 0.25, TOP + 0.3, centre.z + 0.25), 1);
 
   if (frame.worked) {
     const n = every(view, 18, dt);

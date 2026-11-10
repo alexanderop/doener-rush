@@ -10,6 +10,8 @@ import type { OrdersState, Seating } from "../../features/orders/public.ts";
 import { isUp, newBridge } from "./bridge.ts";
 import type { Bridges } from "./bridge.ts";
 import { DEFAULT_LEVEL } from "./levels.ts";
+import { newSlide } from "./slide.ts";
+import type { SlideRun, Slides } from "./slide.ts";
 import type { Level } from "./levels.ts";
 import { TWO_PLAYERS, crewOf } from "./lineup.ts";
 import type { Driver, Lineup } from "./lineup.ts";
@@ -39,6 +41,8 @@ export interface World {
   readonly water: ReadonlySet<number>;
   /** The bridges (`#`) over the water and where they are in their schedule; null in a kitchen without. */
   readonly bridges: Bridges | null;
+  /** The sliding counters (`%`) and where they are in their schedule; null in a kitchen without. */
+  readonly slides: Slides | null;
   readonly cooks: Cook[];
   /** Ingredients in the air, oldest throw first. */
   readonly thrown: Thrown[];
@@ -97,6 +101,11 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
   if (bridgeTiles.size > 0 && level.bridge === undefined) throw new Error(`${level.id} has bridges but no bridge schedule.`);
   const bridges = level.bridge === undefined ? null : { tiles: bridgeTiles, schedule: level.bridge, state: newBridge(level.bridge) };
 
+  const runs = slideRuns(plan, stations, width);
+
+  if (runs.length > 0 && level.slide === undefined) throw new Error(`${level.id} has sliding counters but no slide schedule.`);
+  const slides = level.slide === undefined ? null : { runs, schedule: level.slide, state: newSlide(level.slide), moved: -1 };
+
   const cooks = lineup.drivers.map((_, i) => {
     const start = starts[i];
 
@@ -116,9 +125,58 @@ export function newWorld(seed: number, endTick: number, lineup: Lineup = TWO_PLA
   const pace = combinePace(paceFor(crewOf(lineup)), level.pace);
 
   return {
-    seed, tick: 0, rng: seed, width, height, stations, water, bridges, cooks, thrown: [], landings: [], drivers: lineup.drivers, control, parked: new Set(), bots,
+    seed, tick: 0, rng: seed, width, height, stations, water, bridges, slides, cooks, thrown: [], landings: [], drivers: lineup.drivers, control, parked: new Set(), bots,
     orders: newOrders(pace, RECIPES.filter((r) => level.menu.includes(r.id)), seating), platesDue: [], endTick, rules: NORMAL_RULES, tutorial: null,
   };
+}
+
+const AROUND: readonly Dir[] = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
+
+/** The runs of sliding counters in a plan: each `:` with the straight line of `%` that ends beside it. */
+function slideRuns(plan: readonly string[], stations: ReadonlyMap<number, Station>, width: number): SlideRun[] {
+  const runs: SlideRun[] = [];
+  plan.forEach((row, y) => {
+    [...row].forEach((ch, x) => {
+      if (ch !== ":") return;
+      const sides = AROUND.filter((d) => plan[y - d.dy]?.[x - d.dx] === "%");
+      const dir = sides[0];
+
+      if (dir === undefined || sides.length !== 1) throw new Error(`The slide gap at ${x},${y} needs sliding counters on exactly one side.`);
+      const run: Station[] = [];
+
+      for (let k = 1; plan[y - k * dir.dy]?.[x - k * dir.dx] === "%"; k++) {
+        const station = stations.get((y - k * dir.dy) * width + x - k * dir.dx);
+
+        if (station !== undefined) run.push(station);
+      }
+
+      runs.push({ stations: run, dir, gaps: { home: { x, y }, away: { x: x - run.length * dir.dx, y: y - run.length * dir.dy } } });
+    });
+  });
+  const sliding = plan.join("").split("%").length - 1;
+
+  if (runs.reduce((n, run) => n + run.stations.length, 0) !== sliding) throw new Error("Every sliding counter belongs to one straight run that ends at a gap.");
+
+  return runs;
+}
+
+/** Slides every run one tile toward `to` and files its counters under their new tiles. */
+export function slideTo(world: World, to: "home" | "away"): void {
+  const { slides } = world;
+
+  if (slides === null) return;
+  const sign = to === "away" ? 1 : -1;
+  const moving = slides.runs.flatMap((run) => run.stations.map((station) => ({ station, dir: run.dir })));
+
+  for (const { station } of moving) world.stations.delete(station.y * world.width + station.x);
+
+  for (const { station, dir } of moving) {
+    station.x += sign * dir.dx;
+    station.y += sign * dir.dy;
+    world.stations.set(station.y * world.width + station.x, station);
+  }
+
+  slides.moved = world.tick;
 }
 
 /** The station a plan character stands for; `table` is the number the next table gets. */
@@ -135,7 +193,7 @@ function stationFor(ch: string, x: number, y: number, table: number): Station | 
   if (sauce !== undefined) return { ...at, type: "sauce", sauce, item: null };
 
   switch (ch) {
-    case "=": return { ...at, type: "counter", item: null };
+    case "=": case "%": return { ...at, type: "counter", item: null };
     case "F": return { ...at, type: "counter", item: { kind: "extinguisher" } };
     case "K": return { ...at, type: "board", item: null };
     case "R": return { ...at, type: "toaster", look: "grill", item: null };

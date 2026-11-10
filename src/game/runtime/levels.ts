@@ -2,9 +2,10 @@ import { NORMAL_PACE } from "../../features/orders/public.ts";
 import type { Pace, RecipeId } from "../../features/orders/public.ts";
 import { seconds } from "../core/grid.ts";
 import type { BridgeSchedule } from "./bridge.ts";
+import type { SlideSchedule } from "./slide.ts";
 
 /** The kitchens of the campaign, in the order they unlock. */
-export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "grosskueche" | "backstube" | "fliessband" | "hafen" | "bedienung";
+export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "grosskueche" | "backstube" | "fliessband" | "hafen" | "bedienung" | "schiebetheke";
 
 /**
  * One kitchen of the campaign: its floor plan, what customers may order there, and how busy it is on top of the
@@ -17,7 +18,8 @@ export type LevelId = "erster-tag" | "imbiss" | "durchreiche" | "schlauch" | "gr
  * `N` sink · `F` counter with the fire extinguisher · `1`–`4` where the cooks start (floor) ·
  * bakery: crates `M` flour, `Y` butter · `Q` mixer · `E` oven · toppings `z` cinnamon sugar, `m` poppy, `l` lye and salt ·
  * conveyor belts `>` `<` `^` `v`, running the way they point · `~` water · `#` a bridge over the water, up and down by `bridge` ·
- * `A` a table in the dining room, numbered in reading order. A kitchen with tables seats its guests there and has no pass.
+ * `A` a table in the dining room, numbered in reading order. A kitchen with tables seats its guests there and has no pass. ·
+ * `%` a counter that slides, in a straight run with `:` at one end: the floor tile the run slides onto and back off by `slide`.
  */
 export interface Level {
   readonly id: LevelId;
@@ -29,6 +31,8 @@ export interface Level {
   readonly pace: Pace;
   /** How long the `#` bridges stay up and down; only a kitchen with bridges has one. */
   readonly bridge?: BridgeSchedule;
+  /** How long the `%` counters rest at home and away; only a kitchen with sliding counters has one. */
+  readonly slide?: SlideSchedule;
 }
 
 /** Every level, easiest first. Level n + 1 unlocks once level n has a star. */
@@ -190,6 +194,25 @@ export const LEVELS: readonly Level[] = [
     ],
     menu: ["classic", "durum", "veggie", "pur"],
     pace: { arrival: 1, patience: 1.15, stars: 0.95 },
+  },
+  {
+    id: "schiebetheke",
+    name: "Schiebetheke",
+    note: "Die Theke in der Mitte rutscht hin und her: mal ist oben offen, mal unten. Was drauf steht, fährt mit.",
+    plan: [
+      "==S=RBW====PP==",
+      "K.....1:2.....U",
+      "K......%......g",
+      "L..tt..%......h",
+      "T..t...%......s",
+      "O......%......F",
+      "X..3...%...4..X",
+      "=......%......=",
+      "=========D==N==",
+    ],
+    menu: ["classic", "durum", "veggie", "pur"],
+    pace: { arrival: 1.1, patience: 1.15, stars: 0.85 },
+    slide: { home: seconds(10), away: seconds(10) },
   },
 ];
 
