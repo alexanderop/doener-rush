@@ -9,6 +9,8 @@ import { checkout, gitCommit } from './scripts/lib/checkout.ts'
 const here = checkout()
 
 const config = defineConfig({
+  // GitHub Pages serves the game from /doener-rush/; the router basepath follows this
+  base: process.env.BASE_PATH ?? '/',
   resolve: { tsconfigPaths: true },
   // one port per checkout; fail loudly instead of drifting to another port a tool won't find
   server: { port: here.port, strictPort: true },

@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { Option } from "effect";
 import { snapshotAtom } from "#/game/runtime/atoms.ts";
+import { appHref } from "#/shared/href.ts";
 import { Button } from "#/shared/ui/button.tsx";
 
 /** Text with keys marked as `{E}`, with each key drawn as a keycap. */
@@ -46,7 +47,7 @@ export function TutorialPanel({ onAgain }: { readonly onAgain: () => void }) {
           )}
           {view.finished && (
             <div className="pointer-events-auto flex gap-2 pt-1">
-              <Button asChild><a href="/play?humans=1&bots=1">Erste Schicht starten</a></Button>
+              <Button asChild><a href={appHref("/play?humans=1&bots=1")}>Erste Schicht starten</a></Button>
               <Button variant="secondary" onClick={onAgain}>Nochmal</Button>
             </div>
           )}

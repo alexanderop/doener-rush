@@ -9,6 +9,7 @@ import { DEFAULT_PICKS, LOOKS } from "#/game/runtime/looks.ts";
 import type { LookId, Picks } from "#/game/runtime/looks.ts";
 import { NORMAL_RULES } from "#/game/runtime/rules.ts";
 import type { Rules } from "#/game/runtime/rules.ts";
+import { appHref } from "#/shared/href.ts";
 import { LevelSelect } from "./LevelSelect.tsx";
 import { LookPicker } from "./LookPicker.tsx";
 import { RulesPanel, rulesQuery } from "./RulesPanel.tsx";
@@ -115,7 +116,7 @@ export function HomePage() {
   const players = pair ? 2 : humans;
 
   const chosen = LEVELS.find((l) => l.id === level);
-  const href = `/play?level=${level}&humans=${humans}&bots=${bots}${pair ? "&swap=1" : ""}&look1=${picks[0]}${humans === 2 ? `&look2=${picks[1]}` : ""}${rulesQuery(rules)}`;
+  const href = appHref(`/play?level=${level}&humans=${humans}&bots=${bots}${pair ? "&swap=1" : ""}&look1=${picks[0]}${humans === 2 ? `&look2=${picks[1]}` : ""}${rulesQuery(rules)}`);
 
   return (
     <main className="shop-wall min-h-screen">
@@ -139,7 +140,7 @@ export function HomePage() {
               Schicht starten
               <span aria-hidden className="grid size-9 place-items-center rounded-xl bg-black/15 transition group-hover:translate-x-0.5">→</span>
             </a>
-            <a href="/tutorial" className="inline-flex h-14 items-center rounded-2xl px-5 font-semibold ring-1 ring-white/15 transition hover:bg-white/5 hover:ring-white/30">Tutorial</a>
+            <a href={appHref("/tutorial")} className="inline-flex h-14 items-center rounded-2xl px-5 font-semibold ring-1 ring-white/15 transition hover:bg-white/5 hover:ring-white/30">Tutorial</a>
           </div>
           <p className="rise mt-3 text-sm text-muted-foreground" style={{ animationDelay: "200ms" }}>
             {chosen === undefined ? "" : `${chosen.name} · ${rules.minutes} Min. · `}Neu hier? Das Tutorial zeigt dir die ganze Küche.
