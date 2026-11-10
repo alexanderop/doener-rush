@@ -22,6 +22,8 @@ export default defineConfig({
     baseURL: baseUrl,
     trace: "on-first-retry",
     viewport: { width: 1280, height: 720 },
+    // a test run never plays the game's music and sounds out loud
+    launchOptions: { args: ["--mute-audio"] },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 720 } } }],
   // `__game` only exists in a dev build
